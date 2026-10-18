@@ -5382,8 +5382,8 @@ npm run build
 - V1-po-expected: The statement screen carries data-screen=statement and holds
   no data-box, no data-action and no control named Send or Receive. Its period
   line reads 'You and Abbaas - 14 Sep - 14 Oct 2026 - in USD'. The three
-  data-statement-total rows carry data-cents 455635, 1100000 and 644365 with the
-  texts $4,556.35, $11,000.00 and $6,443.65. The sent panel carries
+  data-statement-total rows carry data-cents 459635, 1100000 and 640365 with the
+  texts $4,596.35, $11,000.00 and $6,403.65. The sent panel carries
   data-statement-list=sent, its data-statement-head=sent reads No., Date, Paid
   to and USD, and it holds exactly five data-statement-row elements whose
   data-no values read 1, 2, 3, 4 and 5 in document order, oldest first, with the
@@ -5391,8 +5391,8 @@ npm run build
   17,000 @ 20' on the 20 Sep row, 'MVR 10,000 @ 15.4' on the 29 Sep row,
   'Transfer' on the 14 Sep row and 'Cheque' on the 14 Oct row, no
   data-statement-sub at all on the 3 Oct row, and USD cells with no currency
-  sign. Its data-statement-foot=sent carries data-count 5 and data-cents 455635
-  and reads 'Total sent - 5 entries' with $4,556.35. After the rows area is
+  sign. Its data-statement-foot=sent carries data-count 5 and data-cents 459635
+  and reads 'Total sent - 5 entries' with $4,596.35. After the rows area is
   scrolled to its end the heading, the card, the column header and the footer
   keep their boxes within a pixel, document.documentElement.scrollTop is 0 and
   its scrollHeight is at most its clientHeight plus one. Account B's Statement
@@ -5405,7 +5405,10 @@ npm run build
   insertion, breaks the data-no sequence against the spec's own order. Wording
   the rate with the padded formatter makes the sub-line read '@ 20.00'.
   Computing a row's USD figure from the rufiyaa amount and the rate instead of
-  the stored usd_cents moves the 29 Sep figure off 64935 cents. Printing a
+  the stored usd_cents is caught by the generated ledgers, whose stored dollars
+  are drawn independently of their rufiyaa amount and rate; the two seeded MVR
+  rows cannot catch it, because 1,000,000 laari at 15.4000 and 1,700,000 laari
+  at 20.0000 convert to exactly the 64935 and 85000 cents they store. Printing a
   currency sign in the USD column, or signing the Balance row, fails the cell
   texts. Inventing a method word for the two rows stored without one makes them
   read Cash, Cheque or Transfer. Letting the page scroll instead of the rows
@@ -5464,7 +5467,9 @@ npm run build
 - V1-gen: Ledgers of 0 to 12 entries from a fixed seed, mixing both kinds, USD
   and MVR, a stored method or none, one date, many dates and dates in two years,
   amounts of 1 to 5,000,000 minor units and rates of 0.0001 to 9999.9999 with at
-  most four decimals.
+  most four decimals. Each row's stored usd_cents is drawn independently of its
+  amount_minor and its rate, so a figure computed from the rufiyaa amount and
+  the rate can never agree with the stored dollars by accident.
 - V1-gen-seed: The seed is a constant of the spec, printed on failure; a failing
   ledger is re-run with one entry removed at a time and the smallest
   still-failing ledger is reported.

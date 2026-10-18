@@ -488,7 +488,7 @@ const scrollRowsToTheEnd = (page: Page): Promise<number> =>
 
 // ===== The scenarios =====
 
-test('the bottom bar offers Entries and Statement, and the Entries tab still shows the owner his ledger', async ({
+test("the bottom bar offers Entries and Statement, and the Entries tab still shows the owner's ledger", async ({
   page,
 }) => {
   // Given the owner has a month of sends and repayments in his ledger
@@ -873,7 +873,7 @@ test('a long ledger still scrolls only its rows, and its footer still counts eve
   ).toEqual([String(LONG_LEDGER_ROWS), true])
 })
 
-test('the owner comes back from the statement to the same place in his entries', async ({ page }) => {
+test('the owner comes back from the statement to the same place in the entries', async ({ page }) => {
   // Given the owner has scrolled a long list of entries on Home
   let entryReads = 0
   await page.route(ENTRIES_ENDPOINT, async (route) => {
