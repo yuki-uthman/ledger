@@ -26,11 +26,48 @@ const admin = (stack: Stack): SupabaseClient =>
     auth: { persistSession: false, autoRefreshToken: false },
   })
 
+/** How long an account creation waits for the sign-in service, and how often it asks. */
+const AUTH_READY_TIMEOUT_MS = 60_000
+const AUTH_READY_POLL_MS = 250
+
+/**
+ * Waits until the sign-in service answers, because a database reset is followed
+ * immediately by the first account creation and the service is not always back by
+ * then: without this wait the creation fails with a bare 'fetch failed' and a healthy
+ * oracle is read as a broken one. The wait is bounded and says what ran out.
+ */
+export const waitForAuthService = async (
+  stack: Stack,
+  timeoutMs: number = AUTH_READY_TIMEOUT_MS,
+): Promise<void> => {
+  const health = new URL('/auth/v1/health', stack.apiUrl).toString()
+  const deadline = Date.now() + timeoutMs
+  let lastReason = 'it was never asked'
+  for (;;) {
+    try {
+      const response = await fetch(health)
+      if (response.ok) return
+      lastReason = `it answered ${response.status}`
+    } catch (cause) {
+      lastReason = cause instanceof Error ? cause.message : String(cause)
+    }
+    if (Date.now() >= deadline) {
+      throw new Error(
+        `The sign-in service at ${health} did not answer within ${timeoutMs} ms: ${lastReason}. ` +
+          'No account can be created until it does, so this is the stack coming up, not the app. ' +
+          'Check that the local stack is running and that the database reset has finished.',
+      )
+    }
+    await new Promise((resolve) => setTimeout(resolve, AUTH_READY_POLL_MS))
+  }
+}
+
 /** Creates an account whose email is already confirmed, so sign-in needs no mail. */
 export const createAccount = async (
   stack: Stack,
   credentials: { readonly email: string; readonly password: string },
 ): Promise<Account> => {
+  await waitForAuthService(stack)
   const { data, error } = await admin(stack).auth.admin.createUser({
     email: credentials.email,
     password: credentials.password,
@@ -116,6 +153,12 @@ export type EntrySeed = {
   /** UTC instant, so the oracle and the database agree on which row is newer. */
   readonly savedAt: string
   readonly personName?: string
+  /**
+   * How the money changed hands, as the column stores it. Left out means null:
+   * an entry seeded without a method says nothing in its place, which is what a
+   * row stored before the method was ever asked for holds.
+   */
+  readonly method?: 'cash' | 'cheque' | 'transfer' | null
 }
 
 /**
@@ -157,6 +200,7 @@ export const seedHistory = async (
       saved_at: entry.savedAt,
       person_id: entry.personName ? idOf(entry.personName) : null,
       person_name: entry.personName ?? null,
+      method: entry.method ?? null,
     })),
   )
   if (entriesError) {
@@ -181,6 +225,118 @@ export const readEntries = async (
     throw new Error(`Could not read entries: ${error?.message ?? 'no rows returned'}`)
   }
   return data as readonly StoredEntry[]
+}
+
+/**
+ * A stored row as the statement oracles judge it: every column the Statement's own
+ * order, numbering, figures and sub-lines are decided from, including the id and the
+ * saved_at the order falls back to and the method the sub-line names.
+ */
+export type StoredLedgerRow = {
+  readonly id: string
+  readonly kind: 'send' | 'receive'
+  readonly currency: 'USD' | 'MVR'
+  readonly amount_minor: number
+  readonly rate: string | null
+  readonly usd_cents: number
+  readonly entry_date: string
+  readonly saved_at: string
+  readonly method: string | null
+  readonly person_name: string | null
+}
+
+/**
+ * Reads the account's stored rows back outside the browser, by id and in no meaningful
+ * order, so an oracle that judges the Statement's order must put them in order itself
+ * rather than borrow one from the database.
+ */
+export const readStoredLedger = async (
+  stack: Stack,
+  account: Account,
+): Promise<readonly StoredLedgerRow[]> => {
+  const { data, error } = await admin(stack)
+    .from('entries')
+    .select('id, kind, currency, amount_minor, rate, usd_cents, entry_date, saved_at, method, person_name')
+    .eq('user_id', account.userId)
+    .order('id', { ascending: true })
+  if (error || !data) {
+    throw new Error(`Could not read the stored ledger: ${error?.message ?? 'no rows returned'}`)
+  }
+  return data.map((row) => ({
+    ...(row as unknown as StoredLedgerRow),
+    amount_minor: Number((row as { amount_minor: number | string }).amount_minor),
+    usd_cents: Number((row as { usd_cents: number | string }).usd_cents),
+  }))
+}
+
+/**
+ * Puts exactly these entries in the account's ledger, clearing whatever it held, for
+ * the oracles that read one generated ledger after another through the same account
+ * and the same already-seeded people.
+ */
+export const replaceEntries = async (
+  stack: Stack,
+  account: Account,
+  entries: readonly EntrySeed[],
+  people: ReadonlyMap<string, string> = new Map(),
+): Promise<void> => {
+  const client = admin(stack)
+  const { error: clearError } = await client.from('entries').delete().eq('user_id', account.userId)
+  if (clearError) {
+    throw new Error(`Could not clear the ledger: ${clearError.message}`)
+  }
+  if (entries.length === 0) return
+
+  const { error } = await client.from('entries').insert(
+    entries.map((entry) => ({
+      user_id: account.userId,
+      kind: entry.kind,
+      currency: entry.currency,
+      amount_minor: entry.amountMinor,
+      rate: entry.rate,
+      usd_cents: entry.usdCents,
+      entry_date: entry.entryDate,
+      saved_at: entry.savedAt,
+      person_id: entry.personName ? (people.get(entry.personName) ?? null) : null,
+      person_name: entry.personName ?? null,
+      method: entry.method ?? null,
+    })),
+  )
+  if (error) {
+    throw new Error(`Could not store the ledger: ${error.message}`)
+  }
+}
+
+/** The named people of an account, by name, so entries can point at them again. */
+export const seedPeopleByName = async (
+  stack: Stack,
+  account: Account,
+  names: readonly string[],
+): Promise<ReadonlyMap<string, string>> => {
+  const { data, error } = await admin(stack)
+    .from('people')
+    .insert(names.map((name) => ({ user_id: account.userId, name })))
+    .select('id, name')
+  if (error || !data || data.length !== names.length) {
+    throw new Error(`Could not seed people: ${error?.message ?? 'unexpected row count'}`)
+  }
+  return new Map(data.map((person) => [person.name as string, person.id as string]))
+}
+
+/**
+ * Offers one row to the stored ledger and answers with how it was received: null when
+ * it was kept, or the store's own refusal. It is how an oracle reads what the ledger
+ * will not hold at all, which no screen can show.
+ */
+export const offerStoredRow = async (
+  stack: Stack,
+  account: Account,
+  row: Readonly<Record<string, unknown>>,
+): Promise<string | null> => {
+  const { error } = await admin(stack)
+    .from('entries')
+    .insert({ user_id: account.userId, ...row })
+  return error ? error.message : null
 }
 
 /** Reads the account's people back outside the browser, so a new person is provably stored. */

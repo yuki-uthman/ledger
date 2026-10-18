@@ -120,8 +120,22 @@ test('an empty ledger shows both boxes empty, All square, the hint and the two b
 
   expect(sendCentre.x).toBeLessThan(VIEWPORT.width / 2)
   expect(receiveCentre.x).toBeGreaterThan(VIEWPORT.width / 2)
+
+  // The band is measured against the foot of Home's OWN pane, not the foot of the
+  // phone: the bottom buttons keep their place inside that pane, which now ends above
+  // the bottom bar. The observation is unchanged - each button is near the foot of the
+  // area it lives in, on its own half - and only the edge it is measured from moved.
+  const pane = page.locator('[data-pane="entries"]')
+  await expect(
+    pane,
+    'WHAT: Home has no pane of its own to be measured in. WHY: the buttons are near the foot of the area Home occupies, which is no longer the whole phone. HOW: give Home its own pane.',
+  ).toHaveCount(1)
+  const paneRect = await pane.boundingBox()
+  if (!paneRect) throw new Error('Home\'s pane has no layout box')
+  const paneFoot = paneRect.y + paneRect.height
+
   for (const centre of [sendCentre, receiveCentre]) {
-    expect(centre.y).toBeGreaterThan(VIEWPORT.height - BOTTOM_BAND)
-    expect(centre.y).toBeLessThanOrEqual(VIEWPORT.height)
+    expect(centre.y).toBeGreaterThan(paneFoot - BOTTOM_BAND)
+    expect(centre.y).toBeLessThanOrEqual(paneFoot)
   }
 })

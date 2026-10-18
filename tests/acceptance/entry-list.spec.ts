@@ -514,9 +514,17 @@ test('Home at rest is the travelling-cards board: no title, boxes on top, an Ent
   expect(await styleOf(fade, 'position')).toBe('fixed')
   const fadeBox = await boxOf(fade, 'the fade')
   expect(fadeBox.height, 'the fade is tall enough to cover the buttons').toBeGreaterThanOrEqual(120)
+
+  // The lower edge is read against the foot of Home's OWN pane, not the foot of the
+  // phone. The fade stays fixed, because that pane is its containing block, and the
+  // observation is unchanged - the fade is anchored to the bottom of the area Home
+  // occupies, under its buttons - but that edge now lies above the bottom bar.
+  const pane = page.locator('[data-pane="entries"]')
+  await expect(pane, "Home has its own pane, which the fade is anchored to").toHaveCount(1)
+  const paneBox = await boxOf(pane, "Home's pane")
   expect(
-    Math.abs(viewport.height - (fadeBox.y + fadeBox.height)),
-    'the fade is anchored to the bottom of the screen',
+    Math.abs(paneBox.y + paneBox.height - (fadeBox.y + fadeBox.height)),
+    'the fade is anchored to the bottom of the area Home occupies',
   ).toBeLessThanOrEqual(2)
 
   // The buttons still sit over it.
