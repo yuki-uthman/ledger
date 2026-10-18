@@ -2483,3 +2483,4563 @@ Verification command: `npm run test:acceptance -- tests/acceptance/delete-entry.
 Verification command: `npm run test:acceptance -- tests/acceptance/send-method.spec.ts`
 Verification command: `npm run test:acceptance -- tests/acceptance/receive-method.spec.ts`
 Verification command: `npm run test:acceptance -- tests/acceptance/entry-method.spec.ts`
+
+## Shared design
+
+### Facts (Shared design)
+
+- F-purpose: The Abbaas Ledger gains one bottom-navigation shell: a bar 84 px
+  high labelled Views with the two tabs Entries and Statement, and one track 200
+  per cent wide holding both panes, so today's Home and a new read-only
+  Statement are both mounted at once and a tab switch moves the track instead of
+  replacing a screen.
+- F-c-board: The design board version 13 is the authority for every colour,
+  size, word and timing of the shell and the Statement: Main.dc.html is the
+  interactive authority, only the hero = box branch of Statement.dc.html is the
+  approved balance card, and HeroBox, HeroTiles and HeroBar are not built.
+- F-c-nav-metrics: The navigation bar is 84 px high and white, padding 8 px 0 20
+  px, with a 1 px top border #dfe6e4; its mint pill is #e0f0ed, 56 by 30 px,
+  radius 999 px; the active tab's ink is #0b5750 and the inactive tab's is
+  #4c5f5b; the active tab carries aria-current=page and the other
+  aria-current=false.
+- F-c-pill-offset: The board moves the navigation pill 195 px on a frame 390 px
+  wide, which is one half of the bar; the shell keeps the half-of-the-bar rule
+  at every width, so the offset is 180 px on the 360 px phone the acceptance run
+  judges. Deviation from the authority: the literal 195 px is kept only at 390
+  px.
+- F-c-viewport: The acceptance run judges the built bundle on a 360 by 780
+  viewport; the layout answers for every width from 360 px upward, and the app
+  column stays centred and at most 560 px wide.
+- F-c-no-page-scroll: The page itself never scrolls at any list length: the
+  shell is exactly the dynamic viewport height, the navigation bar lies outside
+  the track, and every scrolling area lies inside a pane.
+- F-c-home-unchanged: Home's DOM, wording and public hooks as of 16a5e1f stay
+  unchanged: data-box, data-state, data-amount, data-square, data-empty-hint,
+  data-action, data-count, data-entry, data-person, data-entry-method, data-day,
+  data-after, data-after-holder, data-total, data-fade, data-spine,
+  data-box-amount, data-cents and data-side are all still rendered, with the
+  same accessible names and the same texts.
+- F-c-read-only: The Statement holds no You or Abbaas box, no Send or Receive
+  button and no control that writes anything, and it opens no entry sheet in
+  this Request.
+- F-c-one-read: Both panes are built from one ReadEntriesOutcome of
+  LedgerStore.readEntries, so the Statement's figures and Home's figures cannot
+  disagree and no second driven port is added.
+- F-c-stored-cents: A row's USD figure and every total are the usdCents stored
+  on the entries that were read; rufiyaa is never converted again, and the
+  stored amountMinor and rate are read only to word a send's sub-line.
+- F-c-rate-text: A rate in a sub-line is written with no trailing zeros and at
+  most the four decimals it is stored to, so 20 reads '@ 20', 15.4 reads '@
+  15.4' and 15.425 reads '@ 15.425'; the entry sheet keeps its own padded '20.00
+  MVR per $1'.
+- F-c-order: Statement rows run oldest first, by entry_date ascending, then
+  saved_at ascending, then id, and are numbered 1 upward in that order; Home
+  keeps its newest-first order.
+- F-c-usd-column: The USD column shows its figure with no currency sign, because
+  the column is headed USD and the period line already says in USD; the balance
+  card keeps its '$' and shows every figure unsigned.
+- F-c-period: The period line reads 'You and Abbaas - \<first date> - \<last
+  date> \<year> - in USD' from the first and last entry dates with the year once
+  at the end, carries a year on each date when the two fall in different years,
+  names one date once when every entry falls on it, and drops the dates on an
+  empty ledger to read 'You and Abbaas - in USD'. The separators are the middle
+  dot and the en dash the board draws.
+- F-c-count-label: A footer's count is worded by the repository's own
+  entryCountLabel, so it reads 'No entries', '1 entry' or 'N entries'.
+- F-c-method-null: A stored method is one of the tokens cash, cheque and
+  transfer, read as Cash, Cheque and Transfer; a null method says nothing in its
+  place and no word is invented for it.
+- F-c-amount-bounds: Stored amounts are whole minor units greater than zero,
+  usd_cents is greater than zero, and rate is numeric(12,4) greater than zero
+  and present exactly for an MVR entry; the authority states no upper bound on
+  any of them and this design adds none, so every figure is formatted at
+  whatever magnitude it is stored at.
+- F-c-motion-math: Every switch travels on cubic-bezier(0.2, 0.8, 0.2, 1): a
+  slide takes 420 ms, a rise takes 360 ms delayed by 120 + min(index, 14) x 22
+  ms, the leaving pane rests at opacity 0.4, and prefers-reduced-motion turns
+  every transition off.
+- F-c-paradigm: The repository is functional: pure domain projections, ports,
+  Supabase adapters and UI as functions from state to DOM; this Request adds no
+  class and no framework, and every new module is a function from values to DOM
+  or from values to values.
+- F-c-approval: The human reads the result on their own phone and approves
+  integration before it lands.
+- F-t-views: Owns the shell: the navigation bar, the 200 per cent track, the two
+  panes and the tab switch, as one function from the two pane contents to DOM.
+- F-t-statement-ui: Owns the Statement screen as a function from the read
+  outcome to DOM, and decides nothing about money, order or wording itself.
+- F-t-statement-domain: Owns the pure Statement projection: the period dates,
+  the three card figures in cents and the two numbered row lists.
+- F-t-theme: Carries the shell, the navigation bar, the pane anchoring, the
+  Statement's panels and the transitions of every switch.
+- F-t-main: Composes the shell for the Home route, passes it the Statement built
+  from the same read, and raises an entry sheet over the shell root instead of
+  over Home.
+- F-t-motion: Gains the two switch motions of this feature beside the ones it
+  already owns, keeping its one curve, its one rise mechanism and its
+  data-motion contract.
+- F-t-money: Gains the unpadded rate text beside formatRate, which keeps padding
+  for the entry sheet.
+- F-t-ledger-view: Gains the exported short date label '14 Sep' beside its day
+  label, reusing its own month table so no second table of month names is
+  written.
+- F-d-shell: src/ui/views.ts owns the shell: renderViews({ entries, statement })
+  returns one section with the class screen views, holding the track and the
+  navigation bar and carrying no data-screen of its own, so the only data-screen
+  values in the document stay home and statement.
+- F-d-switch-state: The shown tab is one attribute,
+  data-shown=entries|statement, on the shell root; a tap on a navigation tab
+  sets it and the two aria-current values and nothing else. Nothing is re-read,
+  re-rendered or unmounted, so Home keeps its scroll offset, its listeners and
+  any motion already running.
+- F-d-track: The track is 200 per cent wide and holds the two panes at 50 per
+  cent each; its resting transform is translateX(0) for entries and
+  translateX(-50%) for statement, the navigation pill rests at an offset of zero
+  or one half of the bar, and the pane that is not shown rests at opacity 0.4.
+  The resting states are drawn from data-shown alone, so the value that adds
+  motion adds transitions over these same states and reworks nothing.
+- F-d-pane-containing-block: Each pane is the containing block for the fixed
+  furniture of the screen inside it: the entries pane carries a transform of its
+  own, so Home's bottom bar and its fade anchor to the pane and not to the
+  transformed track.
+- F-d-sheet-parent: An entry sheet and its scrim are appended to the shell root,
+  outside the track, so they keep covering the whole viewport including the
+  navigation bar; while a sheet is open the bar cannot be tapped, which is the
+  only reason a switch needs no rule about an open sheet.
+- F-d-hooks: The Statement's public hooks: the screen carries
+  data-screen=statement; each navigation tab carries data-view=entries or
+  data-view=statement; each balance-card row carries data-statement-total=sent,
+  paid or balance with data-cents=\<cents>; each list panel carries
+  data-statement-list=sent or back; each row carries data-statement-row=\<entry
+  id> and data-no=\<number>; a send's sub-line carries data-statement-sub; a
+  repayment's method cell carries data-statement-method=\<stored token> when a
+  method is stored; each footer carries data-statement-foot=sent or back with
+  data-count and data-cents.
+- F-d-hooks-extra: Two hooks are added to the authority's list because the
+  pinned-layout claim must name the parts it measures: each column header
+  carries data-statement-head=sent or back, and each scrolling rows area carries
+  data-statement-rows=sent or back.
+- F-d-prefix: Statement hooks are prefixed data-statement- because both panes
+  are in the document at once: an oracle reads Home's hooks inside
+  [data-pane=entries] and the Statement's inside [data-screen=statement], so a
+  bare data-total would match Home's totals as well.
+- F-d-panes-hooks: Each pane carries data-pane=entries or data-pane=statement
+  and the accessible name Entries or Statement; the navigation bar is labelled
+  Views.
+- F-d-domain-owner: src/domain/statement.ts owns the Statement model and nothing
+  else: statementOf(entries) answers the period's first and last dates, the
+  three card figures in cents and the two row lists, each row carrying its
+  number, its date label, its party or its method, its sub-line text and its
+  usdCents. It imports no DOM, no port adapter and no Supabase client.
+- F-d-ui-owner: src/ui/statement.ts owns the Statement DOM:
+  renderStatement(ledger) is a function from the read outcome to one screen
+  element, and every figure, word, order and count it draws comes from
+  src/domain/statement.ts.
+- F-d-reuse-balance: The three card figures are balanceOf(entries).sentCents,
+  .paidBackCents and .amountCents, so src/domain/balance.ts stays the one owner
+  of the balance rule and is not changed.
+- F-d-reuse-money: formatUsdCents words every USD figure and formatMvrLaari
+  every rufiyaa figure, unchanged; only the unpadded rate is new, and it is
+  added beside formatRate rather than replacing it, because the entry sheet
+  still names a rate as a figure of its own.
+- F-d-retry: A failed read shows, on the Statement exactly as on Home, one
+  element with role=alert reading the port's LEDGER_UNREADABLE_MESSAGE and no
+  rows and no figures at all, so an empty ledger and a failed read never look
+  alike.
+- F-d-typed-carriers: The typed carriers of this feature: ReadEntriesOutcome in
+  src/ports/ledger-store.ts carries the read decision; Statement and
+  StatementRow in src/domain/statement.ts carry the projection; PaymentMethod |
+  null carries the method; Balance in src/domain/balance.ts carries the figures;
+  the shown tab and the shown list are the two attributes data-shown and
+  data-statement-shown, owned by src/ui/views.ts and src/ui/statement.ts. This
+  feature adds no error type and no other per-process state, because it never
+  writes.
+- F-d-layer-domain: Domain layer. States: a read ledger of n entries, n at least
+  0\. Operations: statementOf, the short date label, the unpadded rate text,
+  entryCountLabel, balanceOf. Observations: the period's two dates, the three
+  figures in cents, the two ordered row lists, and each footer's count and
+  total. Laws a test can check: the sent rows are exactly the entries of kind
+  send and the paid-back rows exactly those of kind receive; the numbers are 1
+  to n in entry_date, then saved_at, then id ascending; a footer's total is the
+  sum of its own rows' usdCents and its count is the number of them; the three
+  figures are the sum of the sends, the sum of the receives and the unsigned
+  difference of the two.
+- F-d-layer-application: Application and port layer. States: the shown tab, the
+  shown list and the last read outcome. Operations: render the shell, render the
+  Statement, switch the tab, switch the list. Observations: which tab carries
+  aria-current=page, which pane fills the viewport, which panel is shown, and
+  whether an alert is present. Laws: exactly one tab carries aria-current=page
+  and exactly one panel is shown; switching to the other position and back
+  restores every observation but a scroll offset; a read outcome of retry yields
+  an alert and no rows on either pane.
+- F-d-layer-adapter: Adapter and integration layer. States: the PostgREST answer
+  for the signed-in account's rows. Operations: readEntries, decoding rate and
+  usd_cents from text or number and the method from its stored token.
+  Observations: the decoded entries. Laws: a token outside cash, cheque and
+  transfer cannot be decoded into a word; a null rate or a null method decodes
+  to null; and the decoding drops no row and reorders none.
+- F-d-layer-infra: Infrastructure and recovery layer. States: the stack
+  reachable or not, the session held or not. Operations: one awaited read per
+  paint. Observations: the alert and the sign-in screen. Laws: a failed read is
+  a Retry that is painted as an alert and never as an empty statement; a
+  rejected session refresh shows the sign-in screen; and because nothing of this
+  feature writes and nothing of it retries by itself, no switch can lose,
+  duplicate or reorder a stored entry.
+- F-d-closure: Constructive closure. Safety, that no control on the Statement
+  writes and that no figure is converted a second time: DESIGN PASS, runtime
+  DESIGNED_NOT_BUILT. Inhabitation, that a statement with its figures and its
+  numbered rows is built from stored rows: DESIGN PASS, runtime
+  DESIGNED_NOT_BUILT. Public reachability, that a tap on the Statement tab
+  reaches that screen through the bundle's own DOM: DESIGN PASS, runtime
+  DESIGNED_NOT_BUILT. Liveness: not applicable, because every switch is one
+  synchronous attribute change with no queue, no retry and no concurrency, and
+  the one awaited read already has its own observed outcome.
+- F-d-waiver: Formal verification is waived for this Request by the human on
+  2026-10-19, with no checker installed and none to be installed. The affected
+  claims are the safety and the refinement of the two two-position switches, tab
+  and list, read as one state machine, and any temporal claim about them; each
+  stays INDETERMINATE and unchecked and is covered only by the sampled
+  public-oracle observations of the three values, never reported as PASS.
+- F-d-switch-machine: The switch state machine of this feature is the product of
+  two two-position switches, tab in {entries, statement} and list in {sent,
+  back}, with four states and four transitions, each transition one attribute
+  write; its intended safety is that the shown pane and the current tab always
+  agree and that the shown panel and the selected pill tab always agree.
+- F-d-stress-read: Stressor, negating the assumption that the read succeeds: the
+  read fails. Preserved: a spoken alert on the pane in view and no rows.
+  Allowed: no figures at all. Forbidden: $0.00 figures and empty lists, which
+  would read as an empty ledger. Residue: the alert and the sign-in path.
+- F-d-stress-date: Stressor, negating the assumption that every stored date is a
+  valid YYYY-MM-DD: a malformed date. Preserved: the row keeps its number and
+  its figure and the footer still adds up. Allowed: the date cell shows the
+  stored text as it stands, which is what the repository's existing day label
+  already does. Forbidden: a thrown error, a blank screen or a dropped row.
+- F-d-stress-size: Stressor, negating the assumption that the ledger holds about
+  23 entries: 500 rows. Preserved: only the rows scroll and the page does not.
+  Allowed: a slower first paint and a long scrollbar. Forbidden: the page
+  growing taller than the viewport, or a footer leaving the screen. Residue: the
+  pinned column header and footer.
+- F-d-stress-width: Stressor, negating the assumption that the phone is 360 px
+  wide: 320 px and 1024 px. Preserved: no horizontal page scroll, and both pill
+  labels readable. Allowed: the Paid to cell truncating with an ellipsis.
+  Forbidden: a column wider than the viewport, or a navigation pill resting away
+  from its own tab.
+- F-d-stress-motion: Stressor, negating the assumption that the device allows
+  motion: prefers-reduced-motion is set. Preserved: the same end screens,
+  readable from the first frame. Forbidden: any element carrying data-motion,
+  and any part left displaced.
+- F-d-stress-taps: Stressor, negating the assumption that one switch is tapped
+  at a time: both navigation tabs and both pill tabs tapped inside one slide.
+  Preserved: the end state is the last tap's, with exactly one tab current and
+  exactly one panel shown. Allowed: an interrupted slide. Forbidden: a pane
+  resting half-way, or two tabs current. Residue: the two attributes, which are
+  the whole of the state.
+- F-d-stress-rate: Stressor, negating the assumption that an MVR row carries a
+  rate: a row written before the rate constraint. Preserved: the sub-line names
+  the rufiyaa figure with no rate clause. Forbidden: the text NaN, the text '@
+  null', or a figure computed from a missing rate.
+- F-d-spof: Single points of failure and bypasses. The one awaited read serves
+  both panes, so one failure disables both; the remaining obligation is the
+  alert on whichever pane is in view, owned by src/ui/statement.ts and
+  src/ui/home.ts. The Supabase project and its policies are owned by the human.
+  Bypasses this design cannot stop: PostgREST answering a value the adapter must
+  coerce, a writer outside the bundle inserting a row the database check still
+  admits, a cast or a devtools call into LedgerStore, and a process failure in
+  the middle of a slide. The first three are answered by the stored-row contract
+  check, and the last by the resting attribute, from which a reload paints a
+  rest state.
+- F-d-stress-second: A second set of stressors, not used to derive this design,
+  walked against the finished design. A system text scale of 200 per cent: the
+  pill's two labels wrap inside its 44 px, which is admitted and unresolved. A
+  person name of 60 characters: the Paid to cell truncates, which the board's
+  own overflow rule already draws. The clock crossing midnight between the read
+  and the paint: the period line cannot move, because it is read from stored
+  dates only. Two rows with the same saved_at: they are numbered by their id,
+  which is settled. A zero amount: it cannot exist, because the database check
+  forbids it.
+- F-d-admitted: Admitted states: 0 to 500 rows; every mix of the two kinds; USD
+  and MVR; a stored method or none; one date or many; dates in two different
+  years; and a failed read.
+- F-d-excluded: Excluded states: a method word outside the three stored tokens;
+  a signed figure in the balance card; a row with no number; a scrolling page;
+  and any write reached from the Statement.
+- F-d-unknown-state: Unknown states: the layout under a system text scale above
+  150 per cent, and a ledger beyond 500 rows.
+- F-d-unknown-owner: The risk owner of the unknown states is the human, who
+  reads the result on their own phone before integration.
+- F-d-selffals: Self-falsification. The refuted law that a tab switch may
+  re-render its pane: re-rendering Home loses its scroll offset and cancels the
+  motions running inside it, so a pane's carrier is identity-bearing DOM that is
+  kept, not a value repainted on every switch. The refuted law that Home's fixed
+  furniture may stay fixed inside the track: a transformed ancestor is the
+  containing block of its fixed descendants, so the bottom bar and the fade
+  would anchor to the 200 per cent track and the fade would cover the
+  Statement's own rows; the cure is the pane's own containing block, not a
+  larger z-index.
+- F-d-pbt: Property checks run through the public DOM, because the repository
+  has no property-testing library. A seeded generator builds eight ledgers of 0
+  to 12 entries, mixing both kinds, USD and MVR, a stored method or none, one
+  date, many dates and dates in two years, amounts of 1 to 5,000,000 minor units
+  and rates of 0.0001 to 9999.9999 with at most four decimals; the seed is fixed
+  in the spec and printed on failure. Shrinking is by hand: a failing ledger is
+  re-run with one entry removed at a time, and the smallest ledger that still
+  fails is reported. The expected numbers, order, labels, counts and totals are
+  computed in the spec from its own seed data and never read back from the app.
+- F-d-oracle-observation: The oracle's verification vector is a Playwright
+  wrapper held in the acceptance supports: it runs the repository's own
+  playwright binary against tests/playwright.config.ts with the list and json
+  reporters, sends the runner's own output to standard error, and prints on
+  standard output exactly one line, DES-ORACLE-OBSERVATION:
+  {"version":1,"observed":\<n>,"assertions_failed":\<n>,"setup_failed":\<n>},
+  counted from that json report: observed is the number of cases the runner ran,
+  a failed case whose first error line names expect( is an assertion failure,
+  and every other failed case or report-level error is a setup failure. The
+  wrapper exits with the runner's own status.
+- F-d-readiness: The acceptance support waits for the auth service to answer
+  before it creates an account after a database reset, with a bounded wait that
+  fails loudly when it runs out, because every oracle of this Request creates
+  its account immediately after that reset.
+- F-d-substrate: Test substrate: Playwright 1.63.0 with chromium at 360 by 780
+  through tests/playwright.config.ts with one worker, the built bundle served
+  over http://127.0.0.1:4317 by tests/support/local-stack.ts, and accounts and
+  rows seeded through the service role by tests/support/accounts.ts, which this
+  Request's oracles extend to seed the method column and a readiness wait. npm
+  run build type-checks src and tests and builds the bundle. There is no
+  unit-test suite and no property-testing library in the repository, so every
+  law of this feature is checked through the served DOM.
+- F-d-arch-law: The deliberate dependency law this change can violate:
+  src/domain holds no DOM and no adapter import, src/ui imports ports, domain
+  modules and motion only, src/main.ts alone composes the adapters, and the
+  Statement imports no writing operation of LedgerStore at all.
+- F-o-arch-inward: The Statement's two new modules obey the dependency law: the
+  domain projection names no DOM and no adapter, and the Statement screen names
+  no writing operation of the store.
+- F-o-contract-na: No party to the shell contract can change apart from it: the
+  navigation bar, the two panes and their hooks are produced and consumed in
+  this one deployable and this one commit. The one contract whose parties do
+  change apart, the stored rows that outlive the version, is read by the two
+  value oracles, which declare it.
+- F-a-home-producer: Home's DOM, texts and hooks are untouched; only the
+  positioning context its fixed furniture resolves against changes, so every
+  hook an existing consumer reads is still rendered with the same value.
+- F-a-fade-migrate: This oracle reads the fade's computed position as fixed and
+  its lower edge as the viewport's own. The fade keeps the computed value fixed,
+  because the pane it anchors to is its containing block, but that edge is now
+  84 px above the viewport's, so the acceptance designer migrates that one
+  geometric bound and keeps the observation.
+- F-a-band-migrate: This oracle reads each bottom button's centre inside the
+  lowest 120 px of the viewport. The buttons keep their place inside the entries
+  pane, which now ends above the 84 px bar, so the acceptance designer migrates
+  that band and keeps the observation that each button is near the foot of its
+  own pane and on its own half.
+- F-a-sheet-compatible: The sheet and its scrim are appended to the shell root,
+  outside the transformed track, so they keep covering the whole viewport and
+  every box this oracle measures is unchanged.
+- F-a-grow-compatible: The screen that grows from a save button is now the shell
+  root, which keeps the reading column's box, so the clip-path circle this
+  oracle reads stays centred on the same tapped point.
+- F-a-entrance-compatible: Home's root still carries data-motion=home-enter and
+  its parts still travel inside the entries pane, so every frame this oracle
+  samples is unchanged.
+- F-a-layout-compatible: This oracle reads the column's width and margins and a
+  clearance of at least 16 px below each bottom button; the column is unchanged
+  and the clearance grows, so both still hold.
+- F-a-method-producer: The stored method stays one of the three tokens or null,
+  and this change writes no row at all, so the producer is untouched.
+- F-a-method-consumer: The adapter keeps decoding the token to PaymentMethod and
+  null to null; the Statement reads that decoded value and never the raw column,
+  so a row stored before the column existed still says nothing in its place.
+- F-i-created: Created by this Request as the owner named in the targets.
+- F-i-extended: Extended in place, with every symbol an existing caller reads
+  left in force.
+- F-i-spec-migrated: An acceptance-owned oracle whose incidental geometric bound
+  the acceptance designer migrates while keeping its observation.
+- F-i-spec-compatible: An acceptance-owned oracle that reads only observations
+  this change keeps.
+- F-i-adapter-compatible: The decoding this feature consumes is unchanged.
+- F-b-driving: The driving port is the built bundle's DOM as a 360 px phone
+  browser sees it: the two navigation tabs, the two panes, and the Statement's
+  heading, period line, balance card, pill, rows and footers.
+- F-b-driven-store: Driven port: LedgerStore.readEntries over PostgREST under
+  row-level security, read once per paint and shared by both panes.
+- F-b-driven-motion: Driven port: the browser's prefers-reduced-motion media
+  query, read at the moment a motion would start.
+- F-b-direction: src/ui/views.ts and src/ui/statement.ts depend on the ports'
+  types, the domain projections and src/ui/motion.ts; src/domain/statement.ts
+  depends on nothing but the entry shape it reads; no module under src/domain
+  imports the DOM, no module of this feature imports the Supabase client, and
+  src/main.ts alone composes adapters into ports.
+- F-b-f1-cond: Reading the ledger fails while signed in.
+- F-b-f1-obs: The pane in view shows one element with role=alert reading 'Could
+  not load the ledger. Try again.' and no rows, no figures and no footer totals.
+- F-b-f2-cond: A stored entry carries a date that is not a valid YYYY-MM-DD.
+- F-b-f2-obs: The row keeps its number, its party and its figure, its date cell
+  shows the stored text as it stands, and the footer's count and total still
+  include it.
+- F-b-f3-cond: A stored MVR entry carries no rate.
+- F-b-f3-obs: The sub-line names the method and the rufiyaa figure and no rate
+  clause at all; no figure anywhere is computed from the missing rate.
+- F-b-f4-cond: A stored row carries a method token outside cash, cheque and
+  transfer.
+- F-b-f4-obs: The row shows no method word and carries no method hook, exactly
+  as a null method does.
+- F-po-observation: On a 360 px phone the app shows a bottom bar 84 px high
+  labelled Views with the two tabs Entries and Statement, the mint pill under
+  the active tab and aria-current=page on it; the Entries tab shows today's Home
+  with every one of its public hooks and texts; a tap on Statement brings the
+  Statement pane into the viewport and carries the pill and the aria-current
+  with it; a tap on Entries brings Home back exactly as it was, still scrolled
+  where it was left; and in either tab the page itself does not scroll.
+- F-po-stimulus: The acceptance support starts this project's local Supabase
+  stack, resets it to the repository migrations, waits for the auth service,
+  builds the bundle against the stack's URL and anon key, and serves dist/ over
+  http://127.0.0.1:4317. Through the service role it creates one account and
+  seeds two people and enough entries to make Home's list longer than one
+  screen. One Chromium context at 360 by 780 signs in, reads Home, scrolls its
+  list down, taps Statement, taps Entries, and reads the document's own scroll
+  measurements in each tab.
+- F-po-expected: The bar is labelled Views and is 84 px high; exactly one of the
+  two data-view tabs carries aria-current=page and the other carries false; the
+  pill's centre lies within 2 px of the active tab's centre; the entries pane
+  holds one element for each of data-box=you, data-box=abbaas, data-square or
+  data-count, data-action=send, data-action=receive, data-fade and data-spine,
+  and one data-entry element for each seeded entry; the statement pane holds an
+  element carrying data-screen=statement and no data-box, no data-action and no
+  element named Send or Receive; after the tap on Statement the statement pane's
+  box lies inside the viewport and the entries pane's lies outside it, and after
+  the tap on Entries the reverse holds with Home's scroll offset unchanged; and
+  in both tabs document.documentElement.scrollHeight is at most its clientHeight
+  plus one and scrollWidth is at most clientWidth.
+- F-po-falsifier: Replacing a pane instead of sliding one track makes Home's
+  scroll offset reset on the way back. Leaving Home's bottom bar or its fade
+  fixed to the viewport anchors them to the 200 per cent track, so the fade
+  covers the Statement's rows. Letting the page scroll instead of the pane
+  breaks the scrollHeight check at the seeded list length. Keeping
+  aria-current=page on both tabs, or moving the pill by the board's literal 195
+  px on the 360 px phone, fails the pill and aria-current checks.
+- F-adr-context: The app had one screen at a time, mounted into #app, with Home
+  scrolling the page and its bottom bar and fade fixed to the viewport. The
+  approved board asks for two views reachable from a bottom bar, both drawn at
+  once in a track that slides, with only the rows of a list scrolling and the
+  page never scrolling.
+- F-adr-decision: One shell owns both views: a bar outside a track 200 per cent
+  wide, the two panes mounted at the same time, the shown tab as one attribute
+  the stylesheet draws the resting states from, each pane the containing block
+  of its own screen's fixed furniture, and the sheet raised over the shell root
+  so it still covers the bar.
+- F-adr-alt-routes: Alternative, rejected: route the two views as two screens
+  that replace each other on a hash, as the forms already are. It cannot slide
+  two panes together, it loses Home's scroll offset and its running motions on
+  every switch, and it would re-read the ledger for each tap.
+- F-adr-alt-page: Alternative, rejected: a second page or bundle for the
+  Statement. It breaks the one-read rule, so the two screens' figures could
+  disagree, and a full load on every switch cannot carry the board's motion.
+- F-adr-alt-snap: Alternative, rejected: a scroll-snap carousel of the two
+  panes. The switch would then be a scroll position rather than a state, the
+  leaving pane's fade and the pill offset could not be driven from one
+  attribute, and a stray touch could rest the app between the two views.
+- F-adr-consequence-scroll: Consequence: the page stops being the scroller for
+  Home as well as for the Statement, so Home's bottom bar and fade anchor to the
+  entries pane and two acceptance oracles have their geometric bounds migrated.
+- F-adr-consequence-hooks: Consequence: both panes are in the document at once,
+  so every hook of the new screen is prefixed data-statement- and every oracle
+  reads a hook inside the pane it belongs to.
+- F-adr-consequence-switch: Consequence: the whole of the view state is two
+  attributes, so a switch cannot lose a scroll offset, cannot re-read the ledger
+  and cannot be left half-way, and the value that adds motion only adds
+  transitions over the same resting states.
+- F-ob-tab: Which tab is current, read from the data-view of the navigation tab
+  carrying aria-current=page.
+- F-ob-tab-blind: It says nothing about where the panes are in the middle of a
+  slide, nor which pane the eye sees.
+- F-ob-pane: Which pane fills the viewport, read from the bounding boxes of the
+  two data-pane elements against the viewport's own box.
+- F-ob-pane-blind: It cannot tell a pane at opacity 0.4 from one at opacity 1,
+  and it cannot name a pane while the track is travelling.
+- F-ob-figures: The three balance-card figures, read as the data-cents of the
+  data-statement-total rows and as their texts.
+- F-ob-figures-blind: It says nothing about the colours, the type or the order
+  of the three rows.
+- F-ob-rows: The shown list's rows, read in document order as the tuple of
+  data-no, the date cell, the party or method cell, the sub-line and the USD
+  cell.
+- F-ob-rows-blind: It cannot tell the alternating row tints apart and says
+  nothing about fonts or row heights.
+- F-ob-foot: A footer's count and total, read as its text, its data-count and
+  its data-cents.
+- F-ob-foot-blind: It says nothing about the footer's own colour or where it
+  sits.
+- F-ob-pinned: The bounding boxes of the heading, the balance card, the pill,
+  the column header and the footer, read before and after the rows area is
+  scrolled to its end.
+- F-ob-pinned-blind: It cannot see a sub-pixel drift and says nothing about what
+  is painted over what.
+- F-ob-page: The document element's scrollHeight, clientHeight, scrollWidth,
+  clientWidth and scrollTop.
+- F-ob-page-blind: It says nothing about which inner area scrolls, nor how far.
+- F-ob-hooks: The set of Home's public hook attributes present inside the
+  entries pane, with their values.
+- F-ob-hooks-blind: It says nothing about where those elements sit or how they
+  are styled.
+- F-eq-def: Two app states are equal when they agree on the current tab, the
+  pane in the viewport, the three figures, the shown list's rows, both footers,
+  the pinned boxes, the page's own scroll measurements and Home's hooks. Scroll
+  offsets inside a pane are deliberately outside this equality.
+- F-law-one-current: Exactly one navigation tab carries aria-current=page, and
+  the other carries aria-current=false, in every state.
+- F-law-switch-roundtrip: Switching to the other tab and back restores every
+  observation of the equality, Home's hooks included.
+- F-law-totals: The three card figures in cents are the sum of the read entries
+  of kind send, the sum of those of kind receive, and the unsigned difference of
+  the two, which is what src/domain/balance.ts answers for the same entries.
+- F-law-partition: The sent list's rows are exactly the read entries of kind
+  send and the paid-back list's rows exactly those of kind receive, each
+  numbered 1 upward oldest first, so no entry is missing, repeated or in both
+  lists.
+- F-law-footer-sum: Each footer's data-cents is the sum of its own rows' USD
+  cents and its data-count is the number of those rows, for any read ledger.
+- F-law-no-write: The Statement screen contains no element carrying data-action,
+  no element carrying data-box and no control that reaches a writing operation
+  of LedgerStore.
+- F-law-page-still: For any ledger length the document does not scroll: its
+  scrollHeight is at most its clientHeight plus one, its scrollWidth at most its
+  clientWidth, and its scrollTop stays zero while a rows area is scrolled to its
+  end.
+- F-law-pinned: Scrolling a rows area to its end moves no pinned part: the
+  heading, the balance card, the pill, the column header and the footer keep
+  their boxes.
+- F-law-retry: A read outcome of retry yields one element with role=alert and no
+  row, no figure and no footer, on either pane.
+- F-refuted-rerender: A tab switch may re-render the pane it shows.
+- F-refuted-rerender-cex: Switching to the Statement and back while Home's
+  opening entrance is running: a re-render replaces Home's root, so its parts
+  restart displaced and its scroll offset is lost, which the roundtrip law
+  forbids.
+- F-refuted-fixed: Home's bottom bar and fade may stay fixed to the viewport
+  inside the track.
+- F-refuted-fixed-cex: On the Statement tab the track is translated by minus one
+  half of its width, so a fade that is fixed inside it is painted over the
+  Statement's own rows, and the bar is drawn at the boundary of the two panes.
+- F-x-readonly-prop: No control the Statement draws can reach a writing
+  operation of LedgerStore.
+- F-x-readonly-harm: A tap on a read-only screen could change or delete a stored
+  entry, which the Request forbids and the owner would not expect.
+- F-x-readonly-input: The read outcome of LedgerStore.readEntries, which carries
+  no writing operation at all.
+- F-x-readonly-obs: No element carrying data-action, no element carrying
+  data-box and no button but the pill's two tabs exist inside
+  [data-screen=statement].
+- F-x-readonly-bypass: A later value adding a control to this screen, a script
+  outside the bundle, or a devtools call straight into the store.
+- F-x-cents-prop: A row's USD figure and every card figure are the stored
+  usdCents, never a second conversion of rufiyaa.
+- F-x-cents-harm: A figure converted again at a rounded rate would disagree with
+  Home and with the entry sheet for the same entry, and the app would stop being
+  the record.
+- F-x-cents-input: The entries as the adapter decodes them, each already
+  carrying its stored usdCents.
+- F-x-cents-obs: Each row's USD cell and each card figure equal the seeded
+  usd_cents of the same rows, read back through the service role.
+- F-x-cents-bypass: Any later code that computes a figure from amountMinor and
+  rate, which the type of a row cannot forbid because both fields stay readable
+  for the sub-line.
+- F-x-method-prop: No method word is shown for a row whose stored method is
+  null, and no word outside Cash, Cheque and Transfer is ever shown.
+- F-x-method-harm: An invented word would claim how money changed hands when
+  nothing was recorded, which the owner cannot tell from a fact.
+- F-x-method-input: PaymentMethod | null, as the adapter decodes the stored
+  token.
+- F-x-method-obs: A row seeded with a null method utters none of the three words
+  and carries no method hook; a row seeded with a token utters exactly its own
+  word.
+- F-x-method-bypass: A row written outside the bundle with a token the database
+  check still admits, and any code that reads the raw column instead of the
+  decoded value.
+- F-cl-subject-statement: The Statement view, reachable from the bottom bar and
+  read-only.
+- F-cl-safety-statement: No control on the Statement writes, and no figure on it
+  is converted a second time.
+- F-cl-inhab-statement: A statement with its three figures and its numbered rows
+  is built from stored rows.
+- F-cl-reach-statement: A tap on the Statement tab brings that screen into the
+  viewport through the bundle's own DOM.
+- F-cl-live-statement: Liveness is not applicable: a switch is one synchronous
+  attribute change with no queue, no retry and no concurrency, and the one
+  awaited read has its own observed outcome already.
+- F-cl-assume-statement: The argument rests on the seeded rows being readable
+  under row-level security, on one awaited read per paint, and on the bundle
+  being served over a real origin at 360 by 780.
+- F-cl-subject-machine: The two two-position switches, tab and list, read as one
+  state machine.
+- F-cl-safety-machine: The shown pane always agrees with the current tab and the
+  shown panel always agrees with the selected pill tab, in every reachable state
+  and under interrupted switches.
+- F-cl-safety-machine-design: Unchecked: no state-model checker ran under the
+  recorded waiver, so this claim is not established by proof and stays BLOCKED
+  rather than PASS.
+- F-cl-safety-machine-runtime: Nothing of the machine is built yet, and the
+  claim it would be judged by was not checked, so its runtime standing is
+  INDETERMINATE rather than merely designed and not built.
+- F-cl-inhab-machine: Each of the four states is reachable by a tap, and each
+  tap writes exactly one attribute.
+- F-cl-reach-machine: Both switches are driven only from the public DOM: a
+  navigation tab and a pill tab.
+- F-cl-live-machine: Liveness is not applicable: both switches are bounded and
+  synchronous, with no fairness assumption to make and nothing to wait for.
+- F-cl-assume-machine: The argument rests on the switch being one attribute
+  write, on both panes staying mounted, and on the stylesheet drawing every
+  resting state from those attributes.
+- F-gen-ledger: Ledgers of 0 to 12 entries built from a fixed seed: both kinds,
+  USD and MVR, a stored method or none, one date, many dates and dates in two
+  years, amounts of 1 to 5,000,000 minor units and rates of 0.0001 to 9999.9999
+  with at most four decimals.
+- F-gen-seed: The seed is a constant in the spec, printed on failure; shrinking
+  is by hand, removing one entry at a time from a failing ledger.
+- F-gen-must-empty: An empty ledger.
+- F-gen-must-one: A ledger of exactly one entry.
+- F-gen-must-sends: A ledger of sends only.
+- F-gen-must-receives: A ledger of repayments only.
+- F-gen-must-null-method: An entry with no stored method.
+- F-gen-must-mvr: An MVR entry whose rate has four decimals.
+- F-gen-must-years: Two entries whose dates fall in different years.
+- F-gen-must-tie: Two entries with the same entry_date and the same saved_at.
+- F-model-na: No model or proof file is delivered, because formal verification
+  is waived for this Request and no checker is installed; the claims a model
+  would have carried are named with the waiver and stay unchecked.
+- F-scenarios-na: No scenario is delivered, because no model was run and a
+  scenario may only be read from the raw trace of a run.
+- F-f-page-falsifier: A page that scrolls instead of the rows: the document's
+  scrollHeight grows past its clientHeight as soon as the seeded ledger is
+  longer than one screen.
+- F-f-pinned-falsifier: A list whose header or footer scrolls with its rows: its
+  box moves between the two readings taken before and after the rows area is
+  scrolled to its end.
+- F-pf-shared-na: No preserving move is measured at this scope: the one move
+  this Request makes, giving Home its own full-height pane before the navigation
+  bar exists, is assigned to value 1 with its own existing oracle and its own
+  before and after readings.
+
+### Targets (Shared design)
+
+| Path | Decision | Reason |
+|---|---|---|
+| `src/ui/views.ts` | CREATE_NEW | F-t-views |
+| `src/ui/statement.ts` | CREATE_NEW | F-t-statement-ui |
+| `src/domain/statement.ts` | CREATE_NEW | F-t-statement-domain |
+| `src/ui/theme.css` | EXTEND | F-t-theme |
+| `src/main.ts` | EXTEND | F-t-main |
+| `src/ui/motion.ts` | EXTEND | F-t-motion |
+| `src/domain/money.ts` | EXTEND | F-t-money |
+| `src/domain/ledger-view.ts` | EXTEND | F-t-ledger-view |
+
+### Paradigm (Shared design)
+
+functional
+
+### Decisions (Shared design)
+
+F-d-shell, F-d-switch-state, F-d-track, F-d-pane-containing-block,
+F-d-sheet-parent, F-d-hooks, F-d-hooks-extra, F-d-prefix, F-d-panes-hooks,
+F-d-domain-owner, F-d-ui-owner, F-d-reuse-balance, F-d-reuse-money, F-d-retry,
+F-d-typed-carriers, F-d-layer-domain, F-d-layer-application, F-d-layer-adapter,
+F-d-layer-infra, F-d-closure, F-d-waiver, F-d-switch-machine, F-d-stress-read,
+F-d-stress-date, F-d-stress-size, F-d-stress-width, F-d-stress-motion,
+F-d-stress-taps, F-d-stress-rate, F-d-spof, F-d-stress-second, F-d-admitted,
+F-d-excluded, F-d-unknown-state, F-d-unknown-owner, F-d-selffals, F-d-pbt,
+F-d-oracle-observation, F-d-readiness, F-d-substrate, F-d-arch-law
+
+### Oracle (Shared design)
+
+tests/acceptance/statement-shell.spec.ts
+
+### Acceptance supports (Shared design)
+
+```json
+[
+  "tests/support/local-stack.ts",
+  "tests/support/accounts.ts",
+  "tests/support/oracle-observation.mjs",
+  "tests/playwright.config.ts"
+]
+```
+
+### Oracle verification index (Shared design)
+
+```json
+0
+```
+
+### Purpose (Shared design)
+
+F-purpose
+
+### Constraints (Shared design)
+
+F-c-board, F-c-nav-metrics, F-c-pill-offset, F-c-viewport, F-c-no-page-scroll,
+F-c-home-unchanged, F-c-read-only, F-c-one-read, F-c-stored-cents,
+F-c-rate-text, F-c-order, F-c-usd-column, F-c-period, F-c-count-label,
+F-c-method-null, F-c-amount-bounds, F-c-motion-math, F-c-paradigm, F-c-approval
+
+### Inherits (Shared design)
+
+None
+
+### Boundaries (Shared design)
+
+```json
+{
+  "driving_port": {
+    "ref": "F-b-driving"
+  },
+  "driven_ports": [
+    {
+      "ref": "F-b-driven-store"
+    },
+    {
+      "ref": "F-b-driven-motion"
+    }
+  ],
+  "dependency_direction": {
+    "ref": "F-b-direction"
+  },
+  "failures": [
+    {
+      "condition": {
+        "ref": "F-b-f1-cond"
+      },
+      "outcome": "Retry",
+      "observation": {
+        "ref": "F-b-f1-obs"
+      }
+    },
+    {
+      "condition": {
+        "ref": "F-b-f2-cond"
+      },
+      "outcome": "Indeterminate",
+      "observation": {
+        "ref": "F-b-f2-obs"
+      }
+    },
+    {
+      "condition": {
+        "ref": "F-b-f3-cond"
+      },
+      "outcome": "Indeterminate",
+      "observation": {
+        "ref": "F-b-f3-obs"
+      }
+    },
+    {
+      "condition": {
+        "ref": "F-b-f4-cond"
+      },
+      "outcome": "Refusal",
+      "observation": {
+        "ref": "F-b-f4-obs"
+      }
+    }
+  ],
+  "applicability": "applicable"
+}
+```
+
+### Public oracle (Shared design)
+
+```json
+{
+  "observation": {
+    "ref": "F-po-observation"
+  },
+  "stimulus": {
+    "ref": "F-po-stimulus"
+  },
+  "expected": {
+    "ref": "F-po-expected"
+  },
+  "falsifier": {
+    "ref": "F-po-falsifier"
+  }
+}
+```
+
+### Architectural tests (Shared design)
+
+```json
+{
+  "obligations": [
+    {
+      "id": "AT-inward",
+      "obligation": {
+        "ref": "F-o-arch-inward"
+      },
+      "oracle": "tests/acceptance/statement-shell.spec.ts::the statement modules depend inward only",
+      "verification_index": 0
+    }
+  ],
+  "applicability": "applicable"
+}
+```
+
+### Contract tests (Shared design)
+
+```json
+{
+  "reason": {
+    "ref": "F-o-contract-na"
+  },
+  "applicability": "not_applicable"
+}
+```
+
+### Prefactoring (Shared design)
+
+```json
+{
+  "reason": {
+    "ref": "F-pf-shared-na"
+  },
+  "applicability": "not_applicable"
+}
+```
+
+### Agreement analysis (Shared design)
+
+| Id | Contract | Role | Locator | Decision | Reason |
+|---|---|---|---|---|---|
+| P-home-hooks | Home's public DOM hook contract | producer | `src/ui/home.ts:697` | UNCHANGED_COMPATIBLE | F-a-home-producer |
+| P-entry-list | Home's public DOM hook contract | consumer | `tests/acceptance/entry-list.spec.ts:514` | MIGRATED | F-a-fade-migrate |
+| P-empty-home | Home's public DOM hook contract | consumer | `tests/acceptance/empty-home.spec.ts:124` | MIGRATED | F-a-band-migrate |
+| P-entry-sheet | Home's public DOM hook contract | consumer | `tests/acceptance/entry-sheet.spec.ts:231` | UNCHANGED_COMPATIBLE | F-a-sheet-compatible |
+| P-motion | Home's public DOM hook contract | consumer | `tests/acceptance/motion.spec.ts:250` | UNCHANGED_COMPATIBLE | F-a-grow-compatible |
+| P-entrances | Home's public DOM hook contract | consumer | `tests/acceptance/entrances.spec.ts:502` | UNCHANGED_COMPATIBLE | F-a-entrance-compatible |
+| P-layout | Home's public DOM hook contract | consumer | `tests/acceptance/layout-and-install.spec.ts:339` | UNCHANGED_COMPATIBLE | F-a-layout-compatible |
+| P-method-column | The stored entries.method token | producer | `supabase/migrations/0002_entry_method.sql:14` | UNCHANGED_COMPATIBLE | F-a-method-producer |
+| P-method-adapter | The stored entries.method token | consumer | `src/adapters/supabase/ledger-store.ts:61` | UNCHANGED_COMPATIBLE | F-a-method-consumer |
+
+### Reuse analysis (Shared design)
+
+| Symbol | Locator | Decision | Reason |
+|---|---|---|---|
+| renderHome | `src/ui/home.ts:697` | REUSE | F-a-home-producer |
+| showHome | `src/main.ts:166` | EXTEND | F-t-main |
+| balanceOf | `src/domain/balance.ts:37` | REUSE | F-d-reuse-balance |
+| entryCountLabel | `src/domain/ledger-view.ts:99` | REUSE | F-c-count-label |
+| dayLabel | `src/domain/ledger-view.ts:91` | EXTEND | F-t-ledger-view |
+| groupEntriesByDay | `src/domain/ledger-view.ts:143` | CREATE_NEW | F-d-domain-owner |
+| formatRate | `src/domain/money.ts:93` | EXTEND | F-t-money |
+| formatUsdCents | `src/domain/money.ts:40` | REUSE | F-d-reuse-money |
+| formatMvrLaari | `src/domain/money.ts:87` | REUSE | F-c-stored-cents |
+| ReadEntriesOutcome | `src/ports/ledger-store.ts:83` | REUSE | F-c-one-read |
+| readEntries | `src/adapters/supabase/ledger-store.ts:91` | REUSE | F-a-method-consumer |
+| prefersReducedMotion | `src/ui/motion.ts:175` | REUSE | F-c-motion-math |
+| enterHome | `src/ui/motion.ts:721` | EXTEND | F-t-motion |
+| openEntrySheet | `src/ui/entry-sheet.ts:281` | REUSE | F-d-sheet-parent |
+| bottom-bar | `src/ui/theme.css:341` | EXTEND | F-d-pane-containing-block |
+| list-fade | `src/ui/theme.css:296` | EXTEND | F-a-fade-migrate |
+
+### Impact closure (Shared design)
+
+```json
+{
+  "items": [
+    {
+      "kind": "public_interface",
+      "locator": "src/ui/views.ts",
+      "decision": "CHANGED",
+      "reason": {
+        "ref": "F-i-created"
+      }
+    },
+    {
+      "kind": "public_interface",
+      "locator": "src/ui/statement.ts",
+      "decision": "CHANGED",
+      "reason": {
+        "ref": "F-i-created"
+      }
+    },
+    {
+      "kind": "public_interface",
+      "locator": "src/domain/statement.ts",
+      "decision": "CHANGED",
+      "reason": {
+        "ref": "F-i-created"
+      }
+    },
+    {
+      "kind": "runtime",
+      "locator": "src/ui/theme.css",
+      "decision": "CHANGED",
+      "reason": {
+        "ref": "F-i-extended"
+      }
+    },
+    {
+      "kind": "runtime",
+      "locator": "src/main.ts",
+      "decision": "CHANGED",
+      "reason": {
+        "ref": "F-i-extended"
+      }
+    },
+    {
+      "kind": "public_interface",
+      "locator": "src/ui/motion.ts",
+      "decision": "CHANGED",
+      "reason": {
+        "ref": "F-i-extended"
+      }
+    },
+    {
+      "kind": "public_interface",
+      "locator": "src/domain/money.ts",
+      "decision": "CHANGED",
+      "reason": {
+        "ref": "F-i-extended"
+      }
+    },
+    {
+      "kind": "public_interface",
+      "locator": "src/domain/ledger-view.ts",
+      "decision": "CHANGED",
+      "reason": {
+        "ref": "F-i-extended"
+      }
+    },
+    {
+      "kind": "test",
+      "locator": "tests/acceptance/entry-list.spec.ts:514",
+      "decision": "MIGRATED",
+      "reason": {
+        "ref": "F-i-spec-migrated"
+      }
+    },
+    {
+      "kind": "test",
+      "locator": "tests/acceptance/empty-home.spec.ts:124",
+      "decision": "MIGRATED",
+      "reason": {
+        "ref": "F-i-spec-migrated"
+      }
+    },
+    {
+      "kind": "test",
+      "locator": "tests/acceptance/entry-sheet.spec.ts:231",
+      "decision": "UNCHANGED_COMPATIBLE",
+      "reason": {
+        "ref": "F-i-spec-compatible"
+      }
+    },
+    {
+      "kind": "test",
+      "locator": "tests/acceptance/motion.spec.ts:250",
+      "decision": "UNCHANGED_COMPATIBLE",
+      "reason": {
+        "ref": "F-i-spec-compatible"
+      }
+    },
+    {
+      "kind": "test",
+      "locator": "tests/acceptance/entrances.spec.ts:502",
+      "decision": "UNCHANGED_COMPATIBLE",
+      "reason": {
+        "ref": "F-i-spec-compatible"
+      }
+    },
+    {
+      "kind": "test",
+      "locator": "tests/acceptance/layout-and-install.spec.ts:339",
+      "decision": "UNCHANGED_COMPATIBLE",
+      "reason": {
+        "ref": "F-i-spec-compatible"
+      }
+    },
+    {
+      "kind": "consumer",
+      "locator": "src/adapters/supabase/ledger-store.ts:61",
+      "decision": "UNCHANGED_COMPATIBLE",
+      "reason": {
+        "ref": "F-i-adapter-compatible"
+      }
+    }
+  ],
+  "applicability": "applicable"
+}
+```
+
+### Adr (Shared design)
+
+```json
+{
+  "context": {
+    "ref": "F-adr-context"
+  },
+  "decision": {
+    "ref": "F-adr-decision"
+  },
+  "alternatives": [
+    {
+      "ref": "F-adr-alt-routes"
+    },
+    {
+      "ref": "F-adr-alt-page"
+    },
+    {
+      "ref": "F-adr-alt-snap"
+    }
+  ],
+  "consequences": [
+    {
+      "ref": "F-adr-consequence-scroll"
+    },
+    {
+      "ref": "F-adr-consequence-hooks"
+    },
+    {
+      "ref": "F-adr-consequence-switch"
+    }
+  ],
+  "status": "accepted",
+  "applicability": "applicable"
+}
+```
+
+### Architect handoff (Shared design)
+
+```json
+{
+  "sections": [
+    {
+      "kind": "laws",
+      "scope": "shared",
+      "status": {
+        "payload": {
+          "observations": [
+            {
+              "id": "O-tab",
+              "description": {
+                "ref": "F-ob-tab"
+              },
+              "result_type": "entries | statement",
+              "cannot_distinguish": {
+                "ref": "F-ob-tab-blind"
+              }
+            },
+            {
+              "id": "O-pane",
+              "description": {
+                "ref": "F-ob-pane"
+              },
+              "result_type": "pane id and its box",
+              "cannot_distinguish": {
+                "ref": "F-ob-pane-blind"
+              }
+            },
+            {
+              "id": "O-figures",
+              "description": {
+                "ref": "F-ob-figures"
+              },
+              "result_type": "three integers of cents and three texts",
+              "cannot_distinguish": {
+                "ref": "F-ob-figures-blind"
+              }
+            },
+            {
+              "id": "O-rows",
+              "description": {
+                "ref": "F-ob-rows"
+              },
+              "result_type": "ordered list of five-field row tuples",
+              "cannot_distinguish": {
+                "ref": "F-ob-rows-blind"
+              }
+            },
+            {
+              "id": "O-foot",
+              "description": {
+                "ref": "F-ob-foot"
+              },
+              "result_type": "count label, count integer and cents integer",
+              "cannot_distinguish": {
+                "ref": "F-ob-foot-blind"
+              }
+            },
+            {
+              "id": "O-pinned",
+              "description": {
+                "ref": "F-ob-pinned"
+              },
+              "result_type": "five boxes before and after a scroll",
+              "cannot_distinguish": {
+                "ref": "F-ob-pinned-blind"
+              }
+            },
+            {
+              "id": "O-page",
+              "description": {
+                "ref": "F-ob-page"
+              },
+              "result_type": "five integers of the document element",
+              "cannot_distinguish": {
+                "ref": "F-ob-page-blind"
+              }
+            },
+            {
+              "id": "O-home-hooks",
+              "description": {
+                "ref": "F-ob-hooks"
+              },
+              "result_type": "set of attribute names with values",
+              "cannot_distinguish": {
+                "ref": "F-ob-hooks-blind"
+              }
+            }
+          ],
+          "equality": {
+            "under": [
+              "O-tab",
+              "O-pane",
+              "O-figures",
+              "O-rows",
+              "O-foot",
+              "O-pinned",
+              "O-page",
+              "O-home-hooks"
+            ],
+            "definition": {
+              "ref": "F-eq-def"
+            }
+          },
+          "constructors": [
+            {
+              "id": "C-views",
+              "signature": "renderViews(parts: { entries: HTMLElement; statement: HTMLElement }): HTMLElement"
+            },
+            {
+              "id": "C-statement",
+              "signature": "renderStatement(ledger: ReadEntriesOutcome): HTMLElement"
+            },
+            {
+              "id": "C-statement-of",
+              "signature": "statementOf(entries: readonly LedgerEntry[]): Statement"
+            },
+            {
+              "id": "C-switch-view",
+              "signature": "switchView(shell: HTMLElement, tab: 'entries' | 'statement'): void"
+            },
+            {
+              "id": "C-switch-list",
+              "signature": "switchList(statement: HTMLElement, list: 'sent' | 'back'): void"
+            }
+          ],
+          "generators": [
+            {
+              "id": "G-ledger",
+              "domain": {
+                "ref": "F-gen-ledger"
+              },
+              "size_bound": 12,
+              "seed_policy": {
+                "ref": "F-gen-seed"
+              },
+              "must_include": [
+                {
+                  "ref": "F-gen-must-empty"
+                },
+                {
+                  "ref": "F-gen-must-one"
+                },
+                {
+                  "ref": "F-gen-must-sends"
+                },
+                {
+                  "ref": "F-gen-must-receives"
+                },
+                {
+                  "ref": "F-gen-must-null-method"
+                },
+                {
+                  "ref": "F-gen-must-mvr"
+                },
+                {
+                  "ref": "F-gen-must-years"
+                },
+                {
+                  "ref": "F-gen-must-tie"
+                }
+              ],
+              "depth_bound": null
+            }
+          ],
+          "laws": [
+            {
+              "id": "L-one-current",
+              "statement": {
+                "ref": "F-law-one-current"
+              },
+              "kind": "invariant",
+              "layer": "application",
+              "owner": "CREATE_NEW:src/ui/views.ts::renderViews",
+              "uses": [
+                "O-tab"
+              ],
+              "treatment": {
+                "cases": [
+                  {
+                    "ref": "F-gen-must-empty"
+                  },
+                  {
+                    "ref": "F-gen-must-one"
+                  }
+                ],
+                "reason": {
+                  "ref": "F-d-switch-machine"
+                },
+                "tag": "finite"
+              },
+              "evidence": {
+                "tag": "to_run"
+              }
+            },
+            {
+              "id": "L-switch-roundtrip",
+              "statement": {
+                "ref": "F-law-switch-roundtrip"
+              },
+              "kind": "roundtrip",
+              "layer": "application",
+              "owner": "CREATE_NEW:src/ui/views.ts::switchView",
+              "uses": [
+                "O-tab",
+                "O-pane",
+                "O-home-hooks",
+                "O-figures"
+              ],
+              "treatment": {
+                "cases": [
+                  {
+                    "ref": "F-gen-must-empty"
+                  },
+                  {
+                    "ref": "F-gen-must-sends"
+                  }
+                ],
+                "reason": {
+                  "ref": "F-d-switch-machine"
+                },
+                "tag": "finite"
+              },
+              "evidence": {
+                "tag": "to_run"
+              }
+            },
+            {
+              "id": "L-totals",
+              "statement": {
+                "ref": "F-law-totals"
+              },
+              "kind": "oracle",
+              "layer": "domain",
+              "owner": "CREATE_NEW:src/domain/statement.ts::statementOf",
+              "uses": [
+                "O-figures"
+              ],
+              "treatment": {
+                "generator": "G-ledger",
+                "independent_observation": {
+                  "ref": "F-d-pbt"
+                },
+                "falsifier": {
+                  "description": {
+                    "ref": "F-po-falsifier"
+                  }
+                },
+                "tag": "broad"
+              },
+              "evidence": {
+                "tag": "to_run"
+              }
+            },
+            {
+              "id": "L-partition",
+              "statement": {
+                "ref": "F-law-partition"
+              },
+              "kind": "invariant",
+              "layer": "domain",
+              "owner": "CREATE_NEW:src/domain/statement.ts::statementOf",
+              "uses": [
+                "O-rows"
+              ],
+              "treatment": {
+                "generator": "G-ledger",
+                "independent_observation": {
+                  "ref": "F-d-pbt"
+                },
+                "falsifier": {
+                  "description": {
+                    "ref": "F-d-stress-rate"
+                  }
+                },
+                "tag": "broad"
+              },
+              "evidence": {
+                "tag": "to_run"
+              }
+            },
+            {
+              "id": "L-footer-sum",
+              "statement": {
+                "ref": "F-law-footer-sum"
+              },
+              "kind": "invariant",
+              "layer": "domain",
+              "owner": "CREATE_NEW:src/domain/statement.ts::statementOf",
+              "uses": [
+                "O-foot",
+                "O-rows"
+              ],
+              "treatment": {
+                "generator": "G-ledger",
+                "independent_observation": {
+                  "ref": "F-d-pbt"
+                },
+                "falsifier": {
+                  "description": {
+                    "ref": "F-c-count-label"
+                  }
+                },
+                "tag": "broad"
+              },
+              "evidence": {
+                "tag": "to_run"
+              }
+            },
+            {
+              "id": "L-no-write",
+              "statement": {
+                "ref": "F-law-no-write"
+              },
+              "kind": "invariant",
+              "layer": "application",
+              "owner": "CREATE_NEW:src/ui/statement.ts::renderStatement",
+              "uses": [
+                "O-home-hooks"
+              ],
+              "treatment": {
+                "cases": [
+                  {
+                    "ref": "F-gen-must-empty"
+                  },
+                  {
+                    "ref": "F-gen-must-sends"
+                  },
+                  {
+                    "ref": "F-gen-must-receives"
+                  }
+                ],
+                "reason": {
+                  "ref": "F-c-read-only"
+                },
+                "tag": "finite"
+              },
+              "evidence": {
+                "tag": "to_run"
+              }
+            },
+            {
+              "id": "L-page-still",
+              "statement": {
+                "ref": "F-law-page-still"
+              },
+              "kind": "invariant",
+              "layer": "application",
+              "owner": "src/ui/theme.css",
+              "uses": [
+                "O-page",
+                "O-pinned"
+              ],
+              "treatment": {
+                "generator": "G-ledger",
+                "independent_observation": {
+                  "ref": "F-d-stress-size"
+                },
+                "falsifier": {
+                  "description": {
+                    "ref": "F-f-page-falsifier"
+                  }
+                },
+                "tag": "broad"
+              },
+              "evidence": {
+                "tag": "to_run"
+              }
+            },
+            {
+              "id": "L-pinned",
+              "statement": {
+                "ref": "F-law-pinned"
+              },
+              "kind": "metamorphic",
+              "layer": "application",
+              "owner": "src/ui/theme.css",
+              "uses": [
+                "O-pinned",
+                "O-rows"
+              ],
+              "treatment": {
+                "generator": "G-ledger",
+                "independent_observation": {
+                  "ref": "F-d-stress-size"
+                },
+                "falsifier": {
+                  "description": {
+                    "ref": "F-f-pinned-falsifier"
+                  }
+                },
+                "tag": "broad"
+              },
+              "evidence": {
+                "tag": "to_run"
+              }
+            },
+            {
+              "id": "L-retry",
+              "statement": {
+                "ref": "F-law-retry"
+              },
+              "kind": "invariant",
+              "layer": "infrastructure",
+              "owner": "CREATE_NEW:src/ui/statement.ts::renderStatement",
+              "uses": [
+                "O-figures",
+                "O-rows",
+                "O-foot"
+              ],
+              "treatment": {
+                "cases": [
+                  {
+                    "ref": "F-b-f1-cond"
+                  }
+                ],
+                "reason": {
+                  "ref": "F-d-retry"
+                },
+                "tag": "finite"
+              },
+              "evidence": {
+                "tag": "to_run"
+              }
+            }
+          ],
+          "refuted": [
+            {
+              "id": "RL-rerender",
+              "statement": {
+                "ref": "F-refuted-rerender"
+              },
+              "cause": "carrier",
+              "counterexample": {
+                "ref": "F-refuted-rerender-cex"
+              },
+              "run": null
+            },
+            {
+              "id": "RL-fixed",
+              "statement": {
+                "ref": "F-refuted-fixed"
+              },
+              "cause": "boundary",
+              "counterexample": {
+                "ref": "F-refuted-fixed-cex"
+              },
+              "run": null
+            }
+          ]
+        },
+        "tag": "applicable"
+      }
+    },
+    {
+      "kind": "construction",
+      "scope": "shared",
+      "status": {
+        "payload": {
+          "claims": [
+            {
+              "id": "X-readonly",
+              "proposition": {
+                "ref": "F-x-readonly-prop"
+              },
+              "harm": {
+                "ref": "F-x-readonly-harm"
+              },
+              "owner": "CREATE_NEW:src/ui/statement.ts::renderStatement",
+              "admitted_input": {
+                "ref": "F-x-readonly-input"
+              },
+              "constructor": "CREATE_NEW:src/ui/statement.ts::renderStatement",
+              "consumer": "CREATE_NEW:src/ui/views.ts::renderViews",
+              "public_observation": {
+                "ref": "F-x-readonly-obs"
+              },
+              "bypass": [
+                {
+                  "ref": "F-x-readonly-bypass"
+                }
+              ],
+              "strength": "centralised"
+            },
+            {
+              "id": "X-stored-cents",
+              "proposition": {
+                "ref": "F-x-cents-prop"
+              },
+              "harm": {
+                "ref": "F-x-cents-harm"
+              },
+              "owner": "CREATE_NEW:src/domain/statement.ts::statementOf",
+              "admitted_input": {
+                "ref": "F-x-cents-input"
+              },
+              "constructor": "CREATE_NEW:src/domain/statement.ts::statementOf",
+              "consumer": "CREATE_NEW:src/ui/statement.ts::renderStatement",
+              "public_observation": {
+                "ref": "F-x-cents-obs"
+              },
+              "bypass": [
+                {
+                  "ref": "F-x-cents-bypass"
+                }
+              ],
+              "strength": "gradual_checker"
+            },
+            {
+              "id": "X-method-word",
+              "proposition": {
+                "ref": "F-x-method-prop"
+              },
+              "harm": {
+                "ref": "F-x-method-harm"
+              },
+              "owner": "CREATE_NEW:src/domain/statement.ts::statementOf",
+              "admitted_input": {
+                "ref": "F-x-method-input"
+              },
+              "constructor": "CREATE_NEW:src/domain/statement.ts::statementOf",
+              "consumer": "CREATE_NEW:src/ui/statement.ts::renderStatement",
+              "public_observation": {
+                "ref": "F-x-method-obs"
+              },
+              "bypass": [
+                {
+                  "ref": "F-x-method-bypass"
+                }
+              ],
+              "strength": "gradual_checker"
+            }
+          ],
+          "admitted": [
+            {
+              "ref": "F-d-admitted"
+            }
+          ],
+          "excluded": [
+            {
+              "ref": "F-d-excluded"
+            }
+          ],
+          "unknown": [
+            {
+              "state": {
+                "ref": "F-d-unknown-state"
+              },
+              "risk_owner": {
+                "ref": "F-d-unknown-owner"
+              }
+            }
+          ]
+        },
+        "tag": "applicable"
+      }
+    },
+    {
+      "kind": "closure",
+      "scope": "shared",
+      "status": {
+        "payload": {
+          "closures": [
+            {
+              "subject": {
+                "ref": "F-cl-subject-statement"
+              },
+              "safety": {
+                "statement": {
+                  "ref": "F-cl-safety-statement"
+                },
+                "design": "PASS",
+                "design_note": null,
+                "runtime": "DESIGNED_NOT_BUILT",
+                "runtime_note": null,
+                "assumptions": [
+                  {
+                    "ref": "F-cl-assume-statement"
+                  }
+                ],
+                "runs": [],
+                "laws": [
+                  "L-no-write",
+                  "L-totals"
+                ],
+                "basis": {
+                  "claims": [
+                    "X-readonly",
+                    "X-stored-cents",
+                    "X-method-word"
+                  ],
+                  "tag": "constructed"
+                },
+                "tag": "claim"
+              },
+              "inhabitation": {
+                "statement": {
+                  "ref": "F-cl-inhab-statement"
+                },
+                "design": "PASS",
+                "design_note": null,
+                "runtime": "DESIGNED_NOT_BUILT",
+                "runtime_note": null,
+                "assumptions": [
+                  {
+                    "ref": "F-cl-assume-statement"
+                  }
+                ],
+                "runs": [],
+                "laws": [
+                  "L-partition",
+                  "L-footer-sum"
+                ],
+                "basis": {
+                  "admitted_input": {
+                    "ref": "F-x-cents-input"
+                  },
+                  "producer": "CREATE_NEW:src/domain/statement.ts::statementOf",
+                  "consumer": "CREATE_NEW:src/ui/statement.ts::renderStatement",
+                  "public_observation": {
+                    "ref": "F-x-cents-obs"
+                  },
+                  "bootstrap": null,
+                  "tag": "path"
+                },
+                "tag": "claim"
+              },
+              "public_reachability": {
+                "statement": {
+                  "ref": "F-cl-reach-statement"
+                },
+                "design": "PASS",
+                "design_note": null,
+                "runtime": "DESIGNED_NOT_BUILT",
+                "runtime_note": null,
+                "assumptions": [
+                  {
+                    "ref": "F-cl-assume-statement"
+                  }
+                ],
+                "runs": [],
+                "laws": [
+                  "L-one-current"
+                ],
+                "basis": {
+                  "admitted_input": {
+                    "ref": "F-x-readonly-input"
+                  },
+                  "producer": "CREATE_NEW:src/ui/views.ts::renderViews",
+                  "consumer": "src/main.ts::start",
+                  "public_observation": {
+                    "ref": "F-po-expected"
+                  },
+                  "bootstrap": null,
+                  "tag": "path"
+                },
+                "tag": "claim"
+              },
+              "liveness": {
+                "reason": {
+                  "ref": "F-cl-live-statement"
+                },
+                "tag": "not_applicable"
+              }
+            },
+            {
+              "subject": {
+                "ref": "F-cl-subject-machine"
+              },
+              "safety": {
+                "statement": {
+                  "ref": "F-cl-safety-machine"
+                },
+                "design": "BLOCKED",
+                "design_note": {
+                  "ref": "F-cl-safety-machine-design"
+                },
+                "runtime": "INDETERMINATE",
+                "runtime_note": {
+                  "ref": "F-cl-safety-machine-runtime"
+                },
+                "assumptions": [
+                  {
+                    "ref": "F-cl-assume-machine"
+                  },
+                  {
+                    "ref": "F-d-waiver"
+                  }
+                ],
+                "runs": [],
+                "laws": [
+                  "L-one-current",
+                  "L-switch-roundtrip"
+                ],
+                "basis": {
+                  "argument": [
+                    {
+                      "ref": "F-d-waiver"
+                    },
+                    {
+                      "ref": "F-d-switch-machine"
+                    }
+                  ],
+                  "tag": "argued"
+                },
+                "tag": "claim"
+              },
+              "inhabitation": {
+                "statement": {
+                  "ref": "F-cl-inhab-machine"
+                },
+                "design": "PASS",
+                "design_note": null,
+                "runtime": "DESIGNED_NOT_BUILT",
+                "runtime_note": null,
+                "assumptions": [
+                  {
+                    "ref": "F-cl-assume-machine"
+                  }
+                ],
+                "runs": [],
+                "laws": [
+                  "L-switch-roundtrip"
+                ],
+                "basis": {
+                  "admitted_input": {
+                    "ref": "F-d-switch-machine"
+                  },
+                  "producer": "CREATE_NEW:src/ui/views.ts::switchView",
+                  "consumer": "src/ui/theme.css",
+                  "public_observation": {
+                    "ref": "F-ob-tab"
+                  },
+                  "bootstrap": null,
+                  "tag": "path"
+                },
+                "tag": "claim"
+              },
+              "public_reachability": {
+                "statement": {
+                  "ref": "F-cl-reach-machine"
+                },
+                "design": "PASS",
+                "design_note": null,
+                "runtime": "DESIGNED_NOT_BUILT",
+                "runtime_note": null,
+                "assumptions": [
+                  {
+                    "ref": "F-cl-assume-machine"
+                  }
+                ],
+                "runs": [],
+                "laws": [
+                  "L-one-current"
+                ],
+                "basis": {
+                  "admitted_input": {
+                    "ref": "F-x-readonly-input"
+                  },
+                  "producer": "CREATE_NEW:src/ui/views.ts::renderViews",
+                  "consumer": "src/main.ts::start",
+                  "public_observation": {
+                    "ref": "F-po-expected"
+                  },
+                  "bootstrap": null,
+                  "tag": "path"
+                },
+                "tag": "claim"
+              },
+              "liveness": {
+                "reason": {
+                  "ref": "F-cl-live-machine"
+                },
+                "tag": "not_applicable"
+              }
+            }
+          ]
+        },
+        "tag": "applicable"
+      }
+    },
+    {
+      "kind": "model",
+      "scope": "shared",
+      "status": {
+        "reason": {
+          "ref": "F-model-na"
+        },
+        "tag": "not_applicable"
+      }
+    },
+    {
+      "kind": "scenarios",
+      "scope": "shared",
+      "status": {
+        "reason": {
+          "ref": "F-scenarios-na"
+        },
+        "tag": "not_applicable"
+      }
+    }
+  ]
+}
+```
+
+### Product change (Shared design)
+
+Product change: required
+
+### Verification (Shared design)
+
+Verification command:
+
+```sh
+node tests/support/oracle-observation.mjs tests/acceptance/statement-shell.spec.ts
+```
+
+Verification command:
+
+```sh
+npm run build
+```
+
+## Value 3
+
+### Facts (Value 3)
+
+- V3-purpose: Value 3 draws every switch of the Statement as one movement: a tap
+  on a navigation tab slides the mint pill and the two panes together and raises
+  the arriving Statement's parts one after another, a tap on a pill tab slides
+  the two lists and raises the arriving list's rows and footer while the heading
+  and the balance card do not move at all, and a phone that asks for reduced
+  motion shows the same end screens at once.
+- V3-c-slide: A slide takes 420 ms on cubic-bezier(0.2, 0.8, 0.2, 1): the track
+  travels between translateX(0) and translateX(-50%), the navigation pill
+  travels by one half of the bar, the leaving pane's opacity travels to 0.4 and
+  the arriving pane's to 1, and the two lists travel by their own width plus 16
+  px, the sent panel to the left and the paid-back panel from the right, with
+  the thumb travelling by its own width plus 4 px and its colour between #24508a
+  and #0f6f68.
+- V3-c-rise: A rise takes 360 ms on the same curve, from translateY(10px) and
+  opacity 0, delayed by 120 + min(index, 14) x 22 ms: on a navigation switch the
+  arriving Statement's heading is index 0, its balance card 1, its pill 2, its
+  rows 3 upward and its footer the index after its last row; on a pill switch
+  only the arriving list's rows and footer rise, in the same order and by the
+  same law.
+- V3-c-reduced: With prefers-reduced-motion set, no transition and no rise runs
+  at all, no element carries data-motion at any frame, no part is ever
+  displaced, and every reading of the end screen is the same as on a phone that
+  allows motion.
+- V3-c-rest-bound: Every part of a switch rests within 1200 ms of the tap,
+  because the slowest part is a row at index 14 whose rise ends 788 ms after the
+  tap; nothing carries data-motion and no part carries an inline transform after
+  that.
+- V3-d-motion-owner: src/ui/motion.ts gains the two switches beside the motions
+  it already owns, built the same way as its existing entrance: a part is put in
+  its start state while it is held, declares which kind of part it is, travels
+  on the one curve and is left with no inline style of its own. Nothing of a
+  balance, an entry or a list means anything inside that module; the caller
+  hands over the elements and the kind.
+- V3-d-motion-vocabulary: The data-motion values this value adds: the track
+  carries view-slide while the panes travel, the arriving statement screen
+  carries view-enter until its last part rests, the list area carries list-slide
+  while the two panels travel, and the arriving panel carries list-enter until
+  its last row and its footer rest. Each is removed the moment its own motion
+  ends, and each rising part carries data-enter-rise with its kind and
+  data-enter-phase while it travels, as the existing entrance already does.
+- V3-d-css-states: The resting states stay what value 1 and value 2 drew from
+  data-shown and data-statement-shown; this value adds only the transitions over
+  them and the start states of the rise, so a reduced-motion device and an
+  interrupted switch both rest on the same end screen as before.
+- V3-d-interrupt: A second tap inside a running switch is not cancelled and not
+  queued: the attribute is written again and the transitions travel from
+  wherever they are to the new end state, so the end screen is always the last
+  tap's and no part can be left displaced after the rest bound.
+- V3-d-clock: Every staggered rise reads its progress from the clock rather than
+  counting frames, as the module already does, so a tab hidden in the middle of
+  a switch lands on the same end state on its next visible frame.
+- V3-d-closure: Constructive closure of this value. Safety, that no motion
+  changes a figure, a row or a count and that nothing is left displaced or still
+  claiming to move after the rest bound: DESIGN PASS, runtime
+  DESIGNED_NOT_BUILT. Inhabitation, that each switch's frames exist and are
+  observable through data-motion and the sampled transforms: DESIGN PASS,
+  runtime DESIGNED_NOT_BUILT. Public reachability, that both switches are driven
+  only from the public DOM: DESIGN PASS, runtime DESIGNED_NOT_BUILT. Liveness,
+  that every motion ends: DESIGN BLOCKED under the recorded waiver, runtime
+  INDETERMINATE, because no temporal check was run and the rest bound is
+  observed by sampling alone.
+- V3-d-liveness-note: No temporal or fairness check was run for the claim that
+  every started motion ends: the waiver stands, the claim is unchecked, and the
+  only evidence designed for it is the sampled observation that nothing carries
+  data-motion after the rest bound.
+- V3-d-liveness-runtime: Nothing of this motion is built yet and its temporal
+  claim was not checked, so its runtime standing is INDETERMINATE rather than
+  merely designed and not built.
+- V3-b-driving: The driving port is the built bundle's DOM at 360 by 780,
+  sampled frame by frame inside the page: the data-motion attributes, the
+  computed transforms and opacities of the track, the pill, the two panes, the
+  thumb, the two panels, each row and each footer, and the transition
+  declarations the stylesheet serves.
+- V3-b-direction: src/ui/views.ts and src/ui/statement.ts hand their own
+  elements to src/ui/motion.ts and read nothing back from it; src/ui/motion.ts
+  imports nothing of the domain; src/ui/theme.css holds every duration, delay
+  and curve of a resting state and a transition.
+- V3-b-f1-cond: A second tap arrives while a switch is still travelling.
+- V3-b-f1-obs: The end screen is the last tap's, exactly one tab is current and
+  exactly one panel is shown, and within the rest bound nothing carries
+  data-motion and no part carries an inline transform.
+- V3-b-f2-cond: The tab is hidden, or the frame callback is throttled, in the
+  middle of a switch.
+- V3-b-f2-obs: The next visible frame shows the end state of every part, because
+  each rise reads its progress from the clock.
+- V3-b-f3-cond: The device asks for reduced motion.
+- V3-b-f3-obs: No element carries data-motion at any frame, no part is
+  displaced, and both end screens read exactly as they do with motion allowed.
+- V3-po-observation: Every switch is drawn as one movement. A tap on a
+  navigation tab slides the mint pill and the two panes together over 420 ms on
+  cubic-bezier(0.2, 0.8, 0.2, 1), fades the leaving pane to 0.4, and raises the
+  arriving Statement's heading, balance card, pill, rows and footer one after
+  another over 360 ms, each delayed by 120 + min(index, 14) x 22 ms. A tap on
+  the pill slides the two lists the same way, turns the thumb from blue to teal,
+  and raises the arriving list's rows and footer in the same order, while the
+  heading and the balance card do not move at all. On a phone that asks for
+  reduced motion the same taps show the same end screens at once, with no
+  transition.
+- V3-po-stimulus: The acceptance support starts the stack, resets it, waits for
+  the auth service, builds and serves the bundle, creates one account and seeds
+  one person and nine entries, five sends and four repayments, so both lists
+  hold rows. A Chromium context at 360 by 780 signs in and, with a sampler
+  started inside the page before each tap, taps Statement, then taps Paid back
+  by Abbaas, recording for every frame the data-motion of the track, the
+  statement screen, the list area and the arriving panel, the computed transform
+  and opacity of the track, the navigation pill, both panes, the thumb, both
+  panels, the heading, the balance card, the pill, the first rows and both
+  footers, and the clock of each frame. It reads the transition declarations of
+  those same elements, waits past the rest bound and reads every element again.
+  A second context with reducedMotion set to reduce repeats both taps with the
+  same sampler.
+- V3-po-expected: On the navigation tap the track carries data-motion=view-slide
+  from the first sampled frame, its computed transform travels monotonically
+  from translateX(0) towards minus one half of its width and reaches it within
+  420 ms plus two frames, the navigation pill's transform travels by one half of
+  the bar over the same frames, the leaving pane's opacity reaches 0.4 and the
+  arriving pane's 1, and the track's served transition-duration is 420ms with
+  the timing function cubic-bezier(0.2, 0.8, 0.2, 1). The arriving statement
+  screen carries data-motion=view-enter, and the heading, the balance card, the
+  pill, the first row and the footer each carry data-enter-rise while displaced
+  and are never displaced without it; the frame at which each of them first
+  moves is ordered heading, card, pill, rows, footer, and each one's own travel
+  is over within 360 ms plus two frames of its first movement. On the pill tap
+  the list area carries data-motion=list-slide, the sent panel's transform
+  travels to minus its own width less 16 px and the paid-back panel's from plus
+  its own width plus 16 px, the thumb's transform travels by its own width plus
+  4 px and its background from rgb(36, 80, 138) to rgb(15, 111, 104), the
+  arriving panel carries data-motion=list-enter while its rows and its footer
+  rise in index order, and the heading's and the balance card's boxes and
+  opacities are identical in every frame of that switch. 1200 ms after each tap
+  no element carries data-motion, no element carries an inline transform or
+  opacity, and every reading of value 1's and value 2's oracles still holds. In
+  the reduced-motion context no element carries data-motion at any sampled
+  frame, no transform is ever other than none, and both end screens read exactly
+  as in the first context.
+- V3-po-falsifier: Transitioning on a property other than transform and opacity,
+  or with a duration other than 420 ms, breaks the sampled travel and the served
+  declaration. Raising every part with one delay, or in another order, breaks
+  the ordering of first movements. Moving the heading or the balance card during
+  a pill switch breaks their frame-by-frame boxes. Leaving a part displaced
+  without data-motion, or leaving data-motion set after the rest bound, fails
+  the attribute readings. Running the transitions under prefers-reduced-motion
+  puts a data-motion and a transform in the reduced-motion context's frames.
+- V3-o-arch: The two new switches live in src/ui/motion.ts, which still imports
+  nothing of the domain and still removes data-motion the moment a motion ends;
+  the Statement and the shell hand it their own elements and read nothing back.
+- V3-i-extended: Extended in place by this value, with every symbol its existing
+  callers read left in force.
+- V3-a-motion-producer: src/ui/motion.ts gains two data-motion values and keeps
+  every one it already sets, so its vocabulary grows and nothing of it changes.
+- V3-a-motion-consumer: This oracle waits for data-motion to clear on Home and
+  on the forms; the two new values are set only while a Statement switch
+  travels, which its stimulus never starts, and both are removed inside the rest
+  bound.
+- V3-a-ui-consumer: These screens import motion helpers by name and keep calling
+  the ones they already call; the two new helpers are additional exports.
+- V3-contract-na: No party to this value's contract can change apart from it:
+  the data-motion vocabulary, the stylesheet's transitions and the screens that
+  start the motions are produced and consumed in this one deployable and this
+  one commit, and the stored rows this value reads are already covered by the
+  contract checks of values 1 and 2.
+- V3-adr-na: This value adds the motion inside the boundary the shared design
+  already decided, so it records no architectural decision of its own.
+- V3-ob-frames: The sampled frames of a switch: for each frame, the clock, the
+  data-motion of the track, the statement screen, the list area and the arriving
+  panel, and the computed transform and opacity of each named part.
+- V3-ob-frames-blind: It cannot see what the eye calls smooth, it misses
+  anything that happens between two frames, and it says nothing about the
+  compositor's own work.
+- V3-ob-declared: The transition-duration, transition-property and
+  transition-timing-function the served stylesheet gives each named part.
+- V3-ob-declared-blind: It says nothing about whether a declared transition ever
+  runs.
+- V3-ob-rest: Every element's data-motion, inline transform and inline opacity,
+  read once past the rest bound.
+- V3-ob-rest-blind: It says nothing about how any part reached that rest.
+- V3-eq: Two motions are equal when they agree on the sampled frames of every
+  named part, on the declared transitions, and on the reading taken past the
+  rest bound.
+- V3-law-slide: The track, the navigation pill, the two panes, the thumb and the
+  two panels travel between exactly the resting states the stylesheet declares,
+  over 420 ms on cubic-bezier(0.2, 0.8, 0.2, 1), and no other property of them
+  is transitioned.
+- V3-law-rise-order: The frame at which each arriving part first moves follows
+  the delay law 120 + min(index, 14) x 22 ms in the order heading, balance card,
+  pill, rows, footer, and each part's own travel lasts 360 ms.
+- V3-law-steady: During a pill switch the heading's and the balance card's boxes
+  and opacities are identical in every sampled frame.
+- V3-law-declares: No part is displaced in a frame in which it carries no
+  data-motion or data-enter-rise, and no element carries either past the rest
+  bound.
+- V3-law-reduced: With prefers-reduced-motion set, no element carries
+  data-motion in any frame, no part is displaced, and every end-screen reading
+  equals the one taken with motion allowed.
+- V3-law-ends: Every started motion ends: within 1200 ms of a tap no element
+  carries data-motion and no part carries an inline transform.
+- V3-gen: Taps from a fixed seed: the two navigation tabs and the two pill tabs,
+  in sequences of 1 to 4 taps, with gaps of 0, 60, 200 and 600 ms between them,
+  in both a motion-allowed and a reduced-motion context.
+- V3-gen-seed: The seed is a constant of the spec, printed on failure; a failing
+  sequence is re-run with its last tap removed until the shortest still-failing
+  sequence is reported.
+- V3-gen-must-single: A single tap on each of the four tabs.
+- V3-gen-must-double: Two taps inside one slide, on the two tabs of the same
+  switch.
+- V3-gen-must-cross: A navigation tap and a pill tap inside one slide.
+- V3-cl-subject: The motion of the two switches, as value 3 ships it.
+- V3-cl-safety: No motion changes a figure, a row or a count, and no part is
+  left displaced or still claiming to move past the rest bound.
+- V3-cl-inhab: Each switch's frames exist and are observable through
+  data-motion, data-enter-rise and the sampled transforms.
+- V3-cl-reach: Both switches are started only from the public DOM, by a
+  navigation tab or a pill tab.
+- V3-cl-live: Every started motion ends, so no switch can leave the app between
+  two screens.
+- V3-cl-assume: The argument rests on values 1 and 2 being in place, on the
+  stylesheet holding every resting state, on each rise reading its progress from
+  the clock, and on the browser honouring prefers-reduced-motion.
+- V3-pf-na: No preserving move is measured here: every file this value touches
+  is either created by value 1 of this same Request or extended with additional
+  exports, and no existing behaviour is moved.
+
+### Targets (Value 3)
+
+| Path | Decision | Reason |
+|---|---|---|
+| `src/ui/motion.ts` | EXTEND | F-t-motion |
+| `src/ui/views.ts` | EXTEND | F-t-views |
+| `src/ui/statement.ts` | EXTEND | F-t-statement-ui |
+| `src/ui/theme.css` | EXTEND | F-t-theme |
+
+### Paradigm (Value 3)
+
+functional
+
+### Decisions (Value 3)
+
+F-d-track, F-d-switch-state, F-d-waiver, F-d-substrate, F-d-oracle-observation,
+F-d-readiness, F-d-arch-law, F-d-layer-application, F-d-stress-motion,
+F-d-stress-taps, F-d-selffals, F-d-admitted, F-d-excluded, V3-d-motion-owner,
+V3-d-motion-vocabulary, V3-d-css-states, V3-d-interrupt, V3-d-clock,
+V3-d-closure, V3-d-liveness-note
+
+### Oracle (Value 3)
+
+tests/acceptance/statement-motion.spec.ts
+
+### Acceptance supports (Value 3)
+
+```json
+[
+  "tests/support/local-stack.ts",
+  "tests/support/accounts.ts",
+  "tests/support/oracle-observation.mjs",
+  "tests/playwright.config.ts"
+]
+```
+
+### Oracle verification index (Value 3)
+
+```json
+0
+```
+
+### Purpose (Value 3)
+
+V3-purpose
+
+### Constraints (Value 3)
+
+F-c-board, F-c-viewport, F-c-motion-math, F-c-no-page-scroll,
+F-c-home-unchanged, F-c-paradigm, F-c-approval, F-c-read-only, V3-c-slide,
+V3-c-rise, V3-c-reduced, V3-c-rest-bound
+
+### Inherits (Value 3)
+
+None
+
+### Boundaries (Value 3)
+
+```json
+{
+  "driving_port": {
+    "ref": "V3-b-driving"
+  },
+  "driven_ports": [
+    {
+      "ref": "F-b-driven-motion"
+    },
+    {
+      "ref": "F-b-driven-store"
+    }
+  ],
+  "dependency_direction": {
+    "ref": "V3-b-direction"
+  },
+  "failures": [
+    {
+      "condition": {
+        "ref": "V3-b-f1-cond"
+      },
+      "outcome": "Indeterminate",
+      "observation": {
+        "ref": "V3-b-f1-obs"
+      }
+    },
+    {
+      "condition": {
+        "ref": "V3-b-f2-cond"
+      },
+      "outcome": "Indeterminate",
+      "observation": {
+        "ref": "V3-b-f2-obs"
+      }
+    },
+    {
+      "condition": {
+        "ref": "V3-b-f3-cond"
+      },
+      "outcome": "Refusal",
+      "observation": {
+        "ref": "V3-b-f3-obs"
+      }
+    }
+  ],
+  "applicability": "applicable"
+}
+```
+
+### Public oracle (Value 3)
+
+```json
+{
+  "observation": {
+    "ref": "V3-po-observation"
+  },
+  "stimulus": {
+    "ref": "V3-po-stimulus"
+  },
+  "expected": {
+    "ref": "V3-po-expected"
+  },
+  "falsifier": {
+    "ref": "V3-po-falsifier"
+  }
+}
+```
+
+### Architectural tests (Value 3)
+
+```json
+{
+  "obligations": [
+    {
+      "id": "V3-AT-motion",
+      "obligation": {
+        "ref": "V3-o-arch"
+      },
+      "oracle": "tests/acceptance/statement-motion.spec.ts::the motion module stays free of the domain and clears its own attribute",
+      "verification_index": 0
+    }
+  ],
+  "applicability": "applicable"
+}
+```
+
+### Contract tests (Value 3)
+
+```json
+{
+  "reason": {
+    "ref": "V3-contract-na"
+  },
+  "applicability": "not_applicable"
+}
+```
+
+### Prefactoring (Value 3)
+
+```json
+{
+  "reason": {
+    "ref": "V3-pf-na"
+  },
+  "applicability": "not_applicable"
+}
+```
+
+### Agreement analysis (Value 3)
+
+| Id | Contract | Role | Locator | Decision | Reason |
+|---|---|---|---|---|---|
+| V3-P-motion | The data-motion vocabulary of src/ui/motion.ts | producer | `src/ui/motion.ts:16` | UNCHANGED_COMPATIBLE | V3-a-motion-producer |
+| V3-P-entrances | The data-motion vocabulary of src/ui/motion.ts | consumer | `tests/acceptance/entrances.spec.ts:663` | UNCHANGED_COMPATIBLE | V3-a-motion-consumer |
+| V3-P-motion-spec | The data-motion vocabulary of src/ui/motion.ts | consumer | `tests/acceptance/motion.spec.ts:24` | UNCHANGED_COMPATIBLE | V3-a-motion-consumer |
+| V3-P-home | The exported helpers of src/ui/motion.ts | consumer | `src/ui/home.ts:111` | UNCHANGED_COMPATIBLE | V3-a-ui-consumer |
+| V3-P-main | The exported helpers of src/ui/motion.ts | consumer | `src/main.ts:17` | UNCHANGED_COMPATIBLE | V3-a-ui-consumer |
+
+### Reuse analysis (Value 3)
+
+| Symbol | Locator | Decision | Reason |
+|---|---|---|---|
+| prefersReducedMotion | `src/ui/motion.ts:175` | REUSE | V3-c-reduced |
+| rise | `src/ui/motion.ts:621` | EXTEND | V3-d-motion-owner |
+| enterHome | `src/ui/motion.ts:721` | REUSE | V3-a-motion-consumer |
+| enterRows | `src/ui/motion.ts:829` | CREATE_NEW | V3-c-rise |
+| step | `src/ui/motion.ts:215` | REUSE | V3-d-clock |
+| curve | `src/ui/theme.css:55` | REUSE | F-c-motion-math |
+
+### Impact closure (Value 3)
+
+```json
+{
+  "items": [
+    {
+      "kind": "public_interface",
+      "locator": "src/ui/motion.ts",
+      "decision": "CHANGED",
+      "reason": {
+        "ref": "V3-i-extended"
+      }
+    },
+    {
+      "kind": "public_interface",
+      "locator": "src/ui/views.ts",
+      "decision": "CHANGED",
+      "reason": {
+        "ref": "V3-i-extended"
+      }
+    },
+    {
+      "kind": "public_interface",
+      "locator": "src/ui/statement.ts",
+      "decision": "CHANGED",
+      "reason": {
+        "ref": "V3-i-extended"
+      }
+    },
+    {
+      "kind": "runtime",
+      "locator": "src/ui/theme.css",
+      "decision": "CHANGED",
+      "reason": {
+        "ref": "V3-i-extended"
+      }
+    },
+    {
+      "kind": "test",
+      "locator": "tests/acceptance/entrances.spec.ts:663",
+      "decision": "UNCHANGED_COMPATIBLE",
+      "reason": {
+        "ref": "V3-a-motion-consumer"
+      }
+    },
+    {
+      "kind": "test",
+      "locator": "tests/acceptance/motion.spec.ts:24",
+      "decision": "UNCHANGED_COMPATIBLE",
+      "reason": {
+        "ref": "V3-a-motion-consumer"
+      }
+    },
+    {
+      "kind": "consumer",
+      "locator": "src/ui/home.ts:111",
+      "decision": "UNCHANGED_COMPATIBLE",
+      "reason": {
+        "ref": "V3-a-ui-consumer"
+      }
+    },
+    {
+      "kind": "consumer",
+      "locator": "src/main.ts:17",
+      "decision": "UNCHANGED_COMPATIBLE",
+      "reason": {
+        "ref": "V3-a-ui-consumer"
+      }
+    }
+  ],
+  "applicability": "applicable"
+}
+```
+
+### Adr (Value 3)
+
+```json
+{
+  "reason": {
+    "ref": "V3-adr-na"
+  },
+  "applicability": "not_applicable"
+}
+```
+
+### Architect handoff (Value 3)
+
+```json
+{
+  "sections": [
+    {
+      "kind": "laws",
+      "scope": "value:3",
+      "status": {
+        "payload": {
+          "observations": [
+            {
+              "id": "V3-O-frames",
+              "description": {
+                "ref": "V3-ob-frames"
+              },
+              "result_type": "ordered frames of attributes, transforms and opacities",
+              "cannot_distinguish": {
+                "ref": "V3-ob-frames-blind"
+              }
+            },
+            {
+              "id": "V3-O-declared",
+              "description": {
+                "ref": "V3-ob-declared"
+              },
+              "result_type": "three declarations per part",
+              "cannot_distinguish": {
+                "ref": "V3-ob-declared-blind"
+              }
+            },
+            {
+              "id": "V3-O-rest",
+              "description": {
+                "ref": "V3-ob-rest"
+              },
+              "result_type": "attribute and two inline styles per element",
+              "cannot_distinguish": {
+                "ref": "V3-ob-rest-blind"
+              }
+            }
+          ],
+          "equality": {
+            "under": [
+              "V3-O-frames",
+              "V3-O-declared",
+              "V3-O-rest"
+            ],
+            "definition": {
+              "ref": "V3-eq"
+            }
+          },
+          "constructors": [
+            {
+              "id": "V3-C-slide-views",
+              "signature": "slideViews(shell: HTMLElement, tab: 'entries' | 'statement'): void"
+            },
+            {
+              "id": "V3-C-slide-lists",
+              "signature": "slideLists(statement: HTMLElement, list: 'sent' | 'back'): void"
+            },
+            {
+              "id": "V3-C-rise",
+              "signature": "riseParts(parts: readonly { element: HTMLElement; kind: string; index: number }[], motion: string): void"
+            }
+          ],
+          "generators": [
+            {
+              "id": "V3-G-taps",
+              "domain": {
+                "ref": "V3-gen"
+              },
+              "size_bound": 4,
+              "seed_policy": {
+                "ref": "V3-gen-seed"
+              },
+              "must_include": [
+                {
+                  "ref": "V3-gen-must-single"
+                },
+                {
+                  "ref": "V3-gen-must-double"
+                },
+                {
+                  "ref": "V3-gen-must-cross"
+                }
+              ],
+              "depth_bound": null
+            }
+          ],
+          "laws": [
+            {
+              "id": "V3-L-slide",
+              "statement": {
+                "ref": "V3-law-slide"
+              },
+              "kind": "invariant",
+              "layer": "application",
+              "owner": "src/ui/theme.css",
+              "uses": [
+                "V3-O-frames",
+                "V3-O-declared",
+                "V3-C-slide-views"
+              ],
+              "treatment": {
+                "cases": [
+                  {
+                    "ref": "V3-gen-must-single"
+                  }
+                ],
+                "reason": {
+                  "ref": "V3-c-slide"
+                },
+                "tag": "finite"
+              },
+              "evidence": {
+                "tag": "to_run"
+              }
+            },
+            {
+              "id": "V3-L-rise-order",
+              "statement": {
+                "ref": "V3-law-rise-order"
+              },
+              "kind": "invariant",
+              "layer": "application",
+              "owner": "src/ui/motion.ts::riseParts",
+              "uses": [
+                "V3-O-frames",
+                "V3-C-rise"
+              ],
+              "treatment": {
+                "cases": [
+                  {
+                    "ref": "V3-gen-must-single"
+                  }
+                ],
+                "reason": {
+                  "ref": "V3-c-rise"
+                },
+                "tag": "finite"
+              },
+              "evidence": {
+                "tag": "to_run"
+              }
+            },
+            {
+              "id": "V3-L-steady",
+              "statement": {
+                "ref": "V3-law-steady"
+              },
+              "kind": "metamorphic",
+              "layer": "application",
+              "owner": "src/ui/statement.ts::renderStatement",
+              "uses": [
+                "V3-O-frames",
+                "V3-C-slide-lists"
+              ],
+              "treatment": {
+                "cases": [
+                  {
+                    "ref": "V3-gen-must-single"
+                  }
+                ],
+                "reason": {
+                  "ref": "V3-c-rise"
+                },
+                "tag": "finite"
+              },
+              "evidence": {
+                "tag": "to_run"
+              }
+            },
+            {
+              "id": "V3-L-declares",
+              "statement": {
+                "ref": "V3-law-declares"
+              },
+              "kind": "invariant",
+              "layer": "application",
+              "owner": "src/ui/motion.ts::riseParts",
+              "uses": [
+                "V3-O-frames",
+                "V3-O-rest"
+              ],
+              "treatment": {
+                "generator": "V3-G-taps",
+                "independent_observation": {
+                  "ref": "V3-d-interrupt"
+                },
+                "falsifier": {
+                  "description": {
+                    "ref": "V3-po-falsifier"
+                  }
+                },
+                "tag": "broad"
+              },
+              "evidence": {
+                "tag": "to_run"
+              }
+            },
+            {
+              "id": "V3-L-reduced",
+              "statement": {
+                "ref": "V3-law-reduced"
+              },
+              "kind": "invariant",
+              "layer": "application",
+              "owner": "src/ui/motion.ts::slideViews",
+              "uses": [
+                "V3-O-frames",
+                "V3-O-rest",
+                "V3-C-slide-views"
+              ],
+              "treatment": {
+                "cases": [
+                  {
+                    "ref": "V3-gen-must-single"
+                  },
+                  {
+                    "ref": "V3-gen-must-cross"
+                  }
+                ],
+                "reason": {
+                  "ref": "V3-c-reduced"
+                },
+                "tag": "finite"
+              },
+              "evidence": {
+                "tag": "to_run"
+              }
+            },
+            {
+              "id": "V3-L-ends",
+              "statement": {
+                "ref": "V3-law-ends"
+              },
+              "kind": "invariant",
+              "layer": "infrastructure",
+              "owner": "src/ui/motion.ts::slideLists",
+              "uses": [
+                "V3-O-rest",
+                "V3-C-slide-lists"
+              ],
+              "treatment": {
+                "generator": "V3-G-taps",
+                "independent_observation": {
+                  "ref": "V3-c-rest-bound"
+                },
+                "falsifier": {
+                  "description": {
+                    "ref": "V3-d-liveness-note"
+                  }
+                },
+                "tag": "broad"
+              },
+              "evidence": {
+                "tag": "to_run"
+              }
+            }
+          ],
+          "refuted": []
+        },
+        "tag": "applicable"
+      }
+    },
+    {
+      "kind": "closure",
+      "scope": "value:3",
+      "status": {
+        "payload": {
+          "closures": [
+            {
+              "subject": {
+                "ref": "V3-cl-subject"
+              },
+              "safety": {
+                "statement": {
+                  "ref": "V3-cl-safety"
+                },
+                "design": "PASS",
+                "design_note": null,
+                "runtime": "DESIGNED_NOT_BUILT",
+                "runtime_note": null,
+                "assumptions": [
+                  {
+                    "ref": "V3-cl-assume"
+                  }
+                ],
+                "runs": [],
+                "laws": [
+                  "V3-L-declares",
+                  "V3-L-steady"
+                ],
+                "basis": {
+                  "argument": [
+                    {
+                      "ref": "V3-d-css-states"
+                    },
+                    {
+                      "ref": "V3-d-motion-vocabulary"
+                    }
+                  ],
+                  "tag": "argued"
+                },
+                "tag": "claim"
+              },
+              "inhabitation": {
+                "statement": {
+                  "ref": "V3-cl-inhab"
+                },
+                "design": "PASS",
+                "design_note": null,
+                "runtime": "DESIGNED_NOT_BUILT",
+                "runtime_note": null,
+                "assumptions": [
+                  {
+                    "ref": "V3-cl-assume"
+                  }
+                ],
+                "runs": [],
+                "laws": [
+                  "V3-L-slide",
+                  "V3-L-rise-order"
+                ],
+                "basis": {
+                  "admitted_input": {
+                    "ref": "V3-po-stimulus"
+                  },
+                  "producer": "src/ui/motion.ts::slideViews",
+                  "consumer": "src/ui/views.ts::renderViews",
+                  "public_observation": {
+                    "ref": "V3-po-expected"
+                  },
+                  "bootstrap": null,
+                  "tag": "path"
+                },
+                "tag": "claim"
+              },
+              "public_reachability": {
+                "statement": {
+                  "ref": "V3-cl-reach"
+                },
+                "design": "PASS",
+                "design_note": null,
+                "runtime": "DESIGNED_NOT_BUILT",
+                "runtime_note": null,
+                "assumptions": [
+                  {
+                    "ref": "V3-cl-assume"
+                  }
+                ],
+                "runs": [],
+                "laws": [
+                  "V3-L-reduced"
+                ],
+                "basis": {
+                  "admitted_input": {
+                    "ref": "V3-gen-must-single"
+                  },
+                  "producer": "src/ui/views.ts::renderViews",
+                  "consumer": "src/ui/theme.css",
+                  "public_observation": {
+                    "ref": "V3-po-observation"
+                  },
+                  "bootstrap": null,
+                  "tag": "path"
+                },
+                "tag": "claim"
+              },
+              "liveness": {
+                "statement": {
+                  "ref": "V3-cl-live"
+                },
+                "design": "BLOCKED",
+                "design_note": {
+                  "ref": "V3-d-liveness-note"
+                },
+                "runtime": "INDETERMINATE",
+                "runtime_note": {
+                  "ref": "V3-d-liveness-runtime"
+                },
+                "assumptions": [
+                  {
+                    "ref": "V3-cl-assume"
+                  },
+                  {
+                    "ref": "F-d-waiver"
+                  }
+                ],
+                "runs": [],
+                "laws": [
+                  "V3-L-ends"
+                ],
+                "basis": {
+                  "argument": [
+                    {
+                      "ref": "F-d-waiver"
+                    },
+                    {
+                      "ref": "V3-c-rest-bound"
+                    }
+                  ],
+                  "tag": "argued"
+                },
+                "tag": "claim"
+              }
+            }
+          ]
+        },
+        "tag": "applicable"
+      }
+    }
+  ]
+}
+```
+
+### Product change (Value 3)
+
+Product change: required
+
+### Verification (Value 3)
+
+Verification command:
+
+```sh
+node tests/support/oracle-observation.mjs tests/acceptance/statement-motion.spec.ts
+```
+
+Verification command:
+
+```sh
+npm run build
+```
+
+## Value 1
+
+### Facts (Value 1)
+
+- V1-purpose: Value 1 is this Request's walking skeleton for the Statement and
+  extends the app's one existing end-to-end path: the bottom bar with its two
+  tabs, and a Statement showing its heading, its period line, the mint balance
+  card and the Sent for Abbaas list alone, pinned so that only its rows scroll.
+- V1-c-no-pill: Value 1 builds no segmented pill: the sent panel is a region
+  with the accessible name Sent for Abbaas, and value 2 is what turns the two
+  panels into a tablist, so no role of this value is replaced later, only added
+  to.
+- V1-c-heading: The heading reads Statement in Manrope 800 at 22 px with the
+  period line under it at 13 px in #4c5f5b, inside a pane padded 24 px 16 px 16
+  px with a 16 px gap between its parts.
+- V1-c-card: The balance card is #e0f0ed, radius 24 px, padding 14 px 16 px 16
+  px, gap 9 px, with each row on the grid minmax(0, 1fr) 14px 120px and tabular
+  figures: Total Sent with its figure in #24508a, Paid Back with a minus sign in
+  the middle column and its figure in #0f6f68, a 1 px divider #c9e4df, then
+  Balance in Manrope 800 at 15 px with its figure in Manrope 800 at 22 px, both
+  in #0b5750.
+- V1-c-sent-panel: The sent panel is white with radius 18 px, the column header
+  No., Date, Paid to and USD on the grid 22px 44px minmax(0, 1fr) 70px with an 8
+  px column gap, rows alternating #ffffff and #fafcfb starting white at row 1,
+  each USD figure in #24508a, and the footer reading 'Total sent' with its count
+  and its total on #e7eef7 in #1b3f6e.
+- V1-c-row-cells: A row's cells are its number, its date as day and short month
+  with no leading zero, the person paid with the sub-line under the name, and
+  its USD figure with no currency sign.
+- V1-d-sent-row: A sent row is built by src/domain/statement.ts from one entry:
+  its number from its place in the oldest-first order, its date label from
+  entry_date, its party from person_name, its sub-line text, and its usdCents.
+  The person's own id stays on the element naming the person, as Home already
+  carries it.
+- V1-d-subline: A send's sub-line names the stored method first and then, for an
+  MVR entry, the rufiyaa figure and the rate: 'Transfer - MVR 17,000 @ 20' for
+  an MVR entry with a method, 'Transfer' for a USD one, 'MVR 10,000 @ 15.4' for
+  an MVR entry with no stored method, and nothing at all for a USD entry with no
+  stored method, whose row then carries no data-statement-sub and is a single
+  line.
+- V1-d-empty: On an empty ledger the Statement still shows its heading, its
+  period line without dates, its balance card reading $0.00 three times, and the
+  sent panel with its column header, no row and the footer 'Total sent - No
+  entries' with $0.00.
+- V1-d-pinned-layout: The pinned layout: the pane is a column of fixed parts and
+  one growing panel, the panel is a column of header, rows and footer with the
+  rows area the only overflow-y auto inside a flex 1 and min-height 0 container,
+  so the heading, the card, the header and the footer cannot move and the pane
+  itself never scrolls.
+- V1-d-nav-tap: A tap on a navigation tab is the only way into the Statement in
+  this value: it writes the shell's data-shown and the two aria-current values,
+  and no hash, no history entry and no second read is involved.
+- V1-d-prefactor-move: The preserving move this value makes before any Statement
+  behaviour: Home is given its own pane, exactly the dynamic viewport height,
+  which is the containing block of its bottom bar and its fade and the only
+  scrolling area of the screen. Home's DOM, its wording, its hooks, its figures
+  and its motions are untouched, and the navigation bar does not exist yet, so
+  every box the layout oracle measures is where it was.
+- V1-d-closure: Constructive closure of this value. Safety, that the Statement
+  draws no control that writes: DESIGN PASS, runtime DESIGNED_NOT_BUILT.
+  Inhabitation, that the heading, the period line, the three figures and the
+  numbered sent rows are built from stored rows: DESIGN PASS, runtime
+  DESIGNED_NOT_BUILT. Public reachability, that a tap on the Statement tab
+  reaches them: DESIGN PASS, runtime DESIGNED_NOT_BUILT. Liveness: not
+  applicable, one synchronous attribute change with nothing to wait for but the
+  read that is already awaited.
+- V1-d-pbt-scope: The broad laws of this value are checked over the seeded
+  generator's eight ledgers, each read through one page load: the numbering and
+  order of the sent rows, the footer's count and total, the three card figures,
+  and that the page never scrolls at any of those lengths.
+- V1-t-main: Builds the shell for the Home route, passes it Home and the
+  Statement built from the same read, and raises an entry sheet over the shell
+  root.
+- V1-pf-observation: The layout oracle keeps reading, at 360, 412 and 1024 px, a
+  column no wider than 560 px with equal margins, no horizontal scrolling, at
+  least 16 px of clearance under each bottom button, every control at least 44
+  px tall, the served stylesheet naming env(safe-area-inset-bottom), the
+  manifest and its icons, and the page painted rgb(244, 247, 246).
+- V1-b-driving: The driving port is the built bundle's DOM at 360 by 780: the
+  two navigation tabs, and the Statement's heading, period line, balance card,
+  column header, numbered rows and footer.
+- V1-b-direction: src/ui/statement.ts depends on src/domain/statement.ts,
+  src/domain/money.ts, src/domain/ledger-view.ts, src/domain/balance.ts and the
+  port's types; src/domain/statement.ts depends on the entry shape alone;
+  src/ui/views.ts depends on nothing of the Statement's meaning; src/main.ts
+  composes them.
+- V1-po-observation: On a 360 px phone the bottom bar shows the two tabs Entries
+  and Statement with the mint pill and aria-current=page under the active one,
+  the Entries tab shows today's Home unchanged, and a tap on Statement shows the
+  heading Statement, the line 'You and Abbaas - 14 Sep - 14 Oct 2026 - in USD',
+  the mint card with Total Sent in blue, Paid Back with a minus in teal, a
+  divider and the Balance in large teal type, and the Sent for Abbaas list
+  headed No., Date, Paid to and USD with one numbered row for each send oldest
+  first, each reading its date, the person paid, a sub-line naming the method
+  first and then the rufiyaa figure and rate for an MVR entry, and its USD
+  figure, over the footer 'Total sent' with the count and the total. The
+  Statement shows no You or Abbaas box and no Send or Receive button; only the
+  rows scroll and the page never scrolls; and an empty ledger shows the same
+  screen with $0.00 figures, no rows and the footer 'Total sent - No entries'.
+- V1-po-stimulus: The acceptance support starts this project's local Supabase
+  stack, resets it to the repository migrations, waits for the auth service,
+  builds the bundle against the stack's URL and anon key and serves dist/ over
+  http://127.0.0.1:4317. Through the service role it creates account A and
+  seeds, with explicit saved_at times, two people and seven entries dated 14 Sep
+  2026 to 14 Oct 2026: a USD send of 200700 cents by transfer, an MVR send of
+  1700000 laari at rate 20.0000 worth 85000 cents by transfer, an MVR send of
+  1000000 laari at rate 15.4000 worth 64935 cents with no stored method, a USD
+  send of 9000 cents with no stored method, a USD send of 100000 cents by
+  cheque, a USD receive of 500000 cents by cash, and a USD receive of 600000
+  cents by cheque. It creates account B with no entries at all. A Chromium
+  context at 360 by 780 signs in as A, reads Home, taps Statement, reads every
+  part of the screen, scrolls the rows area to its end and reads the pinned
+  parts again, and reads the document's own scroll measurements; a second
+  context signs in as B and taps Statement; and the generator's eight seeded
+  ledgers are each read through one further load.
+- V1-po-expected: The statement screen carries data-screen=statement and holds
+  no data-box, no data-action and no control named Send or Receive. Its period
+  line reads 'You and Abbaas - 14 Sep - 14 Oct 2026 - in USD'. The three
+  data-statement-total rows carry data-cents 455635, 1100000 and 644365 with the
+  texts $4,556.35, $11,000.00 and $6,443.65. The sent panel carries
+  data-statement-list=sent, its data-statement-head=sent reads No., Date, Paid
+  to and USD, and it holds exactly five data-statement-row elements whose
+  data-no values read 1, 2, 3, 4 and 5 in document order, oldest first, with the
+  dates 14 Sep, 20 Sep, 29 Sep, 3 Oct and 14 Oct, the sub-lines 'Transfer - MVR
+  17,000 @ 20' on the 20 Sep row, 'MVR 10,000 @ 15.4' on the 29 Sep row,
+  'Transfer' on the 14 Sep row and 'Cheque' on the 14 Oct row, no
+  data-statement-sub at all on the 3 Oct row, and USD cells with no currency
+  sign. Its data-statement-foot=sent carries data-count 5 and data-cents 455635
+  and reads 'Total sent - 5 entries' with $4,556.35. After the rows area is
+  scrolled to its end the heading, the card, the column header and the footer
+  keep their boxes within a pixel, document.documentElement.scrollTop is 0 and
+  its scrollHeight is at most its clientHeight plus one. Account B's Statement
+  reads 'You and Abbaas - in USD', three figures of $0.00 with data-cents 0, no
+  data-statement-row and the footer 'Total sent - No entries' with $0.00. For
+  each generated ledger the rows' numbers are 1 upward in the spec's own
+  oldest-first order, the footer's count and cents equal the spec's own count
+  and sum, and the page still does not scroll.
+- V1-po-falsifier: Numbering the rows newest first, or ordering them by
+  insertion, breaks the data-no sequence against the spec's own order. Wording
+  the rate with the padded formatter makes the sub-line read '@ 20.00'.
+  Computing a row's USD figure from the rufiyaa amount and the rate instead of
+  the stored usd_cents moves the 29 Sep figure off 64935 cents. Printing a
+  currency sign in the USD column, or signing the Balance row, fails the cell
+  texts. Inventing a method word for the two rows stored without one makes them
+  read Cash, Cheque or Transfer. Letting the page scroll instead of the rows
+  area breaks the scrollHeight check, and letting the header or the footer
+  scroll with the rows moves a pinned box.
+- V1-o-arch: The Statement's two new modules obey the repository's dependency
+  law: src/domain/statement.ts names no DOM and no adapter, and
+  src/ui/statement.ts names no writing operation of LedgerStore.
+- V1-o-contract: A stored MVR row and a stored row with a null method are read
+  through the real adapter and the real Statement: the rufiyaa figure and the
+  unpadded rate are the stored amount_minor and rate, the USD figure is the
+  stored usd_cents, and the null method yields no word and no hook.
+- V1-ct-observation: The 20 Sep row's sub-line reads 'Transfer - MVR 17,000 @
+  20' from amount_minor 1700000 and rate 20.0000, its USD cell reads the stored
+  85000 cents, and the 3 Oct row, stored with method null, carries no
+  data-statement-sub and utters none of the three words.
+- V1-i-created: Created by this value as the owner named in its targets.
+- V1-i-extended: Extended in place by this value, with every symbol an existing
+  caller reads left in force.
+- V1-adr-na: The architectural decision of this feature is recorded once with
+  the shared design; this value adds no decision of its own that changes a
+  boundary.
+- V1-ob-screen: The Statement screen's parts, read as the period line's text,
+  the three data-statement-total rows with their data-cents, the
+  data-statement-head cells, the ordered data-statement-row tuples and the
+  data-statement-foot's text, data-count and data-cents.
+- V1-ob-screen-blind: It says nothing about colours, fonts, row tints or the
+  pane's padding.
+- V1-ob-pinned: The boxes of the heading, the balance card, the column header
+  and the footer, read before and after the rows area is scrolled to its end,
+  with the document's own scrollTop and scrollHeight.
+- V1-ob-pinned-blind: It cannot see a sub-pixel drift and says nothing about how
+  far the rows themselves travelled.
+- V1-ob-absent: The count of data-box, data-action and controls named Send or
+  Receive inside the statement screen.
+- V1-ob-absent-blind: It says nothing about a control that writes without
+  carrying one of those hooks or names.
+- V1-eq: Two Statement states are equal when they agree on the period line, the
+  three figures in cents, the ordered row tuples, both footer readings, the
+  pinned boxes and the counts of the absent controls.
+- V1-law-order: The sent rows are the read entries of kind send, oldest first by
+  entry_date, then saved_at, then id, numbered 1 upward in that order, and no
+  other row is present.
+- V1-law-figures: The three card figures in cents are the sum of the sends, the
+  sum of the repayments and the unsigned difference, and the footer's cents is
+  the sum of its own rows.
+- V1-law-subline: A row's sub-line is exactly the stored method's word, the
+  rufiyaa figure with its unpadded rate, both joined by the board's separator,
+  or absent, according to what the entry stores, and the rate text carries no
+  trailing zero.
+- V1-law-pinned: Scrolling the rows area to its end leaves the heading, the
+  card, the column header and the footer in their boxes and the document's
+  scrollTop at zero.
+- V1-law-absent: The statement screen holds no data-box, no data-action and no
+  control named Send or Receive, at every ledger length.
+- V1-gen: Ledgers of 0 to 12 entries from a fixed seed, mixing both kinds, USD
+  and MVR, a stored method or none, one date, many dates and dates in two years,
+  amounts of 1 to 5,000,000 minor units and rates of 0.0001 to 9999.9999 with at
+  most four decimals.
+- V1-gen-seed: The seed is a constant of the spec, printed on failure; a failing
+  ledger is re-run with one entry removed at a time and the smallest
+  still-failing ledger is reported.
+- V1-gen-must-empty: A ledger with no entry at all.
+- V1-gen-must-sends: A ledger of sends only, including one with no stored
+  method.
+- V1-gen-must-mvr: An MVR send whose rate has four decimals.
+- V1-gen-must-years: A ledger whose first and last entry dates fall in two
+  different years, so the period line carries a year on each date.
+- V1-cl-subject: The Statement's heading, period line, balance card and sent
+  list, as value 1 ships them.
+- V1-cl-safety: No control value 1 draws on the Statement can write, and no
+  figure it draws is converted a second time.
+- V1-cl-inhab: A period line, three figures and numbered sent rows are built
+  from stored rows.
+- V1-cl-reach: A tap on the Statement tab brings them into the viewport through
+  the bundle's own DOM.
+- V1-cl-live: Liveness is not applicable: the switch is one synchronous
+  attribute change and the single read is already awaited before the paint.
+- V1-cl-assume: This value's argument rests on its seven seeded rows being
+  readable under row-level security, on the one awaited read before the paint,
+  and on the built bundle being served over the loopback origin at 360 by 780.
+
+### Targets (Value 1)
+
+| Path | Decision | Reason |
+|---|---|---|
+| `src/ui/views.ts` | CREATE_NEW | F-t-views |
+| `src/ui/statement.ts` | CREATE_NEW | F-t-statement-ui |
+| `src/domain/statement.ts` | CREATE_NEW | F-t-statement-domain |
+| `src/domain/money.ts` | EXTEND | F-t-money |
+| `src/domain/ledger-view.ts` | EXTEND | F-t-ledger-view |
+| `src/main.ts` | EXTEND | V1-t-main |
+| `src/ui/theme.css` | EXTEND | F-t-theme |
+
+### Paradigm (Value 1)
+
+functional
+
+### Decisions (Value 1)
+
+F-d-shell, F-d-switch-state, F-d-track, F-d-hooks, F-d-hooks-extra, F-d-prefix,
+F-d-panes-hooks, F-d-domain-owner, F-d-ui-owner, F-d-typed-carriers, F-d-retry,
+F-d-waiver, F-d-substrate, F-d-oracle-observation, F-d-readiness, F-d-arch-law,
+F-d-pane-containing-block, F-d-sheet-parent, F-d-reuse-balance, F-d-reuse-money,
+F-d-layer-domain, F-d-layer-application, F-d-selffals, F-d-stress-read,
+F-d-stress-date, F-d-stress-size, F-d-stress-rate, F-d-admitted, F-d-excluded,
+V1-d-sent-row, V1-d-subline, V1-d-empty, V1-d-pinned-layout, V1-d-nav-tap,
+V1-d-prefactor-move, V1-d-closure, V1-d-pbt-scope
+
+### Oracle (Value 1)
+
+tests/acceptance/statement-sent.spec.ts
+
+### Acceptance supports (Value 1)
+
+```json
+[
+  "tests/support/local-stack.ts",
+  "tests/support/accounts.ts",
+  "tests/support/oracle-observation.mjs",
+  "tests/playwright.config.ts"
+]
+```
+
+### Oracle verification index (Value 1)
+
+```json
+0
+```
+
+### Purpose (Value 1)
+
+V1-purpose
+
+### Constraints (Value 1)
+
+F-c-board, F-c-viewport, F-c-no-page-scroll, F-c-read-only, F-c-one-read,
+F-c-stored-cents, F-c-order, F-c-count-label, F-c-method-null,
+F-c-amount-bounds, F-c-paradigm, F-c-approval, F-c-nav-metrics, F-c-pill-offset,
+F-c-home-unchanged, F-c-rate-text, F-c-usd-column, F-c-period, V1-c-no-pill,
+V1-c-heading, V1-c-card, V1-c-sent-panel, V1-c-row-cells
+
+### Inherits (Value 1)
+
+None
+
+### Boundaries (Value 1)
+
+```json
+{
+  "driving_port": {
+    "ref": "V1-b-driving"
+  },
+  "driven_ports": [
+    {
+      "ref": "F-b-driven-store"
+    }
+  ],
+  "dependency_direction": {
+    "ref": "V1-b-direction"
+  },
+  "failures": [
+    {
+      "condition": {
+        "ref": "F-b-f1-cond"
+      },
+      "outcome": "Retry",
+      "observation": {
+        "ref": "F-b-f1-obs"
+      }
+    },
+    {
+      "condition": {
+        "ref": "F-b-f2-cond"
+      },
+      "outcome": "Indeterminate",
+      "observation": {
+        "ref": "F-b-f2-obs"
+      }
+    },
+    {
+      "condition": {
+        "ref": "F-b-f3-cond"
+      },
+      "outcome": "Indeterminate",
+      "observation": {
+        "ref": "F-b-f3-obs"
+      }
+    },
+    {
+      "condition": {
+        "ref": "F-b-f4-cond"
+      },
+      "outcome": "Refusal",
+      "observation": {
+        "ref": "F-b-f4-obs"
+      }
+    }
+  ],
+  "applicability": "applicable"
+}
+```
+
+### Public oracle (Value 1)
+
+```json
+{
+  "observation": {
+    "ref": "V1-po-observation"
+  },
+  "stimulus": {
+    "ref": "V1-po-stimulus"
+  },
+  "expected": {
+    "ref": "V1-po-expected"
+  },
+  "falsifier": {
+    "ref": "V1-po-falsifier"
+  }
+}
+```
+
+### Architectural tests (Value 1)
+
+```json
+{
+  "obligations": [
+    {
+      "id": "V1-AT-inward",
+      "obligation": {
+        "ref": "V1-o-arch"
+      },
+      "oracle": "tests/acceptance/statement-sent.spec.ts::the statement modules depend inward only",
+      "verification_index": 0
+    }
+  ],
+  "applicability": "applicable"
+}
+```
+
+### Contract tests (Value 1)
+
+```json
+{
+  "obligations": [
+    {
+      "id": "V1-CT-stored-row",
+      "obligation": {
+        "ref": "V1-o-contract"
+      },
+      "contract": "The stored entries row: its method token and its rate",
+      "producer": "supabase/migrations/0002_entry_method.sql:14",
+      "consumer": "src/adapters/supabase/ledger-store.ts:61",
+      "observation": {
+        "ref": "V1-ct-observation"
+      },
+      "oracle": "tests/acceptance/statement-sent.spec.ts::a stored MVR row and a row with no method read as recorded",
+      "verification_index": 0
+    }
+  ],
+  "applicability": "applicable"
+}
+```
+
+### Prefactoring (Value 1)
+
+```json
+{
+  "existing_oracle": "tests/acceptance/layout-and-install.spec.ts",
+  "move": {
+    "ref": "V1-d-prefactor-move"
+  },
+  "preserved_observation": {
+    "ref": "V1-pf-observation"
+  },
+  "verification": [
+    [
+      "node",
+      "tests/support/oracle-observation.mjs",
+      "tests/acceptance/layout-and-install.spec.ts"
+    ]
+  ],
+  "acceptance_supports": [
+    "tests/support/local-stack.ts",
+    "tests/support/accounts.ts",
+    "tests/support/oracle-observation.mjs",
+    "tests/playwright.config.ts"
+  ],
+  "applicability": "applicable"
+}
+```
+
+### Agreement analysis (Value 1)
+
+| Id | Contract | Role | Locator | Decision | Reason |
+|---|---|---|---|---|---|
+| V1-P-home | Home's public DOM hook contract | producer | `src/ui/home.ts:697` | UNCHANGED_COMPATIBLE | F-a-home-producer |
+| V1-P-entry-list | Home's public DOM hook contract | consumer | `tests/acceptance/entry-list.spec.ts:514` | MIGRATED | F-a-fade-migrate |
+| V1-P-empty-home | Home's public DOM hook contract | consumer | `tests/acceptance/empty-home.spec.ts:124` | MIGRATED | F-a-band-migrate |
+| V1-P-entry-sheet | Home's public DOM hook contract | consumer | `tests/acceptance/entry-sheet.spec.ts:231` | UNCHANGED_COMPATIBLE | F-a-sheet-compatible |
+| V1-P-motion | Home's public DOM hook contract | consumer | `tests/acceptance/motion.spec.ts:250` | UNCHANGED_COMPATIBLE | F-a-grow-compatible |
+| V1-P-entrances | Home's public DOM hook contract | consumer | `tests/acceptance/entrances.spec.ts:502` | UNCHANGED_COMPATIBLE | F-a-entrance-compatible |
+| V1-P-layout | Home's public DOM hook contract | consumer | `tests/acceptance/layout-and-install.spec.ts:339` | UNCHANGED_COMPATIBLE | F-a-layout-compatible |
+| V1-P-method-col | The stored entries row: its method token and its rate | producer | `supabase/migrations/0002_entry_method.sql:14` | UNCHANGED_COMPATIBLE | F-a-method-producer |
+| V1-P-method-adapter | The stored entries row: its method token and its rate | consumer | `src/adapters/supabase/ledger-store.ts:61` | UNCHANGED_COMPATIBLE | F-a-method-consumer |
+
+### Reuse analysis (Value 1)
+
+| Symbol | Locator | Decision | Reason |
+|---|---|---|---|
+| renderHome | `src/ui/home.ts:697` | REUSE | F-a-home-producer |
+| showHome | `src/main.ts:166` | EXTEND | V1-t-main |
+| balanceOf | `src/domain/balance.ts:37` | REUSE | F-d-reuse-balance |
+| entryCountLabel | `src/domain/ledger-view.ts:99` | REUSE | F-c-count-label |
+| dayLabel | `src/domain/ledger-view.ts:91` | EXTEND | F-t-ledger-view |
+| groupEntriesByDay | `src/domain/ledger-view.ts:143` | CREATE_NEW | F-d-domain-owner |
+| formatRate | `src/domain/money.ts:93` | EXTEND | F-t-money |
+| formatUsdCents | `src/domain/money.ts:40` | REUSE | F-d-reuse-money |
+| formatMvrLaari | `src/domain/money.ts:87` | REUSE | F-c-stored-cents |
+| readEntries | `src/adapters/supabase/ledger-store.ts:91` | REUSE | F-c-one-read |
+| openEntrySheet | `src/ui/entry-sheet.ts:281` | REUSE | F-d-sheet-parent |
+| list-fade | `src/ui/theme.css:296` | EXTEND | F-a-fade-migrate |
+| bottom-bar | `src/ui/theme.css:341` | EXTEND | F-d-pane-containing-block |
+
+### Impact closure (Value 1)
+
+```json
+{
+  "items": [
+    {
+      "kind": "public_interface",
+      "locator": "src/ui/views.ts",
+      "decision": "CHANGED",
+      "reason": {
+        "ref": "V1-i-created"
+      }
+    },
+    {
+      "kind": "public_interface",
+      "locator": "src/ui/statement.ts",
+      "decision": "CHANGED",
+      "reason": {
+        "ref": "V1-i-created"
+      }
+    },
+    {
+      "kind": "public_interface",
+      "locator": "src/domain/statement.ts",
+      "decision": "CHANGED",
+      "reason": {
+        "ref": "V1-i-created"
+      }
+    },
+    {
+      "kind": "public_interface",
+      "locator": "src/domain/money.ts",
+      "decision": "CHANGED",
+      "reason": {
+        "ref": "V1-i-extended"
+      }
+    },
+    {
+      "kind": "public_interface",
+      "locator": "src/domain/ledger-view.ts",
+      "decision": "CHANGED",
+      "reason": {
+        "ref": "V1-i-extended"
+      }
+    },
+    {
+      "kind": "runtime",
+      "locator": "src/main.ts",
+      "decision": "CHANGED",
+      "reason": {
+        "ref": "V1-i-extended"
+      }
+    },
+    {
+      "kind": "runtime",
+      "locator": "src/ui/theme.css",
+      "decision": "CHANGED",
+      "reason": {
+        "ref": "V1-i-extended"
+      }
+    },
+    {
+      "kind": "test",
+      "locator": "tests/acceptance/entry-list.spec.ts:514",
+      "decision": "MIGRATED",
+      "reason": {
+        "ref": "F-i-spec-migrated"
+      }
+    },
+    {
+      "kind": "test",
+      "locator": "tests/acceptance/empty-home.spec.ts:124",
+      "decision": "MIGRATED",
+      "reason": {
+        "ref": "F-i-spec-migrated"
+      }
+    },
+    {
+      "kind": "test",
+      "locator": "tests/acceptance/entry-sheet.spec.ts:231",
+      "decision": "UNCHANGED_COMPATIBLE",
+      "reason": {
+        "ref": "F-i-spec-compatible"
+      }
+    },
+    {
+      "kind": "test",
+      "locator": "tests/acceptance/motion.spec.ts:250",
+      "decision": "UNCHANGED_COMPATIBLE",
+      "reason": {
+        "ref": "F-i-spec-compatible"
+      }
+    },
+    {
+      "kind": "test",
+      "locator": "tests/acceptance/entrances.spec.ts:502",
+      "decision": "UNCHANGED_COMPATIBLE",
+      "reason": {
+        "ref": "F-i-spec-compatible"
+      }
+    },
+    {
+      "kind": "test",
+      "locator": "tests/acceptance/layout-and-install.spec.ts:339",
+      "decision": "UNCHANGED_COMPATIBLE",
+      "reason": {
+        "ref": "F-i-spec-compatible"
+      }
+    },
+    {
+      "kind": "consumer",
+      "locator": "src/adapters/supabase/ledger-store.ts:61",
+      "decision": "UNCHANGED_COMPATIBLE",
+      "reason": {
+        "ref": "F-i-adapter-compatible"
+      }
+    }
+  ],
+  "applicability": "applicable"
+}
+```
+
+### Adr (Value 1)
+
+```json
+{
+  "reason": {
+    "ref": "V1-adr-na"
+  },
+  "applicability": "not_applicable"
+}
+```
+
+### Architect handoff (Value 1)
+
+```json
+{
+  "sections": [
+    {
+      "kind": "laws",
+      "scope": "value:1",
+      "status": {
+        "payload": {
+          "observations": [
+            {
+              "id": "V1-O-screen",
+              "description": {
+                "ref": "V1-ob-screen"
+              },
+              "result_type": "period text, three cent integers, header cells, row tuples, footer triple",
+              "cannot_distinguish": {
+                "ref": "V1-ob-screen-blind"
+              }
+            },
+            {
+              "id": "V1-O-pinned",
+              "description": {
+                "ref": "V1-ob-pinned"
+              },
+              "result_type": "four boxes twice and two document integers",
+              "cannot_distinguish": {
+                "ref": "V1-ob-pinned-blind"
+              }
+            },
+            {
+              "id": "V1-O-absent",
+              "description": {
+                "ref": "V1-ob-absent"
+              },
+              "result_type": "three counts",
+              "cannot_distinguish": {
+                "ref": "V1-ob-absent-blind"
+              }
+            }
+          ],
+          "equality": {
+            "under": [
+              "V1-O-screen",
+              "V1-O-pinned",
+              "V1-O-absent"
+            ],
+            "definition": {
+              "ref": "V1-eq"
+            }
+          },
+          "constructors": [
+            {
+              "id": "V1-C-statement",
+              "signature": "renderStatement(ledger: ReadEntriesOutcome): HTMLElement"
+            },
+            {
+              "id": "V1-C-statement-of",
+              "signature": "statementOf(entries: readonly LedgerEntry[]): Statement"
+            },
+            {
+              "id": "V1-C-rate",
+              "signature": "formatRatePlain(rate: number): string"
+            },
+            {
+              "id": "V1-C-date",
+              "signature": "shortDateLabel(date: string): string"
+            }
+          ],
+          "generators": [
+            {
+              "id": "V1-G-ledger",
+              "domain": {
+                "ref": "V1-gen"
+              },
+              "size_bound": 12,
+              "seed_policy": {
+                "ref": "V1-gen-seed"
+              },
+              "must_include": [
+                {
+                  "ref": "V1-gen-must-empty"
+                },
+                {
+                  "ref": "V1-gen-must-sends"
+                },
+                {
+                  "ref": "V1-gen-must-mvr"
+                },
+                {
+                  "ref": "V1-gen-must-years"
+                }
+              ],
+              "depth_bound": null
+            }
+          ],
+          "laws": [
+            {
+              "id": "V1-L-order",
+              "statement": {
+                "ref": "V1-law-order"
+              },
+              "kind": "invariant",
+              "layer": "domain",
+              "owner": "CREATE_NEW:src/domain/statement.ts::statementOf",
+              "uses": [
+                "V1-O-screen",
+                "V1-C-statement-of"
+              ],
+              "treatment": {
+                "generator": "V1-G-ledger",
+                "independent_observation": {
+                  "ref": "V1-d-pbt-scope"
+                },
+                "falsifier": {
+                  "description": {
+                    "ref": "V1-po-falsifier"
+                  }
+                },
+                "tag": "broad"
+              },
+              "evidence": {
+                "tag": "to_run"
+              }
+            },
+            {
+              "id": "V1-L-figures",
+              "statement": {
+                "ref": "V1-law-figures"
+              },
+              "kind": "oracle",
+              "layer": "domain",
+              "owner": "CREATE_NEW:src/domain/statement.ts::statementOf",
+              "uses": [
+                "V1-O-screen",
+                "V1-C-statement-of"
+              ],
+              "treatment": {
+                "generator": "V1-G-ledger",
+                "independent_observation": {
+                  "ref": "V1-d-pbt-scope"
+                },
+                "falsifier": {
+                  "description": {
+                    "ref": "F-c-stored-cents"
+                  }
+                },
+                "tag": "broad"
+              },
+              "evidence": {
+                "tag": "to_run"
+              }
+            },
+            {
+              "id": "V1-L-subline",
+              "statement": {
+                "ref": "V1-law-subline"
+              },
+              "kind": "invariant",
+              "layer": "domain",
+              "owner": "CREATE_NEW:src/domain/statement.ts::statementOf",
+              "uses": [
+                "V1-O-screen",
+                "V1-C-rate"
+              ],
+              "treatment": {
+                "generator": "V1-G-ledger",
+                "independent_observation": {
+                  "ref": "V1-d-subline"
+                },
+                "falsifier": {
+                  "description": {
+                    "ref": "F-c-rate-text"
+                  }
+                },
+                "tag": "broad"
+              },
+              "evidence": {
+                "tag": "to_run"
+              }
+            },
+            {
+              "id": "V1-L-pinned",
+              "statement": {
+                "ref": "V1-law-pinned"
+              },
+              "kind": "metamorphic",
+              "layer": "application",
+              "owner": "src/ui/theme.css",
+              "uses": [
+                "V1-O-pinned"
+              ],
+              "treatment": {
+                "generator": "V1-G-ledger",
+                "independent_observation": {
+                  "ref": "V1-d-pinned-layout"
+                },
+                "falsifier": {
+                  "description": {
+                    "ref": "F-f-pinned-falsifier"
+                  }
+                },
+                "tag": "broad"
+              },
+              "evidence": {
+                "tag": "to_run"
+              }
+            },
+            {
+              "id": "V1-L-absent",
+              "statement": {
+                "ref": "V1-law-absent"
+              },
+              "kind": "invariant",
+              "layer": "application",
+              "owner": "CREATE_NEW:src/ui/statement.ts::renderStatement",
+              "uses": [
+                "V1-O-absent",
+                "V1-C-statement"
+              ],
+              "treatment": {
+                "cases": [
+                  {
+                    "ref": "V1-gen-must-empty"
+                  },
+                  {
+                    "ref": "V1-gen-must-sends"
+                  }
+                ],
+                "reason": {
+                  "ref": "F-c-read-only"
+                },
+                "tag": "finite"
+              },
+              "evidence": {
+                "tag": "to_run"
+              }
+            }
+          ],
+          "refuted": []
+        },
+        "tag": "applicable"
+      }
+    },
+    {
+      "kind": "closure",
+      "scope": "value:1",
+      "status": {
+        "payload": {
+          "closures": [
+            {
+              "subject": {
+                "ref": "V1-cl-subject"
+              },
+              "safety": {
+                "statement": {
+                  "ref": "V1-cl-safety"
+                },
+                "design": "PASS",
+                "design_note": null,
+                "runtime": "DESIGNED_NOT_BUILT",
+                "runtime_note": null,
+                "assumptions": [
+                  {
+                    "ref": "V1-cl-assume"
+                  }
+                ],
+                "runs": [],
+                "laws": [
+                  "V1-L-absent",
+                  "V1-L-figures"
+                ],
+                "basis": {
+                  "argument": [
+                    {
+                      "ref": "F-c-read-only"
+                    },
+                    {
+                      "ref": "F-c-stored-cents"
+                    }
+                  ],
+                  "tag": "argued"
+                },
+                "tag": "claim"
+              },
+              "inhabitation": {
+                "statement": {
+                  "ref": "V1-cl-inhab"
+                },
+                "design": "PASS",
+                "design_note": null,
+                "runtime": "DESIGNED_NOT_BUILT",
+                "runtime_note": null,
+                "assumptions": [
+                  {
+                    "ref": "V1-cl-assume"
+                  }
+                ],
+                "runs": [],
+                "laws": [
+                  "V1-L-order",
+                  "V1-L-subline"
+                ],
+                "basis": {
+                  "admitted_input": {
+                    "ref": "V1-po-stimulus"
+                  },
+                  "producer": "CREATE_NEW:src/domain/statement.ts::statementOf",
+                  "consumer": "CREATE_NEW:src/ui/statement.ts::renderStatement",
+                  "public_observation": {
+                    "ref": "V1-po-expected"
+                  },
+                  "bootstrap": null,
+                  "tag": "path"
+                },
+                "tag": "claim"
+              },
+              "public_reachability": {
+                "statement": {
+                  "ref": "V1-cl-reach"
+                },
+                "design": "PASS",
+                "design_note": null,
+                "runtime": "DESIGNED_NOT_BUILT",
+                "runtime_note": null,
+                "assumptions": [
+                  {
+                    "ref": "V1-cl-assume"
+                  }
+                ],
+                "runs": [],
+                "laws": [
+                  "V1-L-pinned"
+                ],
+                "basis": {
+                  "admitted_input": {
+                    "ref": "V1-d-nav-tap"
+                  },
+                  "producer": "CREATE_NEW:src/ui/views.ts::renderViews",
+                  "consumer": "src/main.ts::start",
+                  "public_observation": {
+                    "ref": "V1-po-observation"
+                  },
+                  "bootstrap": null,
+                  "tag": "path"
+                },
+                "tag": "claim"
+              },
+              "liveness": {
+                "reason": {
+                  "ref": "V1-cl-live"
+                },
+                "tag": "not_applicable"
+              }
+            }
+          ]
+        },
+        "tag": "applicable"
+      }
+    }
+  ]
+}
+```
+
+### Product change (Value 1)
+
+Product change: required
+
+### Verification (Value 1)
+
+Verification command:
+
+```sh
+node tests/support/oracle-observation.mjs tests/acceptance/statement-sent.spec.ts
+```
+
+Verification command:
+
+```sh
+npm run build
+```
+
+## Value 2
+
+### Facts (Value 2)
+
+- V2-purpose: Value 2 reaches the board's end state for the Statement: a
+  segmented pill named Statement lists switches between the Sent for Abbaas list
+  value 1 shipped and the Paid back by Abbaas list, with the sent list selected
+  when the Statement opens and both lists pinned so that only the rows of the
+  one shown scroll.
+- V2-c-pill: The pill is a tablist named Statement lists, 44 px high, background
+  #e3e9e7, radius 14 px, padding 4 px, with a 4 px gap; its thumb has radius 10
+  px, spans one half less 6 px, and is #24508a on the sent list and #0f6f68 on
+  the paid-back list; the selected tab's ink is #ffffff and the other's #4c5f5b.
+- V2-c-back-panel: The paid-back panel is the same white panel and the same grid
+  as the sent one, headed No., Date, Method and USD, with each USD figure in
+  #0f6f68 and the footer reading 'Total paid back' with its count and total on
+  #e0f0ed in #0b5750.
+- V2-c-both-mounted: Both panels are in the document at once, each absolutely
+  placed in one relative area that is flex 1 with min-height 0 and overflow
+  hidden, so a switch moves no pinned part and the value that adds motion has
+  two panels to slide.
+- V2-d-pill-state: The shown list is one attribute,
+  data-statement-shown=sent|back, on the statement screen; a tap on a pill tab
+  writes it and the two aria-selected values and nothing else, so the heading,
+  the balance card and the pill itself cannot move and no row is rebuilt.
+- V2-d-tabs: Value 2 turns the two panels into tabpanels of that tablist and
+  keeps their accessible names Sent for Abbaas and Paid back by Abbaas, so value
+  1's own reading of the sent panel by name and by data-statement-list=sent
+  still holds.
+- V2-d-back-row: A paid-back row is built by src/domain/statement.ts from one
+  entry of kind receive: its number from its place in the oldest-first order,
+  its date label, its stored method's word or nothing at all, and its usdCents.
+  A repayment names nobody, so no row carries a person and none reads a
+  sub-line.
+- V2-d-back-empty: On an empty ledger the paid-back panel shows its column
+  header, no row and the footer 'Total paid back - No entries' with $0.00,
+  exactly as the sent panel does.
+- V2-d-reset: The shown list is reset to sent whenever the Statement screen is
+  built, which happens on a load and after a save, so the Statement always opens
+  on the sent list and a switch is never remembered across a paint.
+- V2-d-closure: Constructive closure of this value. Safety, that the pill writes
+  nothing and that the two lists never show the same entry: DESIGN PASS, runtime
+  DESIGNED_NOT_BUILT. Inhabitation, that both lists are built with their
+  numbered rows and their own footers from stored rows: DESIGN PASS, runtime
+  DESIGNED_NOT_BUILT. Public reachability, that a tap on each pill tab shows its
+  own list: DESIGN PASS, runtime DESIGNED_NOT_BUILT. Liveness: not applicable,
+  one synchronous attribute change with nothing to wait for.
+- V2-b-driving: The driving port is the built bundle's DOM at 360 by 780: the
+  pill's two tabs, and each list's column header, numbered rows and footer.
+- V2-b-direction: The pill and both panels are built by src/ui/statement.ts from
+  what src/domain/statement.ts answers; neither knows of the shell, and nothing
+  of either reaches a writing operation.
+- V2-po-observation: On the Statement screen a pill named Statement lists offers
+  the two tabs Sent for Abbaas and Paid back by Abbaas. The sent tab is selected
+  when the Statement opens and the thumb under it is blue. A tap on Paid back by
+  Abbaas selects that tab, turns the thumb teal and shows the paid-back list
+  headed No., Date, Method and USD with one numbered row for each repayment
+  oldest first reading its date, its stored method and its USD figure in teal,
+  over the footer 'Total paid back' with its count and total; a repayment with
+  no stored method leaves its Method cell empty. A tap back on Sent for Abbaas
+  shows the sent list again. The balance card, the heading and the pill stay in
+  place through both switches, each list's column header and footer stay in
+  place, and only the rows of the list shown scroll.
+- V2-po-stimulus: The acceptance support starts the stack, resets it, waits for
+  the auth service, builds and serves the bundle, creates one account and seeds,
+  with explicit saved_at times, one person and nine entries: five sends as value
+  1 seeds them, and four repayments dated 17 Sep, 23 Sep, 2 Oct and 8 Oct 2026
+  of 500000 cents by cash, 600000 cents by cheque, 300000 cents with no stored
+  method and 200000 cents by transfer. It also creates a second account with no
+  entries. A Chromium context at 360 by 780 signs in, taps Statement, reads the
+  pill at rest, taps Paid back by Abbaas, reads the whole paid-back list,
+  scrolls its rows to the end and reads the pinned parts again, taps Sent for
+  Abbaas, reads the sent list again, and reads the heading's and the card's
+  boxes before and after each switch; the second context opens the Statement and
+  taps the paid-back tab.
+- V2-po-expected: The tablist is named Statement lists and holds exactly two
+  tabs named Sent for Abbaas and Paid back by Abbaas. On opening, the sent tab
+  carries aria-selected=true, the other false, the statement screen carries
+  data-statement-shown=sent, and the thumb's computed background is rgb(36, 80,
+  138). After the tap on Paid back by Abbaas the two aria-selected values are
+  exchanged, data-statement-shown reads back, the thumb's background is rgb(15,
+  111, 104), the panel carrying data-statement-list=back lies inside the
+  viewport and the sent panel lies outside it, its data-statement-head=back
+  reads No., Date, Method and USD, it holds exactly four data-statement-row
+  elements whose data-no values read 1 to 4 in document order with the dates 17
+  Sep, 23 Sep, 2 Oct and 8 Oct, the Method cells read Cash, Cheque, nothing and
+  Transfer with data-statement-method carried only by the first, second and
+  fourth, and its data-statement-foot=back carries data-count 4 and data-cents
+  1600000 and reads 'Total paid back - 4 entries' with $16,000.00. The heading's
+  and the balance card's boxes are identical before and after both switches, the
+  pill's box is identical too, and after the rows are scrolled to the end the
+  column header and the footer keep their boxes and the document's scrollTop is
+  still 0. The tap back on Sent for Abbaas restores every reading value 1 takes
+  of the sent list. On the empty account both footers read No entries with $0.00
+  and neither panel holds a row.
+- V2-po-falsifier: Showing a repayment in the sent list, or a send in the
+  paid-back list, breaks the row counts and the footers. Numbering each list
+  from the whole ledger instead of from its own rows breaks the data-no
+  sequence. Writing a word in the Method cell of the row stored without one
+  makes it read Cash, Cheque or Transfer. Keeping the thumb blue on the
+  paid-back list, or leaving both tabs aria-selected=true, fails the pill
+  readings. Rebuilding the screen on a switch moves the heading's or the card's
+  box, and scrolling the whole panel instead of its rows moves the footer.
+- V2-o-arch: The pill writes nothing: src/ui/statement.ts still names no writing
+  operation of LedgerStore, and the paid-back rows are decided by
+  src/domain/statement.ts, which still names no DOM.
+- V2-o-contract: A stored repayment with a method token and one with a null
+  method are read through the real adapter into the real Method cell: the
+  token's own word for the first and an empty cell with no hook for the second.
+- V2-ct-observation: The 17 Sep row's Method cell reads Cash and carries
+  data-statement-method=cash, and the 2 Oct row, stored with method null, has an
+  empty Method cell and carries no data-statement-method.
+- V2-i-extended: Extended in place by this value, with every hook and name value
+  1 fixed left in force.
+- V2-a-method-producer: The stored method token of a repayment stays one of the
+  three words or null, and this value writes no row at all, so the producer is
+  untouched by it.
+- V2-a-method-consumer: The adapter keeps decoding that token to PaymentMethod
+  and null to null; the Method cell reads the decoded value and never the raw
+  column, so a repayment stored before the column existed leaves its cell empty.
+- V2-a-hooks-added: The pill and the paid-back list add hooks under the
+  data-statement- prefix that no party outside this value's own oracle reads,
+  and value 1's hooks and names are kept rather than changed, so no other
+  contract of this repository is touched.
+- V2-adr-na: This value adds the second list inside the boundary the shared
+  design already decided, so it records no architectural decision of its own.
+- V2-ob-lists: Both lists read as the shown attribute, the two aria-selected
+  values, the thumb's computed background, each panel's box against the
+  viewport, its header cells, its ordered row tuples and its footer's text,
+  count and cents.
+- V2-ob-lists-blind: It says nothing about the row tints, the fonts or the
+  panel's shadow.
+- V2-ob-steady: The boxes of the heading, the balance card and the pill, read
+  before and after each switch.
+- V2-ob-steady-blind: It cannot see a sub-pixel drift and says nothing about
+  what moved between the two readings.
+- V2-eq: Two list states are equal when they agree on the shown attribute, both
+  aria-selected values, the thumb's colour, which panel is in the viewport, both
+  headers, both ordered row lists, both footers and the three steady boxes.
+- V2-law-exclusive: Exactly one pill tab carries aria-selected=true and exactly
+  one panel lies inside the viewport, and the thumb's colour is the shown list's
+  own.
+- V2-law-partition: The paid-back rows are exactly the read entries of kind
+  receive and the sent rows exactly those of kind send, each numbered 1 upward
+  within its own list, so no entry is in both lists and none is missing from its
+  own.
+- V2-law-roundtrip: Tapping the other pill tab and tapping back restores every
+  reading of the sent list and leaves the heading's, the card's and the pill's
+  boxes where they were.
+- V2-law-method-cell: A repayment's Method cell reads the word of its stored
+  token, or is empty and carries no hook when the token is null, and never reads
+  a word outside the three.
+- V2-law-foot: Each footer's count and cents are the number and the sum of its
+  own list's rows, on any read ledger.
+- V2-gen: Ledgers of 0 to 12 entries from a fixed seed with both kinds present
+  in every proportion, from all sends to all repayments, and a stored method on
+  some rows and none on others.
+- V2-gen-seed: The seed of this value is a constant of its own spec and is
+  printed on failure; shrinking removes one entry at a time from a failing
+  ledger until the smallest ledger that still fails is named.
+- V2-gen-must-all-sends: A ledger with no repayment at all, so the paid-back
+  list is empty while the sent list is not.
+- V2-gen-must-all-backs: A ledger with no send at all, so the sent list is empty
+  while the paid-back list is not.
+- V2-gen-must-null-method: A repayment stored with no method.
+- V2-cl-subject: The segmented pill and the paid-back list, as value 2 ships
+  them.
+- V2-cl-safety: The pill writes nothing, and no entry can appear in both lists.
+- V2-cl-inhab: Both lists are built with their numbered rows and their own
+  footers from stored rows.
+- V2-cl-reach: A tap on each pill tab shows its own list through the bundle's
+  own DOM.
+- V2-cl-live: Liveness is not applicable: the list switch is one synchronous
+  attribute change, with no queue, no retry and nothing to wait for.
+- V2-cl-assume: The argument rests on value 1's shell and Statement being in
+  place, on both panels staying mounted, and on one awaited read per paint.
+- V2-pf-na: No preserving move is measured here: both files this value touches
+  were created by value 1 of this same Request and are extended in place, so no
+  existing behaviour is moved and value 1's own hooks and names are kept as
+  constraints.
+
+### Targets (Value 2)
+
+| Path | Decision | Reason |
+|---|---|---|
+| `src/ui/statement.ts` | EXTEND | F-t-statement-ui |
+| `src/domain/statement.ts` | EXTEND | F-t-statement-domain |
+| `src/ui/theme.css` | EXTEND | F-t-theme |
+
+### Paradigm (Value 2)
+
+functional
+
+### Decisions (Value 2)
+
+F-d-hooks, F-d-hooks-extra, F-d-prefix, F-d-domain-owner, F-d-ui-owner,
+F-d-typed-carriers, F-d-retry, F-d-waiver, F-d-substrate,
+F-d-oracle-observation, F-d-readiness, F-d-arch-law, F-d-layer-domain,
+F-d-layer-application, F-d-stress-taps, F-d-stress-size, F-d-admitted,
+F-d-excluded, F-d-selffals, V2-d-pill-state, V2-d-tabs, V2-d-back-row,
+V2-d-back-empty, V2-d-reset, V2-d-closure, V2-a-hooks-added
+
+### Oracle (Value 2)
+
+tests/acceptance/statement-lists.spec.ts
+
+### Acceptance supports (Value 2)
+
+```json
+[
+  "tests/support/local-stack.ts",
+  "tests/support/accounts.ts",
+  "tests/support/oracle-observation.mjs",
+  "tests/playwright.config.ts"
+]
+```
+
+### Oracle verification index (Value 2)
+
+```json
+0
+```
+
+### Purpose (Value 2)
+
+V2-purpose
+
+### Constraints (Value 2)
+
+F-c-board, F-c-viewport, F-c-no-page-scroll, F-c-read-only, F-c-one-read,
+F-c-stored-cents, F-c-order, F-c-count-label, F-c-method-null,
+F-c-amount-bounds, F-c-paradigm, F-c-approval, F-c-usd-column, F-c-rate-text,
+V2-c-pill, V2-c-back-panel, V2-c-both-mounted
+
+### Inherits (Value 2)
+
+None
+
+### Boundaries (Value 2)
+
+```json
+{
+  "driving_port": {
+    "ref": "V2-b-driving"
+  },
+  "driven_ports": [
+    {
+      "ref": "F-b-driven-store"
+    }
+  ],
+  "dependency_direction": {
+    "ref": "V2-b-direction"
+  },
+  "failures": [
+    {
+      "condition": {
+        "ref": "F-b-f1-cond"
+      },
+      "outcome": "Retry",
+      "observation": {
+        "ref": "F-b-f1-obs"
+      }
+    },
+    {
+      "condition": {
+        "ref": "F-b-f4-cond"
+      },
+      "outcome": "Refusal",
+      "observation": {
+        "ref": "F-b-f4-obs"
+      }
+    },
+    {
+      "condition": {
+        "ref": "F-b-f2-cond"
+      },
+      "outcome": "Indeterminate",
+      "observation": {
+        "ref": "F-b-f2-obs"
+      }
+    }
+  ],
+  "applicability": "applicable"
+}
+```
+
+### Public oracle (Value 2)
+
+```json
+{
+  "observation": {
+    "ref": "V2-po-observation"
+  },
+  "stimulus": {
+    "ref": "V2-po-stimulus"
+  },
+  "expected": {
+    "ref": "V2-po-expected"
+  },
+  "falsifier": {
+    "ref": "V2-po-falsifier"
+  }
+}
+```
+
+### Architectural tests (Value 2)
+
+```json
+{
+  "obligations": [
+    {
+      "id": "V2-AT-readonly",
+      "obligation": {
+        "ref": "V2-o-arch"
+      },
+      "oracle": "tests/acceptance/statement-lists.spec.ts::the pill writes nothing and the lists depend inward only",
+      "verification_index": 0
+    }
+  ],
+  "applicability": "applicable"
+}
+```
+
+### Contract tests (Value 2)
+
+```json
+{
+  "obligations": [
+    {
+      "id": "V2-CT-method",
+      "obligation": {
+        "ref": "V2-o-contract"
+      },
+      "contract": "The stored entries.method token of a repayment",
+      "producer": "supabase/migrations/0002_entry_method.sql:14",
+      "consumer": "src/adapters/supabase/ledger-store.ts:61",
+      "observation": {
+        "ref": "V2-ct-observation"
+      },
+      "oracle": "tests/acceptance/statement-lists.spec.ts::a stored method and a missing one read as recorded",
+      "verification_index": 0
+    }
+  ],
+  "applicability": "applicable"
+}
+```
+
+### Prefactoring (Value 2)
+
+```json
+{
+  "reason": {
+    "ref": "V2-pf-na"
+  },
+  "applicability": "not_applicable"
+}
+```
+
+### Agreement analysis (Value 2)
+
+| Id | Contract | Role | Locator | Decision | Reason |
+|---|---|---|---|---|---|
+| V2-P-method-col | The stored entries.method token of a repayment | producer | `supabase/migrations/0002_entry_method.sql:14` | UNCHANGED_COMPATIBLE | V2-a-method-producer |
+| V2-P-method-adapter | The stored entries.method token of a repayment | consumer | `src/adapters/supabase/ledger-store.ts:61` | UNCHANGED_COMPATIBLE | V2-a-method-consumer |
+
+### Reuse analysis (Value 2)
+
+| Symbol | Locator | Decision | Reason |
+|---|---|---|---|
+| renderStatement | `src/ui/statement.ts:1` | EXTEND | V2-d-tabs |
+| statementOf | `src/domain/statement.ts:1` | EXTEND | V2-d-back-row |
+| entryCountLabel | `src/domain/ledger-view.ts:99` | REUSE | F-c-count-label |
+| formatUsdCents | `src/domain/money.ts:40` | REUSE | F-d-reuse-money |
+| METHOD_WORD | `src/ui/home.ts:139` | CREATE_NEW | V2-d-back-row |
+| balanceOf | `src/domain/balance.ts:37` | REUSE | F-d-reuse-balance |
+
+### Impact closure (Value 2)
+
+```json
+{
+  "items": [
+    {
+      "kind": "public_interface",
+      "locator": "src/ui/statement.ts",
+      "decision": "CHANGED",
+      "reason": {
+        "ref": "V2-i-extended"
+      }
+    },
+    {
+      "kind": "public_interface",
+      "locator": "src/domain/statement.ts",
+      "decision": "CHANGED",
+      "reason": {
+        "ref": "V2-i-extended"
+      }
+    },
+    {
+      "kind": "runtime",
+      "locator": "src/ui/theme.css",
+      "decision": "CHANGED",
+      "reason": {
+        "ref": "V2-i-extended"
+      }
+    },
+    {
+      "kind": "consumer",
+      "locator": "src/adapters/supabase/ledger-store.ts:61",
+      "decision": "UNCHANGED_COMPATIBLE",
+      "reason": {
+        "ref": "F-i-adapter-compatible"
+      }
+    }
+  ],
+  "applicability": "applicable"
+}
+```
+
+### Adr (Value 2)
+
+```json
+{
+  "reason": {
+    "ref": "V2-adr-na"
+  },
+  "applicability": "not_applicable"
+}
+```
+
+### Architect handoff (Value 2)
+
+```json
+{
+  "sections": [
+    {
+      "kind": "laws",
+      "scope": "value:2",
+      "status": {
+        "payload": {
+          "observations": [
+            {
+              "id": "V2-O-lists",
+              "description": {
+                "ref": "V2-ob-lists"
+              },
+              "result_type": "attribute, two flags, a colour, a box, header cells, row tuples and a footer triple",
+              "cannot_distinguish": {
+                "ref": "V2-ob-lists-blind"
+              }
+            },
+            {
+              "id": "V2-O-steady",
+              "description": {
+                "ref": "V2-ob-steady"
+              },
+              "result_type": "three boxes twice",
+              "cannot_distinguish": {
+                "ref": "V2-ob-steady-blind"
+              }
+            }
+          ],
+          "equality": {
+            "under": [
+              "V2-O-lists",
+              "V2-O-steady"
+            ],
+            "definition": {
+              "ref": "V2-eq"
+            }
+          },
+          "constructors": [
+            {
+              "id": "V2-C-pill",
+              "signature": "renderStatementPill(shown: 'sent' | 'back'): HTMLElement"
+            },
+            {
+              "id": "V2-C-back-list",
+              "signature": "renderBackList(rows: readonly StatementBackRow[], total: FooterTotal): HTMLElement"
+            },
+            {
+              "id": "V2-C-switch",
+              "signature": "switchList(statement: HTMLElement, list: 'sent' | 'back'): void"
+            }
+          ],
+          "generators": [
+            {
+              "id": "V2-G-ledger",
+              "domain": {
+                "ref": "V2-gen"
+              },
+              "size_bound": 12,
+              "seed_policy": {
+                "ref": "V2-gen-seed"
+              },
+              "must_include": [
+                {
+                  "ref": "V2-gen-must-all-sends"
+                },
+                {
+                  "ref": "V2-gen-must-all-backs"
+                },
+                {
+                  "ref": "V2-gen-must-null-method"
+                }
+              ],
+              "depth_bound": null
+            }
+          ],
+          "laws": [
+            {
+              "id": "V2-L-exclusive",
+              "statement": {
+                "ref": "V2-law-exclusive"
+              },
+              "kind": "invariant",
+              "layer": "application",
+              "owner": "src/ui/statement.ts::renderStatement",
+              "uses": [
+                "V2-O-lists",
+                "V2-C-pill"
+              ],
+              "treatment": {
+                "cases": [
+                  {
+                    "ref": "V2-gen-must-all-sends"
+                  },
+                  {
+                    "ref": "V2-gen-must-all-backs"
+                  }
+                ],
+                "reason": {
+                  "ref": "V2-d-pill-state"
+                },
+                "tag": "finite"
+              },
+              "evidence": {
+                "tag": "to_run"
+              }
+            },
+            {
+              "id": "V2-L-partition",
+              "statement": {
+                "ref": "V2-law-partition"
+              },
+              "kind": "invariant",
+              "layer": "domain",
+              "owner": "src/domain/statement.ts::statementOf",
+              "uses": [
+                "V2-O-lists",
+                "V2-C-back-list"
+              ],
+              "treatment": {
+                "generator": "V2-G-ledger",
+                "independent_observation": {
+                  "ref": "V2-po-expected"
+                },
+                "falsifier": {
+                  "description": {
+                    "ref": "V2-po-falsifier"
+                  }
+                },
+                "tag": "broad"
+              },
+              "evidence": {
+                "tag": "to_run"
+              }
+            },
+            {
+              "id": "V2-L-roundtrip",
+              "statement": {
+                "ref": "V2-law-roundtrip"
+              },
+              "kind": "roundtrip",
+              "layer": "application",
+              "owner": "src/ui/statement.ts::renderStatement",
+              "uses": [
+                "V2-O-lists",
+                "V2-O-steady",
+                "V2-C-switch"
+              ],
+              "treatment": {
+                "cases": [
+                  {
+                    "ref": "V2-gen-must-all-sends"
+                  },
+                  {
+                    "ref": "V2-gen-must-null-method"
+                  }
+                ],
+                "reason": {
+                  "ref": "V2-d-pill-state"
+                },
+                "tag": "finite"
+              },
+              "evidence": {
+                "tag": "to_run"
+              }
+            },
+            {
+              "id": "V2-L-method-cell",
+              "statement": {
+                "ref": "V2-law-method-cell"
+              },
+              "kind": "invariant",
+              "layer": "domain",
+              "owner": "src/domain/statement.ts::statementOf",
+              "uses": [
+                "V2-O-lists",
+                "V2-C-back-list"
+              ],
+              "treatment": {
+                "generator": "V2-G-ledger",
+                "independent_observation": {
+                  "ref": "V2-ct-observation"
+                },
+                "falsifier": {
+                  "description": {
+                    "ref": "F-c-method-null"
+                  }
+                },
+                "tag": "broad"
+              },
+              "evidence": {
+                "tag": "to_run"
+              }
+            },
+            {
+              "id": "V2-L-foot",
+              "statement": {
+                "ref": "V2-law-foot"
+              },
+              "kind": "invariant",
+              "layer": "domain",
+              "owner": "src/domain/statement.ts::statementOf",
+              "uses": [
+                "V2-O-lists",
+                "V2-C-back-list"
+              ],
+              "treatment": {
+                "generator": "V2-G-ledger",
+                "independent_observation": {
+                  "ref": "V2-d-back-empty"
+                },
+                "falsifier": {
+                  "description": {
+                    "ref": "F-c-count-label"
+                  }
+                },
+                "tag": "broad"
+              },
+              "evidence": {
+                "tag": "to_run"
+              }
+            }
+          ],
+          "refuted": []
+        },
+        "tag": "applicable"
+      }
+    },
+    {
+      "kind": "closure",
+      "scope": "value:2",
+      "status": {
+        "payload": {
+          "closures": [
+            {
+              "subject": {
+                "ref": "V2-cl-subject"
+              },
+              "safety": {
+                "statement": {
+                  "ref": "V2-cl-safety"
+                },
+                "design": "PASS",
+                "design_note": null,
+                "runtime": "DESIGNED_NOT_BUILT",
+                "runtime_note": null,
+                "assumptions": [
+                  {
+                    "ref": "V2-cl-assume"
+                  }
+                ],
+                "runs": [],
+                "laws": [
+                  "V2-L-partition",
+                  "V2-L-exclusive"
+                ],
+                "basis": {
+                  "argument": [
+                    {
+                      "ref": "F-c-read-only"
+                    },
+                    {
+                      "ref": "V2-d-pill-state"
+                    }
+                  ],
+                  "tag": "argued"
+                },
+                "tag": "claim"
+              },
+              "inhabitation": {
+                "statement": {
+                  "ref": "V2-cl-inhab"
+                },
+                "design": "PASS",
+                "design_note": null,
+                "runtime": "DESIGNED_NOT_BUILT",
+                "runtime_note": null,
+                "assumptions": [
+                  {
+                    "ref": "V2-cl-assume"
+                  }
+                ],
+                "runs": [],
+                "laws": [
+                  "V2-L-foot",
+                  "V2-L-method-cell"
+                ],
+                "basis": {
+                  "admitted_input": {
+                    "ref": "V2-po-stimulus"
+                  },
+                  "producer": "src/domain/statement.ts::statementOf",
+                  "consumer": "src/ui/statement.ts::renderStatement",
+                  "public_observation": {
+                    "ref": "V2-po-expected"
+                  },
+                  "bootstrap": null,
+                  "tag": "path"
+                },
+                "tag": "claim"
+              },
+              "public_reachability": {
+                "statement": {
+                  "ref": "V2-cl-reach"
+                },
+                "design": "PASS",
+                "design_note": null,
+                "runtime": "DESIGNED_NOT_BUILT",
+                "runtime_note": null,
+                "assumptions": [
+                  {
+                    "ref": "V2-cl-assume"
+                  }
+                ],
+                "runs": [],
+                "laws": [
+                  "V2-L-roundtrip"
+                ],
+                "basis": {
+                  "admitted_input": {
+                    "ref": "V2-d-pill-state"
+                  },
+                  "producer": "src/ui/statement.ts::renderStatement",
+                  "consumer": "src/ui/theme.css",
+                  "public_observation": {
+                    "ref": "V2-po-observation"
+                  },
+                  "bootstrap": null,
+                  "tag": "path"
+                },
+                "tag": "claim"
+              },
+              "liveness": {
+                "reason": {
+                  "ref": "V2-cl-live"
+                },
+                "tag": "not_applicable"
+              }
+            }
+          ]
+        },
+        "tag": "applicable"
+      }
+    }
+  ]
+}
+```
+
+### Product change (Value 2)
+
+Product change: required
+
+### Verification (Value 2)
+
+Verification command:
+
+```sh
+node tests/support/oracle-observation.mjs tests/acceptance/statement-lists.spec.ts
+```
+
+Verification command:
+
+```sh
+npm run build
+```
