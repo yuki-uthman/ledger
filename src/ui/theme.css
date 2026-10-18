@@ -90,6 +90,46 @@ body {
    asks for no more room than .screen already keeps and the list's own bottom
    padding carries the last entry clear of the fade. */
 
+/* --- The shell and the pane each view lives in (src/ui/views.ts). ---
+
+   The shell is a screen of its own, so it keeps the column's box, but it draws
+   nothing and pads nothing: what the owner reads is the screen inside the pane,
+   which keeps its own padding. It is exactly the dynamic viewport height, so the
+   page itself has nothing to scroll. */
+.screen.views {
+  height: 100dvh;
+  min-height: 0;
+  padding: 0;
+}
+
+/* The pane. Three things at once, and each is load-bearing:
+
+   - a transform of its OWN, which makes the pane the containing block of the
+     fixed furniture of the screen inside it - Home's bottom buttons and its fade
+     - rather than the viewport. Later values move the two panes sideways on a
+     track, and a fixed element placed against that moving track would travel
+     with it; placed against the pane, the furniture stays with its own view.
+   - exactly the dynamic viewport height, so the pane the owner is reading is the
+     whole of what he can see and his buttons sit at the foot of it. Later values
+     take the navigation bar's height off this one declaration.
+   - it holds its own height and never scrolls: the SCREEN inside it is the one
+     scrolling area. Measured 2026-10-19 in this repository's own Chromium: a
+     pane that is both the containing block and the scrolling element carries the
+     bottom bar away with the list, because a fixed element whose containing
+     block is the scroller scrolls with the content. */
+.pane {
+  height: 100dvh;
+  transform: translateZ(0);
+  overflow: hidden;
+}
+
+/* The screen inside the pane fills it and is the only thing that scrolls, so a
+   long ledger runs under the buttons exactly as it did when the page scrolled. */
+.pane > .screen {
+  height: 100%;
+  overflow-y: auto;
+}
+
 /* Home carries no title at all: the box row is the top of the screen, 24 px
    below its edge and clear of whatever notch the device claims. */
 .home {

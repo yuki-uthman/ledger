@@ -18,6 +18,7 @@ import { centreOf, growFrom, prefersReducedMotion, rippleAt, type Point } from '
 import { renderReceiveForm } from './ui/receive-form.js'
 import { renderSendForm } from './ui/send-form.js'
 import { emptySignInState, renderSignIn, type SignInState } from './ui/sign-in.js'
+import { renderViews } from './ui/views.js'
 
 /** The one hash the send form answers to, so Android's back button closes it. */
 const SEND_HASH = '#send'
@@ -115,6 +116,17 @@ const start = async (root: HTMLElement, identity: Identity, store: LedgerStore):
    * hash naming an entry this Home does not hold is answered by Home alone.
    */
   let mountedHome: HTMLElement | null = null
+  /**
+   * The shell that Home is mounted inside: what the router actually puts in the
+   * root, what grows from a save button, and what a sheet is raised on.
+   *
+   * It is kept beside the Home it holds because the two are mounted and let go
+   * of together, and because a sheet must be appended OUTSIDE Home's own pane:
+   * the pane is the containing block of everything fixed inside it, so a scrim
+   * appended to Home would cover the pane alone, while the sheet must cover the
+   * whole viewport.
+   */
+  let mountedShell: HTMLElement | null = null
   let homeEntries: readonly LedgerEntry[] = []
 
   /** The sheet that is open over Home, or null when none is. */
@@ -159,6 +171,7 @@ const start = async (root: HTMLElement, identity: Identity, store: LedgerStore):
   const forgetHome = (): void => {
     void closeSheet()
     mountedHome = null
+    mountedShell = null
     homeEntries = []
     homeStale = false
   }
@@ -199,9 +212,14 @@ const start = async (root: HTMLElement, identity: Identity, store: LedgerStore):
       // never also the Home the app opened on.
       entering && saved === null,
     )
-    // This Home and what it was painted from, so a sheet can be raised over it
-    // without reading the ledger a second time.
+    // Home lives in the shell's own pane, which is the containing block of the
+    // buttons and the fade it fixes to its foot and the only scrolling area of
+    // its screen. The shell is what the root holds; Home is untouched by it.
+    const shell = renderViews({ entries: screen })
+    // This Home, the shell it is mounted in, and what it was painted from, so a
+    // sheet can be raised over it without reading the ledger a second time.
     mountedHome = screen
+    mountedShell = shell
     homeEntries = ledger.outcome === 'read' ? ledger.entries : []
     openSheet = null
 
@@ -258,12 +276,15 @@ const start = async (root: HTMLElement, identity: Identity, store: LedgerStore):
     // under it and leave the DOM when the circle has filled the screen. Every
     // other arrival at Home, and every device that asked for less motion,
     // replaces whatever was there with the end state at once.
+    // What grows is the shell, which keeps the reading column's box exactly as
+    // Home did: the circle is still centred on the point that was tapped, and
+    // Home travels inside it as one piece.
     if (grownFrom !== null && !prefersReducedMotion()) {
-      root.append(screen)
-      growFrom(screen, grownFrom, () => keepOnly(root, screen))
+      root.append(shell)
+      growFrom(shell, grownFrom, () => keepOnly(root, shell))
       return
     }
-    mount(root, screen)
+    mount(root, shell)
   }
 
   /** Leaves a form the way the back button would, so history stays honest. */
@@ -423,7 +444,8 @@ const start = async (root: HTMLElement, identity: Identity, store: LedgerStore):
     justSaved = null
     if (mountedHome === null || !mountedHome.isConnected) await showHome(false)
     const screen = mountedHome
-    if (screen === null) return
+    const shell = mountedShell
+    if (screen === null || shell === null) return
     // Already the sheet being asked for: nothing to raise and nothing to move.
     if (openSheet !== null && openSheet.entryId === id) return
     void closeSheet()
@@ -437,7 +459,12 @@ const start = async (root: HTMLElement, identity: Identity, store: LedgerStore):
     // whether leaving it walks back or simply takes the entry off the hash.
     const pushed = sheetPushed
     sheetPushed = false
-    openSheet = openEntrySheet(screen, entry, card, {
+    // Raised on the shell, OUTSIDE Home's pane: the pane is the containing block
+    // of everything fixed inside it, so a scrim appended to Home would cover
+    // that pane alone, while the dimmed screen and the sheet must cover the
+    // whole viewport. The shell is replaced by any other screen, so the sheet
+    // still cannot outlive the Home it was raised over.
+    openSheet = openEntrySheet(shell, entry, card, {
       onLeave: () => leaveSheet(pushed),
       // The one delete path the app has: the store's own removeEntry, under the
       // policy that decides whose row it is. The sheet asks for it; whether it
