@@ -35,6 +35,35 @@ const report = join(mkdtempSync(join(tmpdir(), 'des-oracle-')), 'report.json')
 // oracle is judged on is the version package.json pins.
 const playwright = join(repoRoot, 'node_modules', '.bin', 'playwright')
 
+/** The one line this vector prints on standard output. */
+const observe = (counts) => {
+  process.stdout.write(`DES-ORACLE-OBSERVATION: ${JSON.stringify({ version: 1, ...counts })}\n`)
+}
+
+// The vector is run in fresh checkouts of the repository that carry no installed
+// dependencies, so it installs the pinned ones itself before it can run anything. An
+// install that fails is a setup failure with its reason on standard error, never a red
+// oracle: nothing about the product was observed.
+if (!existsSync(playwright)) {
+  process.stderr.write(
+    'The runner is not installed in this checkout; installing the pinned dependencies from the lockfile.\n',
+  )
+  const install = spawnSync('npm', ['ci', '--no-audit', '--no-fund', '--loglevel', 'error'], {
+    cwd: repoRoot,
+    stdio: ['ignore', 2, 'inherit'],
+  })
+  if (install.error) {
+    process.stderr.write(`Could not start the installer: ${install.error.message}\n`)
+  }
+  if (install.status !== 0 || !existsSync(playwright)) {
+    process.stderr.write(
+      `The pinned dependencies could not be installed (installer status ${install.status ?? 'none'}), so the runner is absent and no case was observed.\n`,
+    )
+    observe({ observed: 0, assertions_failed: 0, setup_failed: 1 })
+    process.exit(install.status === 0 || install.status === null ? 1 : install.status)
+  }
+}
+
 const run = spawnSync(
   playwright,
   ['test', '--config', config, '--reporter=list,json', ...specs],
@@ -46,6 +75,10 @@ const run = spawnSync(
     env: { ...process.env, PLAYWRIGHT_JSON_OUTPUT_NAME: report },
   },
 )
+
+if (run.error) {
+  process.stderr.write(`Could not start the runner: ${run.error.message}\n`)
+}
 
 const plain = (text) => text.replace(/\u001b\[[0-9;]*m/g, '')
 /** A code-frame line ('> 12 | await expect(...)') or a stack line ('    at /path:1:2'). */
@@ -87,12 +120,5 @@ if (!existsSync(report)) {
   walk(results.suites)
 }
 
-process.stdout.write(
-  `DES-ORACLE-OBSERVATION: ${JSON.stringify({
-    version: 1,
-    observed,
-    assertions_failed: assertionsFailed,
-    setup_failed: setupFailed,
-  })}\n`,
-)
+observe({ observed, assertions_failed: assertionsFailed, setup_failed: setupFailed })
 process.exit(run.status ?? 1)
