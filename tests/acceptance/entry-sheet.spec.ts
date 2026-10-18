@@ -23,6 +23,13 @@ import { createAccount, readEntries, seedHistory, type Account } from '../suppor
 // Nothing here taps Delete: value 1 adds the sheet and its Close paths only.
 
 const PASSWORD_FIELD = 'input[type="password"]'
+
+// Home's own Entries count, read inside Home's pane. Both panes stand in the page at
+// once now, and the statement footer carries a data-count of its own, so a bare
+// [data-count] would name two elements; on a product that has no panes yet the page
+// itself is that scope, so this reads the same there.
+const HOME_COUNT =
+  '[data-pane="entries"] [data-count], body:not(:has([data-pane])) [data-count]'
 // The refined board is read at this phone size, which the stimulus fixes.
 const VIEWPORT = { width: 390, height: 844 } as const
 
@@ -148,7 +155,7 @@ const expectHomeUnchanged = async (page: Page): Promise<void> => {
   await expect(sheet(page)).toHaveCount(0)
   await expect(scrim(page)).toHaveCount(0)
   await expect(page.locator('[data-entry]')).toHaveCount(3)
-  await expect(page.locator('[data-count]')).toHaveAttribute('data-count', '3')
+  await expect(page.locator(HOME_COUNT)).toHaveAttribute('data-count', '3')
   await expect(page.locator('[data-box="abbaas"]')).toHaveAttribute(
     'data-amount',
     String(HELD_CENTS),
@@ -263,7 +270,7 @@ test('tapping an entry card opens its sheet over the dimmed Home, which reads th
   await expect(scrim(page)).toBeVisible()
   // Home underneath still reads the whole ledger.
   await expect(page.locator('[data-entry]')).toHaveCount(3)
-  await expect(page.locator('[data-count]')).toHaveAttribute('data-count', '3')
+  await expect(page.locator(HOME_COUNT)).toHaveAttribute('data-count', '3')
   await expect(page.locator('[data-box="abbaas"]')).toHaveAttribute(
     'data-amount',
     String(HELD_CENTS),
@@ -297,6 +304,6 @@ test('a hash naming an entry that is not in the ledger shows Home with no sheet 
   await expect(page.getByRole('dialog')).toHaveCount(0)
   await expect(page.getByRole('alert')).toHaveCount(0)
   await expect(page.locator('[data-entry]')).toHaveCount(3)
-  await expect(page.locator('[data-count]')).toHaveAttribute('data-count', '3')
+  await expect(page.locator(HOME_COUNT)).toHaveAttribute('data-count', '3')
   expect(await readEntries(stack, account)).toHaveLength(3)
 })

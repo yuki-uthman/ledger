@@ -5425,6 +5425,31 @@ npm run build
   20' from amount_minor 1700000 and rate 20.0000, its USD cell reads the stored
   85000 cents, and the 3 Oct row, stored with method null, carries no
   data-statement-sub and utters none of the three words.
+- V1-a-count-migrate: This oracle reads Home's entry count through a bare
+  [data-count] selector. Both panes stand in the page at once and the
+  Statement's footer carries data-count by the hook contract, so the acceptance
+  designer scopes this read to [data-pane="entries"], which is the cure the
+  prefix decision already states; Home's own element, its attribute and its
+  value are unchanged.
+- V1-a-count-delete-migrate: This oracle reads Home's entry count through a bare
+  [data-count] selector at five places, before and after a delete. The
+  acceptance designer scopes each of them to [data-pane="entries"] in the same
+  way; Home's element, its attribute and the counts it reads are unchanged, so
+  every observation of the delete still holds.
+- V1-a-count-sheet-migrate: This oracle reads the same bare [data-count]
+  selector while a sheet is open over Home. The acceptance designer scopes it to
+  [data-pane="entries"] in the same way, and every other reading it takes, of
+  the sheet and of Home underneath it, is unchanged.
+- V1-a-overflow-migrate: This oracle reports every visible element whose box
+  escapes the viewport. The pane that is not shown rests wholly off-screen by
+  the track decision and cannot be hidden instead: the non-shown pane is read at
+  opacity 0.4, and this value's own oracle measures Home's fade while the
+  entries pane is the non-shown one. The acceptance designer migrates that one
+  bound to ignore boxes lying inside a pane that is not the shown one; the
+  page's own sideways scrolling is still asserted and still holds, because the
+  shell clips with overflow hidden. The migrated bound reads identically on the
+  product before the preserving move, which has no second pane at all, so this
+  value's preserved prefactoring observation is unaffected.
 - V1-i-created: Created by this value as the owner named in its targets.
 - V1-i-extended: Extended in place by this value, with every symbol an existing
   caller reads left in force.
@@ -5714,6 +5739,11 @@ None
 | V1-P-motion | Home's public DOM hook contract | consumer | `tests/acceptance/motion.spec.ts:250` | UNCHANGED_COMPATIBLE | F-a-grow-compatible |
 | V1-P-entrances | Home's public DOM hook contract | consumer | `tests/acceptance/entrances.spec.ts:502` | UNCHANGED_COMPATIBLE | F-a-entrance-compatible |
 | V1-P-layout | Home's public DOM hook contract | consumer | `tests/acceptance/layout-and-install.spec.ts:339` | UNCHANGED_COMPATIBLE | F-a-layout-compatible |
+| V1-P-entry-list-count | Home's public DOM hook contract | consumer | `tests/acceptance/entry-list.spec.ts:345` | MIGRATED | V1-a-count-migrate |
+| V1-P-delete-entry-count | Home's public DOM hook contract | consumer | `tests/acceptance/delete-entry.spec.ts:167` | MIGRATED | V1-a-count-delete-migrate |
+| V1-P-entry-sheet-count | Home's public DOM hook contract | consumer | `tests/acceptance/entry-sheet.spec.ts:151` | MIGRATED | V1-a-count-sheet-migrate |
+| V1-P-layout-producer | The app's viewport layout: one screen filling the reading column | producer | `src/ui/theme.css:79` | MIGRATED | V1-a-overflow-migrate |
+| V1-P-layout-overflow | The app's viewport layout: one screen filling the reading column | consumer | `tests/acceptance/layout-and-install.spec.ts:148` | MIGRATED | V1-a-overflow-migrate |
 | V1-P-method-col | The stored entries row: its method token and its rate | producer | `supabase/migrations/0002_entry_method.sql:14` | UNCHANGED_COMPATIBLE | F-a-method-producer |
 | V1-P-method-adapter | The stored entries row: its method token and its rate | consumer | `src/adapters/supabase/ledger-store.ts:61` | UNCHANGED_COMPATIBLE | F-a-method-consumer |
 
@@ -5818,6 +5848,38 @@ None
       "decision": "UNCHANGED_COMPATIBLE",
       "reason": {
         "ref": "F-i-spec-compatible"
+      }
+    },
+    {
+      "kind": "test",
+      "locator": "tests/acceptance/entry-list.spec.ts:345",
+      "decision": "MIGRATED",
+      "reason": {
+        "ref": "V1-a-count-migrate"
+      }
+    },
+    {
+      "kind": "test",
+      "locator": "tests/acceptance/delete-entry.spec.ts:167",
+      "decision": "MIGRATED",
+      "reason": {
+        "ref": "V1-a-count-delete-migrate"
+      }
+    },
+    {
+      "kind": "test",
+      "locator": "tests/acceptance/entry-sheet.spec.ts:151",
+      "decision": "MIGRATED",
+      "reason": {
+        "ref": "V1-a-count-sheet-migrate"
+      }
+    },
+    {
+      "kind": "test",
+      "locator": "tests/acceptance/layout-and-install.spec.ts:148",
+      "decision": "MIGRATED",
+      "reason": {
+        "ref": "V1-a-overflow-migrate"
       }
     },
     {

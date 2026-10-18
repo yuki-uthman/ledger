@@ -30,6 +30,13 @@ import { createAccount, readEntries, seedHistory, type Account } from '../suppor
 // judged on a real network failure rather than on a seam reached behind its back.
 
 const PASSWORD_FIELD = 'input[type="password"]'
+
+// Home's own Entries count, read inside Home's pane. Both panes stand in the page at
+// once now, and the statement footer carries a data-count of its own, so a bare
+// [data-count] would name two elements; on a product that has no panes yet the page
+// itself is that scope, so this reads the same there.
+const HOME_COUNT =
+  '[data-pane="entries"] [data-count], body:not(:has([data-pane])) [data-count]'
 // The refined board is read at this phone size, which the stimulus fixes.
 const VIEWPORT = { width: 390, height: 844 } as const
 
@@ -164,7 +171,7 @@ const expectHomeWithoutTheSend = async (page: Page): Promise<void> => {
   await expect(cardWith(page, '$400.00')).toHaveCount(0)
   await expect(cardWith(page, '$500.00')).toHaveCount(1)
   await expect(cardWith(page, '$300.00')).toHaveCount(1)
-  await expect(page.locator('[data-count]')).toHaveAttribute('data-count', '2')
+  await expect(page.locator(HOME_COUNT)).toHaveAttribute('data-count', '2')
 
   const abbaasBox = page.locator('[data-box="abbaas"]')
   await expect(abbaasBox).toHaveAttribute('data-amount', String(HELD_AFTER_CENTS))
@@ -213,7 +220,7 @@ test('one tap on Delete removes the entry at once, with no question and no Cance
 
   // ----- Home before any delete: three entries and $600.00 held. -----
   await expect(page.locator('[data-entry]')).toHaveCount(3)
-  await expect(page.locator('[data-count]')).toHaveAttribute('data-count', '3')
+  await expect(page.locator(HOME_COUNT)).toHaveAttribute('data-count', '3')
   await expect(page.locator('[data-box="abbaas"]')).toHaveAttribute(
     'data-amount',
     String(HELD_BEFORE_CENTS),
@@ -327,7 +334,7 @@ test('a delete that cannot reach the server keeps the sheet open with Could not 
   await signIn(page)
   // This test follows the first, so two entries remain: $500.00 and $300.00.
   await expect(page.locator('[data-entry]')).toHaveCount(2)
-  await expect(page.locator('[data-count]')).toHaveAttribute('data-count', '2')
+  await expect(page.locator(HOME_COUNT)).toHaveAttribute('data-count', '2')
 
   await page.route(ENTRIES_ENDPOINT, async (route) => {
     if (route.request().method() === 'DELETE') {
@@ -367,7 +374,7 @@ test('a delete that cannot reach the server keeps the sheet open with Could not 
   // The entry is still listed under the sheet and still stored.
   await expect(page.locator('[data-entry]')).toHaveCount(2)
   await expect(cardWith(page, '$300.00')).toHaveCount(1)
-  await expect(page.locator('[data-count]')).toHaveAttribute('data-count', '2')
+  await expect(page.locator(HOME_COUNT)).toHaveAttribute('data-count', '2')
   await expect(page.locator('[data-box="abbaas"]')).toHaveAttribute(
     'data-amount',
     String(HELD_AFTER_CENTS),
@@ -384,7 +391,7 @@ test('a delete that cannot reach the server keeps the sheet open with Could not 
   await page.reload()
   await settled(page)
   await expect(page.locator('[data-entry]')).toHaveCount(2)
-  await expect(page.locator('[data-count]')).toHaveAttribute('data-count', '2')
+  await expect(page.locator(HOME_COUNT)).toHaveAttribute('data-count', '2')
   await expect(cardWith(page, '$300.00')).toHaveCount(1)
   await expect(cardWith(page, '$500.00')).toHaveCount(1)
   expect(await readEntries(stack, account)).toHaveLength(2)

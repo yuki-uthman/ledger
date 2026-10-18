@@ -34,6 +34,13 @@ import { createAccount, seedHistory, type Account, type EntrySeed } from '../sup
 
 const PASSWORD_FIELD = 'input[type="password"]'
 
+// Home's own Entries count, read inside Home's pane. Both panes stand in the page at
+// once now, and the statement footer carries a data-count of its own, so a bare
+// [data-count] would name two elements; on a product that has no panes yet the page
+// itself is that scope, so this reads the same there.
+const HOME_COUNT =
+  '[data-pane="entries"] [data-count], body:not(:has([data-pane])) [data-count]'
+
 const LIST_ACCOUNT = {
   email: 'owner-board@abbaas.test',
   password: 'board-password-1',
@@ -341,7 +348,7 @@ test('Home at rest is the travelling-cards board: no title, boxes on top, an Ent
 
   const entriesHeading = page.getByRole('heading', { level: 2, name: 'Entries' })
   await expect(entriesHeading).toBeVisible()
-  const count = page.locator('[data-count]')
+  const count = page.locator(HOME_COUNT)
   await expect(count).toHaveText('4 entries')
   const headingBox = await boxOf(entriesHeading, 'the Entries heading')
   const countBox = await boxOf(count, 'the count')

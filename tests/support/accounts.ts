@@ -256,7 +256,12 @@ export const readStoredLedger = async (
 ): Promise<readonly StoredLedgerRow[]> => {
   const { data, error } = await admin(stack)
     .from('entries')
-    .select('id, kind, currency, amount_minor, rate, usd_cents, entry_date, saved_at, method, person_name')
+    // The rate is read as its stored text, not as a JSON number: an oracle that words
+    // a rate needs the decimals the column keeps, and 20.0000 read as 20 would lose
+    // them before any screen is judged.
+    .select(
+      'id, kind, currency, amount_minor, rate::text, usd_cents, entry_date, saved_at, method, person_name',
+    )
     .eq('user_id', account.userId)
     .order('id', { ascending: true })
   if (error || !data) {
