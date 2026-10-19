@@ -13,10 +13,12 @@
 // The screen owns only the board's own furniture - the heading, the column
 // words, the colours - which say the same thing at every ledger length.
 //
-// The rule, in one line: the sent rows are the entries of kind send, oldest
-// first, numbered 1 upward; the three figures are the sum of the sends, the sum
-// of the repayments and the unsigned difference of the two; and a row's dollars
-// are the dollars that row stores, never a rufiyaa figure converted again.
+// The rule, in one line: the sent rows are the entries of kind send and the
+// paid-back rows exactly those of kind receive, each oldest first and numbered 1
+// upward within its own list; the three figures are the sum of the sends, the
+// sum of the repayments and the unsigned difference of the two; and a row's
+// dollars are the dollars that row stores, never a rufiyaa figure converted
+// again.
 
 import { balanceOf } from './balance.js'
 import { entryCountLabel, shortDayLabel } from './ledger-view.js'
@@ -56,6 +58,22 @@ export type StatementEntry = {
   readonly method: string | null
 }
 
+/**
+ * The way the money changed hands, as a row can read it: the token the ledger
+ * stores AND the word it reads as, together or not at all.
+ *
+ * The two are one value because neither is readable without the other: a word
+ * with no token would name a way nobody recorded, and a token with no word
+ * would print raw storage at the owner. A stored token this app cannot name
+ * therefore yields no method at all rather than a half of one.
+ */
+export type StatementMethod = {
+  /** The token as the ledger stores it: 'cash'. */
+  readonly token: string
+  /** The word the owner reads: 'Cash'. */
+  readonly word: string
+}
+
 /** One row of a statement list, as the owner reads it across the row. */
 export type StatementRow = {
   /** The entry this row came from, so a reader can name which row is which. */
@@ -71,6 +89,12 @@ export type StatementRow = {
    * a row with no sub-line is a single line, not a line of nothing.
    */
   readonly subline: string | null
+  /**
+   * The way this entry's money changed hands, or null where the ledger stores
+   * nothing this app can name: a repayment with no stored method reads as an
+   * empty cell, never as a word of the screen's own.
+   */
+  readonly method: StatementMethod | null
   readonly usdCents: number
   /** The dollars this row stores, unsigned: '2,007.00'. */
   readonly usdText: string
@@ -104,7 +128,10 @@ export type Statement = {
   readonly period: string
   /** The three figures in the order the card reads them, top to bottom. */
   readonly figures: readonly StatementFigure[]
+  /** What the owner sent: the entries of kind send. */
   readonly sent: StatementList
+  /** What came back: the entries of kind receive, numbered from its own rows. */
+  readonly back: StatementList
 }
 
 /** The three words this app can read; a token outside them says nothing. */
@@ -115,14 +142,16 @@ const METHOD_WORDS: Readonly<Record<string, string>> = {
 }
 
 /**
- * The word a stored method reads as. A null method, and a token this app cannot
+ * What a stored method reads as. A null method, and a token this app cannot
  * name, both say nothing: the owner would otherwise read a way the money
- * changed hands that nobody ever recorded.
+ * changed hands that nobody ever recorded. The token is carried beside its word
+ * so a reader can check the cell against the column it came from, and the two
+ * are built here together or not at all.
  */
-const methodWord = (method: string | null): string | null => {
+const methodOf = (method: string | null): StatementMethod | null => {
   if (method === null) return null
   const word: string | undefined = METHOD_WORDS[method]
-  return word ?? null
+  return word === undefined ? null : { token: method, word }
 }
 
 /**
@@ -153,7 +182,7 @@ const yearOf = (date: string): string => date.slice(0, 4)
  * from one.
  */
 const sublineOf = (entry: StatementEntry): string | null => {
-  const word = methodWord(entry.method)
+  const word = methodOf(entry.method)?.word ?? null
   const rufiyaa =
     entry.currency === 'MVR' && entry.rate !== null
       ? `MVR ${formatMvrLaari(entry.amountMinor)} @ ${formatRatePlain(entry.rate)}`
@@ -179,6 +208,7 @@ const rowOf = (entry: StatementEntry, index: number): StatementRow => ({
   personId: entry.personId,
   personName: entry.personName ?? '',
   subline: sublineOf(entry),
+  method: methodOf(entry.method),
   // The dollars the entry STORES. A rufiyaa figure converted a second time
   // would move the owner's money by the rounding.
   usdCents: entry.usdCents,
@@ -258,5 +288,8 @@ export const statementOf = <E extends StatementEntry>(entries: readonly E[]): St
       { which: 'balance', cents: balance.amountCents, text: formatUsdCents(balance.amountCents) },
     ],
     sent: listOf(entries, 'send'),
+    // The two lists are the SAME projection of the two kinds, so no entry can
+    // be in both and none can be left out of its own.
+    back: listOf(entries, 'receive'),
   }
 }

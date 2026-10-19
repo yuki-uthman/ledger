@@ -2610,3 +2610,107 @@ body {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
+
+/* --- The pill that switches the two lists (src/ui/statement.ts). ---
+
+   The board's own segmented control: 44 px tall on its pale bed, with a thumb
+   of one half less six pixels lying under the tab being read. Where the thumb
+   rests and what colour it takes are read off the screen's shown attribute
+   alone, so the switch is one attribute and nothing else. */
+.statement-pill {
+  flex: 0 0 auto;
+  /* The thumb is placed against this bed, inside its padding. */
+  position: relative;
+  display: flex;
+  gap: 4px;
+  box-sizing: border-box;
+  height: 44px;
+  padding: 4px;
+  border-radius: 14px;
+  background: #e3e9e7;
+}
+
+/* One half of the bed less its gutters: exactly the tab it lies under. */
+.statement-thumb {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc(50% - 6px);
+  border-radius: 10px;
+  background: var(--you);
+}
+
+.screen.statement[data-statement-shown='back'] .statement-thumb {
+  left: calc(50% + 2px);
+  background: var(--abbaas);
+}
+
+.statement-tab {
+  /* Over the thumb, so the word reads against it. */
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  /* The thumb is inset by the pill's padding, as the board draws it, but a tab
+     is a thing a thumb must hit: it reaches over that padding to the full 44 px
+     of the pill, so the whole height of the pill is tappable. */
+  margin-block: -4px;
+  padding-block: 4px;
+  border: 0;
+  padding: 0;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: #4c5f5b;
+  cursor: pointer;
+}
+
+.statement-tab[aria-selected='true'] {
+  color: #ffffff;
+}
+
+/* --- The area both panels stand in. ---
+
+   One relative box taking what is left of the screen, with each panel filling
+   it: the panels can therefore be exchanged without moving the heading, the
+   card, the pill or anything pinned inside a panel. The list not being read
+   waits one panel and one gutter off the phone, on the side its own tab lies
+   on, rather than being hidden away - so it keeps its rows, its scroll offset
+   and a box the owner can be shown. */
+.statement-lists {
+  flex: 1 1 auto;
+  min-height: 0;
+  position: relative;
+  /* Not a scrolling area: the rows inside each panel are the only one. */
+  overflow: hidden;
+}
+
+.statement-lists > .statement-panel {
+  position: absolute;
+  inset: 0;
+}
+
+.screen.statement[data-statement-shown='sent'] .statement-panel[data-statement-list='back'] {
+  transform: translateX(calc(100% + 16px));
+}
+
+.screen.statement[data-statement-shown='back'] .statement-panel[data-statement-list='sent'] {
+  transform: translateX(calc(-100% - 16px));
+}
+
+/* --- The Paid back by Abbaas panel: the same panel, in the colours of money
+   that came back, with a way where the sent list names a person. --- */
+
+.statement-method {
+  color: var(--ink);
+}
+
+.statement-panel[data-statement-list='back'] .statement-usd {
+  color: var(--abbaas);
+}
+
+.statement-foot[data-statement-foot='back'] {
+  background: var(--abbaas-tint);
+  color: var(--abbaas-deep);
+}
