@@ -4481,6 +4481,25 @@ npm run build
 - V3-o-arch: The two new switches live in src/ui/motion.ts, which still imports
   nothing of the domain and still removes data-motion the moment a motion ends;
   the Statement and the shell hand it their own elements and read nothing back.
+- V3-a-sent-rest: This oracle measures the Statement immediately after the tap
+  that opens it, and value 3 makes that tap a movement of 420 to 830 ms. The
+  acceptance designer waits for rest after each measured tap, which is no
+  element carrying data-motion and none carrying data-enter-rise, and changes no
+  expectation, so every figure, row, footer and box it reads is the one it read
+  before.
+- V3-a-lists-rest: This oracle measures each list immediately after the pill tap
+  that shows it, and value 3 makes that tap the same kind of movement. The
+  acceptance designer waits for the same rest after each measured tap and
+  changes no expectation, so both lists, both footers and the steady boxes read
+  as they did before.
+- V3-d-implementation-readings: Two readings the implementation settles,
+  recorded for the reviewer. Every box that clips a sliding part - the shell,
+  the statement screen, the lists area and both panels - clips with overflow:
+  clip and not overflow: hidden, because a tap in the middle of a slide let
+  Chromium scroll an overflow: hidden box by 51 px and keep it scrolled. The
+  pill thumb's resting states are written as transforms rather than as a left
+  offset, so its travel and its colour are the one transition the slide
+  declares.
 - V3-i-extended: Extended in place by this value, with every symbol its existing
   callers read left in force.
 - V3-a-motion-producer: src/ui/motion.ts gains two data-motion values and keeps
@@ -4576,7 +4595,7 @@ F-d-track, F-d-switch-state, F-d-waiver, F-d-substrate, F-d-oracle-observation,
 F-d-readiness, F-d-arch-law, F-d-layer-application, F-d-stress-motion,
 F-d-stress-taps, F-d-selffals, F-d-admitted, F-d-excluded, V3-d-motion-owner,
 V3-d-motion-vocabulary, V3-d-css-states, V3-d-interrupt, V3-d-clock,
-V3-d-closure, V3-d-liveness-note
+V3-d-closure, V3-d-liveness-note, V3-d-implementation-readings
 
 ### Oracle (Value 3)
 
@@ -4730,6 +4749,8 @@ None
 | V3-P-motion | The data-motion vocabulary of src/ui/motion.ts | producer | `src/ui/motion.ts:16` | UNCHANGED_COMPATIBLE | V3-a-motion-producer |
 | V3-P-entrances | The data-motion vocabulary of src/ui/motion.ts | consumer | `tests/acceptance/entrances.spec.ts:663` | UNCHANGED_COMPATIBLE | V3-a-motion-consumer |
 | V3-P-motion-spec | The data-motion vocabulary of src/ui/motion.ts | consumer | `tests/acceptance/motion.spec.ts:24` | UNCHANGED_COMPATIBLE | V3-a-motion-consumer |
+| V3-P-sent-spec | The data-motion vocabulary of src/ui/motion.ts | consumer | `tests/acceptance/statement-sent.spec.ts:681` | MIGRATED | V3-a-sent-rest |
+| V3-P-lists-spec | The data-motion vocabulary of src/ui/motion.ts | consumer | `tests/acceptance/statement-lists.spec.ts:1261` | MIGRATED | V3-a-lists-rest |
 | V3-P-home | The exported helpers of src/ui/motion.ts | consumer | `src/ui/home.ts:111` | UNCHANGED_COMPATIBLE | V3-a-ui-consumer |
 | V3-P-main | The exported helpers of src/ui/motion.ts | consumer | `src/main.ts:17` | UNCHANGED_COMPATIBLE | V3-a-ui-consumer |
 
@@ -4795,6 +4816,22 @@ None
       "decision": "UNCHANGED_COMPATIBLE",
       "reason": {
         "ref": "V3-a-motion-consumer"
+      }
+    },
+    {
+      "kind": "test",
+      "locator": "tests/acceptance/statement-sent.spec.ts:681",
+      "decision": "MIGRATED",
+      "reason": {
+        "ref": "V3-a-sent-rest"
+      }
+    },
+    {
+      "kind": "test",
+      "locator": "tests/acceptance/statement-lists.spec.ts:1261",
+      "decision": "MIGRATED",
+      "reason": {
+        "ref": "V3-a-lists-rest"
       }
     },
     {

@@ -369,7 +369,7 @@ const givenTheOwnerIsSignedIn = async (page: Page, account: Account): Promise<vo
   await page.getByRole('button', { name: 'Sign in' }).click()
   await expect(
     page.locator(PASSWORD_FIELD),
-    'WHAT: the sign-in screen stayed up after Sign in. WHY: the owner cannot reach either tab until the app lets him in. HOW: confirm the seeded account and let sign-in replace the screen.',
+    'WHAT: the sign-in screen stayed up after Sign in. WHY: the owner cannot reach either tab until the app lets them in. HOW: confirm the seeded account and let sign-in replace the screen.',
   ).toHaveCount(0)
 }
 
@@ -378,6 +378,47 @@ const entriesTab = (page: Page): Locator => page.locator('[data-view="entries"]'
 const statement = (page: Page): Locator => page.locator('[data-screen="statement"]')
 const entriesPane = (page: Page): Locator => page.locator('[data-pane="entries"]')
 const statementPane = (page: Page): Locator => page.locator('[data-pane="statement"]')
+
+/**
+ * The marks of the parts of a switch that are still moving, named by their own journey or
+ * kind: a sliding track, a sliding pair of panels, and the arriving screen's heading, card,
+ * pill, panel and pinned parts. Two marks are left out on purpose. A row rising or crossing
+ * inside its own scrolling area carries no box, hook or reading these scenarios take, and a
+ * long list keeps its rows marked after the switch itself has rested; and a screen's own
+ * arrival on a paint is a different journey, which these scenarios never read mid-flight.
+ */
+const partsStillMoving = (page: Page): Promise<readonly string[]> =>
+  page.evaluate(() => {
+    const switching = ['view-slide', 'list-slide', 'list-enter']
+    return Array.from(document.querySelectorAll('[data-motion], [data-enter-rise]'))
+      .map((part) => part.getAttribute('data-motion') ?? `rise:${part.getAttribute('data-enter-rise')}`)
+      .filter((mark) => switching.includes(mark) || mark.startsWith('rise:switch-'))
+      .filter((mark) => !mark.endsWith('row'))
+  })
+
+/**
+ * Waits until nothing is moving any more, so every box, position and row read after a tap
+ * is read from where it came to rest. On a product that moves nothing this returns at once.
+ */
+const thenEveryPartHasComeToRest = async (page: Page): Promise<void> => {
+  await expect
+    .poll(() => partsStillMoving(page), {
+      message:
+        'WHAT: the switch was still moving two seconds after the tap. WHY: every box, position and reading this oracle takes after a tap is taken from where the switch came to rest, so a reading taken mid-slide would judge a place the owner never sees. HOW: finish the slide and the arriving screen\'s rise, and drop each part\'s mark as it stops.',
+      timeout: 2_000,
+    })
+    .toEqual([])
+}
+
+/** The same wait where a disagreement is collected rather than raised. */
+const everyPartSettles = async (page: Page, budgetMs = 2_000): Promise<boolean> => {
+  const deadline = Date.now() + budgetMs
+  for (;;) {
+    if ((await partsStillMoving(page)).length === 0) return true
+    if (Date.now() >= deadline) return false
+    await new Promise((resolve) => setTimeout(resolve, 50))
+  }
+}
 
 const whenTheOwnerTapsStatement = async (page: Page): Promise<void> => {
   await expect(
@@ -389,14 +430,16 @@ const whenTheOwnerTapsStatement = async (page: Page): Promise<void> => {
     statement(page),
     'WHAT: tapping Statement showed no statement screen. WHY: the tap is what brings the heading, the period line, the figures and the rows into the viewport. HOW: show the pane whose screen carries data-screen=statement.',
   ).toBeVisible()
+  await thenEveryPartHasComeToRest(page)
 }
 
 const whenTheOwnerTapsEntries = async (page: Page): Promise<void> => {
   await expect(
     entriesTab(page),
-    'WHAT: there is no Entries tab to tap. WHY: the owner must be able to come back to his entries. HOW: draw both tabs on the bottom bar.',
+    'WHAT: there is no Entries tab to tap. WHY: the owner must be able to come back to their entries. HOW: draw both tabs on the bottom bar.',
   ).toBeVisible()
   await entriesTab(page).click()
+  await thenEveryPartHasComeToRest(page)
 }
 
 /** Reads the whole Statement screen in one pass, answering even when it is not there. */
@@ -497,16 +540,16 @@ const scrollRowsToTheEnd = (page: Page): Promise<number> =>
 test("the bottom bar offers Entries and Statement, and the Entries tab still shows the owner's ledger", async ({
   page,
 }) => {
-  // Given the owner has a month of sends and repayments in his ledger
+  // Given the owner has a month of sends and repayments in their ledger
   await givenTheOwnerIsSignedIn(page, seven)
 
-  // When he looks at the bar he arrived on
+  // When the owner looks at the bar they arrived on
   const bar = page.getByRole('navigation', { name: 'Views' })
 
   // Then both tabs stand on it, 84 px tall, with the Entries tab the active one
   await expect(
     bar,
-    'WHAT: there is no bottom bar named Views. WHY: the bar is how the owner moves between his entries and the Statement. HOW: draw a navigation bar with that accessible name.',
+    'WHAT: there is no bottom bar named Views. WHY: the bar is how the owner moves between their entries and the Statement. HOW: draw a navigation bar with that accessible name.',
   ).toBeVisible()
   const barBox = await boxOf(bar, 'the bottom bar')
   expect(
@@ -515,12 +558,12 @@ test("the bottom bar offers Entries and Statement, and the Entries tab still sho
   ).toBe(BAR_HEIGHT)
   expect(
     Math.round(barBox.y + barBox.height),
-    'WHAT: the bottom bar does not sit on the foot of the phone. WHY: the owner reaches it with his thumb, and the panes are measured above it. HOW: pin the bar to the bottom of the viewport.',
+    'WHAT: the bottom bar does not sit on the foot of the phone. WHY: the owner reaches it with their thumb, and the panes are measured above it. HOW: pin the bar to the bottom of the viewport.',
   ).toBe(VIEWPORT.height)
 
   await expect(
     entriesTab(page),
-    'WHAT: no tab named Entries. WHY: the owner must be able to name where he is going. HOW: label the first tab Entries.',
+    'WHAT: no tab named Entries. WHY: the owner must be able to name where they are going. HOW: label the first tab Entries.',
   ).toHaveText(/Entries/)
   await expect(
     statementTab(page),
@@ -528,7 +571,7 @@ test("the bottom bar offers Entries and Statement, and the Entries tab still sho
   ).toHaveText(/Statement/)
   await expect(
     entriesTab(page),
-    'WHAT: the Entries tab does not say it is the current one. WHY: the owner must be able to see which view he is in. HOW: carry aria-current=page on the active tab.',
+    'WHAT: the Entries tab does not say it is the current one. WHY: the owner must be able to see which view they are in. HOW: carry aria-current=page on the active tab.',
   ).toHaveAttribute('aria-current', 'page')
   await expect(
     statementTab(page),
@@ -541,7 +584,7 @@ test("the bottom bar offers Entries and Statement, and the Entries tab still sho
   const entriesBox = await boxOf(entriesTab(page), 'the Entries tab')
   expect(
     Math.abs(pillBox.x + pillBox.width / 2 - (entriesBox.x + entriesBox.width / 2)),
-    'WHAT: the mint pill is not centred under the active tab. WHY: the pill is what tells the owner, at a glance, which view he is in. HOW: rest the pill at zero or one half of the bar, under the showing tab.',
+    'WHAT: the mint pill is not centred under the active tab. WHY: the pill is what tells the owner, at a glance, which view they are in. HOW: rest the pill at zero or one half of the bar, under the showing tab.',
   ).toBeLessThanOrEqual(6)
   expect(
     pillBox.x + pillBox.width,
@@ -593,7 +636,7 @@ test('a tap on Statement reads the period, the three figures and every send olde
   const historyBefore = await page.evaluate(() => window.history.length)
   const stored = await readStoredLedger(stack, seven)
 
-  // When he taps the Statement tab
+  // When the owner taps the Statement tab
   await whenTheOwnerTapsStatement(page)
 
   // Then the screen reads its period, its figures and its rows, and nothing can write
@@ -638,7 +681,7 @@ test('a tap on Statement reads the period, the three figures and every send olde
 
   expect(
     reading.rows.map((row) => row.no),
-    'WHAT: the rows are not numbered 1 upward in document order. WHY: the numbering is the owner\'s way of counting the sends he made. HOW: number the sends 1 upward in the oldest-first order.',
+    'WHAT: the rows are not numbered 1 upward in document order. WHY: the numbering is the owner\'s way of counting the sends they made. HOW: number the sends 1 upward in the oldest-first order.',
   ).toEqual(rows.map((row) => row.no))
   expect(
     reading.rowTexts,
@@ -681,7 +724,7 @@ test('a tap on Statement reads the period, the three figures and every send olde
 test('only the rows of the statement scroll: the heading, the card, the column header and the footer stay where they are', async ({
   page,
 }) => {
-  // Given the owner is reading his statement
+  // Given the owner is reading their statement
   await givenTheOwnerIsSignedIn(page, seven)
   await whenTheOwnerTapsStatement(page)
   const heading = statement(page).getByRole('heading', { name: 'Statement' })
@@ -712,7 +755,7 @@ test('only the rows of the statement scroll: the heading, the card, the column h
   for (const part of ['heading', 'card', 'head', 'foot'] as const) {
     expect(
       Math.abs(after[part].y - before[part].y),
-      `WHAT: ${part === 'head' ? 'the column header' : part === 'foot' ? 'the footer' : `the ${part}`} moved when the rows were scrolled. WHY: the owner must keep the figures and the column words in sight while he reads down the list. HOW: scroll the rows area alone, inside a panel whose header and footer cannot move.`,
+      `WHAT: ${part === 'head' ? 'the column header' : part === 'foot' ? 'the footer' : `the ${part}`} moved when the rows were scrolled. WHY: the owner must keep the figures and the column words in sight while they read down the list. HOW: scroll the rows area alone, inside a panel whose header and footer cannot move.`,
     ).toBeLessThanOrEqual(PIXEL)
   }
 
@@ -761,7 +804,7 @@ test('an owner with nothing recorded still reads the whole statement, with no ro
   // Given an owner who has recorded nothing at all
   await givenTheOwnerIsSignedIn(page, empty)
 
-  // When he taps the Statement tab
+  // When the owner taps the Statement tab
   await whenTheOwnerTapsStatement(page)
 
   // Then the same screen reads zero three times, lists no row, and says so in words
@@ -784,7 +827,7 @@ test('an owner with nothing recorded still reads the whole statement, with no ro
   ).toEqual(['No.', 'Date', 'Paid to', 'USD'])
   expect(
     reading.rows,
-    'WHAT: an empty ledger shows rows. WHY: a row the owner never recorded is a lie about his money. HOW: list a row for each stored send and no other.',
+    'WHAT: an empty ledger shows rows. WHY: a row the owner never recorded is a lie about their money. HOW: list a row for each stored send and no other.',
   ).toEqual([])
   expect(
     reading.foot?.text,
@@ -892,7 +935,7 @@ test('the owner comes back from the statement to the same place in the entries',
   await givenTheOwnerIsSignedIn(page, long)
   await expect(
     entriesPane(page).locator('[data-entry]'),
-    'WHAT: Home did not list the long ledger. WHY: the owner must have something to scroll before he can come back to it. HOW: list the stored entries on Home.',
+    'WHAT: Home did not list the long ledger. WHY: the owner must have something to scroll before they can come back to it. HOW: list the stored entries on Home.',
   ).toHaveCount(LONG_LEDGER_ROWS)
   const scrolledTo = await page.evaluate(() => {
     const pane = document.querySelector('[data-pane="entries"]')
@@ -911,11 +954,11 @@ test('the owner comes back from the statement to the same place in the entries',
   ).toBeGreaterThan(0)
   const readsBefore = entryReads
 
-  // When he looks at the statement and comes back
+  // When the owner looks at the statement and comes back
   await whenTheOwnerTapsStatement(page)
   await whenTheOwnerTapsEntries(page)
 
-  // Then his entries are where he left them, read no second time
+  // Then their entries are where they left them, read no second time
   const scrolledBack = await page.evaluate(() => {
     const pane = document.querySelector('[data-pane="entries"]')
     if (!pane) return -1
@@ -926,7 +969,7 @@ test('the owner comes back from the statement to the same place in the entries',
   })
   expect(
     scrolledBack,
-    'WHAT: Home lost the place the owner had scrolled to. WHY: looking at the statement and coming back must not throw away where he was reading. HOW: keep the same Home mounted and switch the shown pane, rather than painting Home again.',
+    'WHAT: Home lost the place the owner had scrolled to. WHY: looking at the statement and coming back must not throw away where they were reading. HOW: keep the same Home mounted and switch the shown pane, rather than painting Home again.',
   ).toBe(scrolledTo)
   await expect(
     entriesPane(page).locator('[data-entry]'),
@@ -938,14 +981,14 @@ test('the owner comes back from the statement to the same place in the entries',
   ).toHaveAttribute('aria-current', 'page')
   expect(
     entryReads - readsBefore,
-    'WHAT: the round trip read the ledger again. WHY: a second read can disagree with the first, and would cost the owner a wait for a screen he already has. HOW: switch the shown pane without reading anything.',
+    'WHAT: the round trip read the ledger again. WHY: a second read can disagree with the first, and would cost the owner a wait for a screen they already have. HOW: switch the shown pane without reading anything.',
   ).toBe(0)
 })
 
 test('an open entry sheet covers the bottom bar, so no tab can be tapped underneath it', async ({
   page,
 }) => {
-  // Given the owner is reading one of his entries
+  // Given the owner is reading one of their entries
   await givenTheOwnerIsSignedIn(page, seven)
   const card = entriesPane(page).locator('[data-entry]').first()
   await expect(
@@ -953,7 +996,7 @@ test('an open entry sheet covers the bottom bar, so no tab can be tapped underne
     'WHAT: Home lists no entry to open. WHY: the sheet is raised from an entry card. HOW: list the stored entries on Home.',
   ).toBeVisible()
 
-  // When he opens its sheet
+  // When the owner opens its sheet
   await card.click()
   const sheet = page.getByRole('dialog')
   await expect(
@@ -1105,7 +1148,7 @@ test('a stored MVR row and a row with no method read as recorded', async ({ page
   ).toHaveCount(0)
   expect(
     (await noMethodRow.innerText()).match(/Cash|Cheque|Transfer/g),
-    'WHAT: the row stored with no method utters one of the three method words. WHY: the owner would read a way the money changed hands that he never recorded. HOW: say nothing in its place.',
+    'WHAT: the row stored with no method utters one of the three method words. WHY: the owner would read a way the money changed hands that they never recorded. HOW: say nothing in its place.',
   ).toBeNull()
 })
 
@@ -1285,6 +1328,7 @@ const readLedgerAndJudge = async (
     'WHAT: the reloaded app offers no Statement tab. WHY: every generated ledger is read through that tap. HOW: draw the bottom bar on every load.',
   ).toBeVisible()
   await statementTab(page).click()
+  if (!(await everyPartSettles(page))) return ['parts of the screen were still moving after the tap on Statement']
 
   const stored = await readStoredLedger(stack, generated)
   const reading = await readStatement(page)

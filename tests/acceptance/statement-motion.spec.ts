@@ -479,8 +479,12 @@ const installSampler = async (page: Page): Promise<void> => {
         ),
         sentFoot: footOf('sent') === null ? null : squash(footOf('sent')?.textContent),
         backFoot: footOf('back') === null ? null : squash(footOf('back')?.textContent),
+        // The rows of the list the owner is actually reading: both panels are mounted, so
+        // reading them all would count a list that is off the side of the phone.
         rows: Array.from(
-          screen?.querySelectorAll('[data-statement-row]') ?? [],
+          panelOf(screen?.getAttribute('data-statement-shown') ?? 'sent')?.querySelectorAll(
+            '[data-statement-row]',
+          ) ?? [],
           (row) => squash(row.textContent),
         ).slice(0, 8),
         tabs: Array.from(
@@ -839,11 +843,15 @@ const countOfKind = (rows: readonly StoredLedgerRow[], kind: 'send' | 'receive')
 const countLabel = (count: number): string =>
   count <= 0 ? 'No entries' : count === 1 ? '1 entry' : `${count} entries`
 
-/** The three figures the balance card holds, as the stored rows add up. */
+/**
+ * The three figures the balance card holds, as the stored rows add up. The card names its
+ * middle figure for what Abbaas has PAID: sent and back are the two list panels' own words,
+ * and the card does not borrow them.
+ */
 const expectedTotals = (rows: readonly StoredLedgerRow[]): readonly string[] => {
   const sent = centsOfKind(rows, 'send')
-  const back = centsOfKind(rows, 'receive')
-  return [`sent: ${usd(sent)}`, `back: ${usd(back)}`, `balance: ${usd(sent - back)}`]
+  const paid = centsOfKind(rows, 'receive')
+  return [`sent: ${usd(sent)}`, `paid: ${usd(paid)}`, `balance: ${usd(sent - paid)}`]
 }
 
 /** What each footer says, counted and summed against the rows the ledger actually stores. */
@@ -877,10 +885,18 @@ const sourceFrom = (seed: number): (() => number) => {
   }
 }
 
-/** Where a sequence of taps leaves the two switches, worked out here and not read back. */
-const endStateOf = (taps: readonly Tap[]): { view: View; list: Which } => {
-  let view: View = 'entries'
-  let list: Which = 'sent'
+/**
+ * Where a sequence of taps leaves the two switches, worked out here and not read back. It
+ * is worked out FROM the state the owner started in, because a tap on a bottom-bar tab
+ * moves the screen aside without rebuilding it: a Statement left showing the paid-back list
+ * is still showing it when the owner comes back, and only a tap on the pill changes that.
+ */
+const endStateOf = (
+  taps: readonly Tap[],
+  from: { view: View; list: Which } = { view: 'entries', list: 'sent' },
+): { view: View; list: Which } => {
+  let view: View = from.view
+  let list: Which = from.list
   for (const what of taps) {
     if (what.on === 'view') view = what.to
     else list = what.to
@@ -959,15 +975,37 @@ const wordsOf = (taps: readonly Tap[]): string =>
     )
     .join(', ')
 
-/** Plays one sequence from the Entries tab, recording every frame of it. */
+/** Plays one sequence on a phone that has just been signed in to, recording every frame. */
 const playFrom = async (page: Page, account: Account, taps: readonly Tap[]): Promise<Frame[]> => {
   await givenTheOwnerIsSignedIn(page, account)
   await givenTheOwnerIsReadingTheirEntries(page)
+  return (await playFromRest(page, taps)).frames
+}
+
+/**
+ * Plays one sequence from the Entries tab at rest, recording every frame of it. One phone
+ * plays one sequence after another this way, because the app keeps the owner signed in: a
+ * second visit opens their entries, not the sign-in screen, so signing in again per
+ * sequence would be asking for a screen the app is right not to show.
+ */
+const playFromRest = async (
+  page: Page,
+  taps: readonly Tap[],
+): Promise<{ frames: Frame[]; startedFrom: { view: View; list: Which } }> => {
+  await tap(page, { on: 'view', to: 'entries', afterMs: 0 })
+  await thenEveryPartHasComeToRest(page)
+  // Where this play starts, read through the public screen rather than assumed: the owner
+  // may have left the Statement on either list, and no tap of this play need change it.
+  const start = await page.evaluate(() => window.__readRest())
+  const startedFrom = {
+    view: 'entries' as View,
+    list: (start.statementShown === 'back' ? 'back' : 'sent') as Which,
+  }
   const recording = whileEveryFrameIsRecorded(page)
   for (const what of taps) {
     await tap(page, what)
   }
-  return recording
+  return { frames: await recording, startedFrom }
 }
 
 // ===========================================================================
@@ -1359,9 +1397,14 @@ test('however fast the tabs are tapped, nothing is left standing between two scr
   const sequences = generatedSequences()
   const { context, page } = await givenAPhoneThatRecordsEveryFrame(browser, 'allowed')
 
+  // Given one signed-in owner, whose phone plays one generated sequence after another from
+  // the Entries tab at rest
+  await givenTheOwnerIsSignedIn(page, nine)
+  await givenTheOwnerIsReadingTheirEntries(page)
+
   /** What one sequence disagreed with, in the owner's own terms; empty when it agreed. */
   const complaintsFrom = async (taps: readonly Tap[]): Promise<readonly string[]> => {
-    const frames = await playFrom(page, nine, taps)
+    const { frames, startedFrom } = await playFromRest(page, taps)
     const complaints: string[] = []
     const undeclared = Array.from(new Set(frames.flatMap((frame) => frame.undeclared)))
     if (undeclared.length > 0) {
@@ -1387,7 +1430,7 @@ test('however fast the tabs are tapped, nothing is left standing between two scr
       complaints.push('both lists were inside the phone at once with nothing claiming to move')
     }
     const rest = await thenEveryPartHasComeToRest(page)
-    const wanted = endStateOf(taps)
+    const wanted = endStateOf(taps, startedFrom)
     if (rest.shown !== wanted.view) {
       complaints.push(`the screen came to rest showing ${rest.shown ?? 'nothing'} rather than the last tap's ${wanted.view}`)
     }

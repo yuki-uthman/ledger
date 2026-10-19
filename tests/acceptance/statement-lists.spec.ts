@@ -465,6 +465,47 @@ const theShownListComesToRest = async (page: Page, which: Which): Promise<void> 
     .toBe(resting)
 }
 
+/**
+ * The marks of the parts of a switch that are still moving, named by their own journey or
+ * kind: a sliding track, a sliding pair of panels, and the arriving screen's heading, card,
+ * pill, panel and pinned parts. Two marks are left out on purpose. A row rising or crossing
+ * inside its own scrolling area carries no box, hook or reading these scenarios take, and a
+ * long list keeps its rows marked after the switch itself has rested; and a screen's own
+ * arrival on a paint is a different journey, which these scenarios never read mid-flight.
+ */
+const partsStillMoving = (page: Page): Promise<readonly string[]> =>
+  page.evaluate(() => {
+    const switching = ['view-slide', 'list-slide', 'list-enter']
+    return Array.from(document.querySelectorAll('[data-motion], [data-enter-rise]'))
+      .map((part) => part.getAttribute('data-motion') ?? `rise:${part.getAttribute('data-enter-rise')}`)
+      .filter((mark) => switching.includes(mark) || mark.startsWith('rise:switch-'))
+      .filter((mark) => !mark.endsWith('row'))
+  })
+
+/**
+ * Waits until nothing is moving any more, so every box, position and row read after a tap
+ * is read from where it came to rest. On a product that moves nothing this returns at once.
+ */
+const thenEveryPartHasComeToRest = async (page: Page): Promise<void> => {
+  await expect
+    .poll(() => partsStillMoving(page), {
+      message:
+        'WHAT: the switch was still moving two seconds after the tap. WHY: every box, position and reading this oracle takes after a tap is taken from where the switch came to rest, so a reading taken mid-slide would judge a place the owner never sees. HOW: finish the slide and the arriving screen\'s rise, and drop each part\'s mark as it stops.',
+      timeout: 2_000,
+    })
+    .toEqual([])
+}
+
+/** The same wait where a disagreement is collected rather than raised. */
+const everyPartSettles = async (page: Page, budgetMs = 2_000): Promise<boolean> => {
+  const deadline = Date.now() + budgetMs
+  for (;;) {
+    if ((await partsStillMoving(page)).length === 0) return true
+    if (Date.now() >= deadline) return false
+    await new Promise((resolve) => setTimeout(resolve, 50))
+  }
+}
+
 const whenTheOwnerOpensTheStatement = async (page: Page): Promise<void> => {
   await expect(
     statementTab(page),
@@ -476,6 +517,7 @@ const whenTheOwnerOpensTheStatement = async (page: Page): Promise<void> => {
     'WHAT: tapping Statement showed no statement screen. WHY: the tap is what brings the pill and both lists into the viewport. HOW: show the pane whose screen carries data-screen=statement.',
   ).toBeVisible()
   await theShownListComesToRest(page, 'sent')
+  await thenEveryPartHasComeToRest(page)
 }
 
 const whenTheOwnerTapsTheList = async (page: Page, which: Which): Promise<void> => {
@@ -485,6 +527,7 @@ const whenTheOwnerTapsTheList = async (page: Page, which: Which): Promise<void> 
   ).toBeVisible()
   await listTab(page, which).click()
   await theShownListComesToRest(page, which)
+  await thenEveryPartHasComeToRest(page)
 }
 
 /** Reads the pill and both lists in one pass, answering even when the screen is not there. */
@@ -1019,6 +1062,7 @@ test('taps on both switches at once leave exactly one view and one list showing'
 
   // Then the last tap decides, with one tab current, one tab selected and one list shown
   await theShownListComesToRest(page, 'back')
+  await thenEveryPartHasComeToRest(page)
   const reading = await readScreen(page)
   await expect(
     statementTab(page),
@@ -1087,6 +1131,7 @@ test('a ledger that cannot be read shows neither list, and says so instead', asy
     statementPane(page).getByRole('alert'),
     'WHAT: the statement does not speak one alert after a failed read. WHY: the owner must be told the ledger could not be read, not shown an empty one. HOW: word the alert from the port\'s own message on this screen too.',
   ).toHaveText(UNREADABLE)
+  await thenEveryPartHasComeToRest(page)
   const reading = await readScreen(page)
   expect(
     [
@@ -1387,9 +1432,11 @@ const readBothListsAndJudge = async (
   await statementTab(page).click()
   if ((await statement(page).count()) === 0) return ['there is no statement screen to read']
   if (!(await theShownListSettles(page, 'sent'))) return ['the statement did not come to rest on the sent list']
+  if (!(await everyPartSettles(page))) return ['parts of the screen were still moving after the tap on Statement']
   if ((await listTab(page, 'back').count()) === 0) return [`the statement offers no '${BACK_TAB}' tab to tap`]
   await listTab(page, 'back').click()
   if (!(await theShownListSettles(page, 'back'))) return ['the statement did not come to rest on the paid-back list']
+  if (!(await everyPartSettles(page))) return ['parts of the screen were still moving after the tap on the paid-back tab']
 
   const stored = await readStoredLedger(stack, generated)
   const reading = await readScreen(page)
