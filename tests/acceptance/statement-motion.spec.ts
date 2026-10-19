@@ -22,9 +22,9 @@ import {
 
 // Every switch of the Statement, drawn as one movement, as the owner sees it on their
 // phone: a tap on a bottom-bar tab slides the mint pill and the two views together and
-// raises the arriving Statement's heading, balance card, pill, rows and footer one after
+// raises the arriving Statement's balance card, pill, rows and footer one after
 // another; a tap on the pill slides the two lists and turns the thumb from blue to teal
-// while the heading and the balance card do not move at all; and a phone that asks for
+// while the balance card does not move at all; and a phone that asks for
 // reduced motion shows the same end screens at once, with nothing moving.
 //
 // Judged only through the declared public port: the BUILT bundle as Chrome loads it over
@@ -120,8 +120,11 @@ const VIEW_ENTER = 'view-enter'
 const LIST_SLIDE = 'list-slide'
 const LIST_ENTER = 'list-enter'
 
-/** The order the arriving Statement's parts rise in, and the index each one rises at. */
-const SCREEN_RISE_ORDER = ['heading', 'card', 'pill'] as const
+/**
+ * The order the arriving Statement's parts rise in. The screen starts at the summary card:
+ * there is no title and no period line above it, so the card is the first part to rise.
+ */
+const SCREEN_RISE_ORDER = ['card', 'pill'] as const
 
 /** The delay the board gives the part at this index. */
 const riseDelayOf = (index: number): number =>
@@ -167,6 +170,8 @@ type Frame = {
    * declares a motion: the frames this law forbids.
    */
   readonly undeclared: readonly string[]
+  /** Anything raised above the balance card: the screen starts at the card, so nothing is. */
+  readonly risingAboveTheCard: readonly string[]
   readonly viewportWidth: number
   readonly trackWidth: number
   readonly pageScrolls: boolean
@@ -194,7 +199,6 @@ type RestReading = {
 type EndScreen = {
   readonly shown: string | null
   readonly statementShown: string | null
-  readonly heading: string
   readonly totals: readonly string[]
   readonly sentFoot: string | null
   readonly backFoot: string | null
@@ -253,16 +257,6 @@ const installSampler = async (page: Page): Promise<void> => {
       const parent = sent?.parentElement ?? null
       if (parent === null) return null
       return back === null || parent.contains(back) ? parent : null
-    }
-
-    const headingOf = (): HTMLElement | null => {
-      const screen = screenOf()
-      if (screen === null) return null
-      return (
-        Array.from(screen.querySelectorAll<HTMLElement>('h1, h2, h3, [role="heading"]')).find(
-          (element) => squash(element.textContent) === 'Statement',
-        ) ?? null
-      )
     }
 
     /** The balance card: the box that holds all three of its figures. */
@@ -330,7 +324,6 @@ const installSampler = async (page: Page): Promise<void> => {
         ['panel-sent', panelOf('sent')],
         ['panel-back', panelOf('back')],
         ['thumb', thumbOf()],
-        ['heading', headingOf()],
         ['card', cardOf()],
         ['pill', pillOf()],
         ['sent-foot', footOf('sent')],
@@ -407,6 +400,15 @@ const installSampler = async (page: Page): Promise<void> => {
     const frameNow = (t: number): unknown => {
       const track = trackOf()
       const root = document.documentElement
+      const card = cardOf()
+      const cardTop = card === null ? null : card.getBoundingClientRect().top
+      const risingAboveTheCard =
+        cardTop === null
+          ? []
+          : Array.from(screenOf()?.querySelectorAll<HTMLElement>('[data-enter-rise]') ?? [])
+              .filter((element) => element.getBoundingClientRect().top < cardTop - 1)
+              .map(nameOf)
+              .slice(0, 5)
       const undeclared = Array.from(document.querySelectorAll<HTMLElement>('body *'))
         .filter((element) => displacedByInlineStyle(element) && !declaresMotion(element))
         .map(nameOf)
@@ -419,6 +421,7 @@ const installSampler = async (page: Page): Promise<void> => {
         ),
         parts: named().map(([key, element]) => sampleOne(key, element)),
         undeclared,
+        risingAboveTheCard,
         viewportWidth: root.clientWidth,
         trackWidth: track === null ? 0 : track.getBoundingClientRect().width,
         pageScrolls: root.scrollHeight > root.clientHeight + 1 || root.scrollTop !== 0,
@@ -472,7 +475,6 @@ const installSampler = async (page: Page): Promise<void> => {
       return {
         shown: document.querySelector('[data-shown]')?.getAttribute('data-shown') ?? null,
         statementShown: screen?.getAttribute('data-statement-shown') ?? null,
-        heading: squash(headingOf()?.textContent),
         totals: Array.from(
           screen?.querySelectorAll('[data-statement-total]') ?? [],
           (total) => `${total.getAttribute('data-statement-total')}: ${squash(total.textContent)}`,
@@ -750,7 +752,7 @@ const givenTheOwnerIsOnTheStatement = async (page: Page): Promise<void> => {
   await whenTheOwnerTapsTheStatementTab(page)
   await expect(
     statement(page),
-    'WHAT: tapping Statement showed no statement screen. WHY: the tap is what brings the heading, the balance card, the pill and the lists into the phone. HOW: show the pane whose screen carries data-screen=statement.',
+    'WHAT: tapping Statement showed no statement screen. WHY: the tap is what brings the balance card, the pill and the lists into the phone. HOW: show the pane whose screen carries data-screen=statement.',
   ).toBeVisible()
   await thenEveryPartHasComeToRest(page)
 }
@@ -1159,7 +1161,7 @@ test('a tap on Paid back by Abbaas slides the two lists across and turns the thu
 
 /**
  * Law V3-L-rise-order, with the board's delay law V3-c-rise: the arriving parts first move
- * in the order heading, balance card, pill, rows, footer, each one delayed by
+ * in the order balance card, pill, rows, footer, with the card at index 0, each delayed by
  * 120 + min(index, 14) x 22 ms, and each one's own travel lasts 360 ms.
  */
 const RISE_LEDGERS = [
@@ -1168,7 +1170,7 @@ const RISE_LEDGERS = [
 ] as const
 
 for (const ledger of RISE_LEDGERS) {
-  test(`the arriving statement raises its heading, card, pill, rows and footer one after another, with ${ledger.title}`, async ({
+  test(`the arriving statement raises its card, pill, rows and footer one after another, with ${ledger.title}`, async ({
     browser,
   }) => {
     // Given a phone that records every frame, with the owner reading their own entries
@@ -1192,18 +1194,23 @@ for (const ledger of RISE_LEDGERS) {
     const never = moments.filter((moment) => moment.at === null).map((moment) => moment.key)
     expect(
       never,
-      `WHAT: these parts of the arriving statement never moved at all: ${never.join(', ')}. WHY: the arrival is the heading, the balance card, the pill, every row and the footer rising one after another; a part that is simply there was never raised. HOW: raise each of those parts from below, in the board's order.`,
+      `WHAT: these parts of the arriving statement never moved at all: ${never.join(', ')}. WHY: the arrival is the balance card, the pill, every row and the footer rising one after another; a part that is simply there was never raised. HOW: raise each of those parts from below, in that order.`,
     ).toEqual([])
-    const rising = frames.filter((frame) => partOf(frame, 'heading').rise !== null)
+    const rising = frames.filter((frame) => partOf(frame, 'card').rise !== null)
     expect(
       rising.length,
-      'WHAT: the heading never declared that it was rising. WHY: a part displaced without saying so cannot be told apart from a part drawn in the wrong place. HOW: have each rising part carry its own rise attribute while it travels.',
+      'WHAT: the balance card never declared that it was rising. WHY: a part displaced without saying so cannot be told apart from a part drawn in the wrong place. HOW: have each rising part carry its own rise attribute while it travels.',
     ).toBeGreaterThan(0)
-    const headingDecl = rising[0]!.parts.find((part) => part.key === 'heading')!.decl
+    const cardDecl = rising[0]!.parts.find((part) => part.key === 'card')!.decl
     expect(
-      [headingDecl.duration, headingDecl.timing, transitionedProperties(headingDecl.property)],
-      `WHAT: while the heading rose, the served stylesheet gave it duration ${headingDecl.duration}, timing ${headingDecl.timing} and property ${headingDecl.property}. WHY: a rise is 360 ms of place and strength on the one curve, and nothing else about the part may travel. HOW: declare opacity and transform alone, over 0.36s, on ${CURVE}.`,
+      [cardDecl.duration, cardDecl.timing, transitionedProperties(cardDecl.property)],
+      `WHAT: while the balance card rose, the served stylesheet gave it duration ${cardDecl.duration}, timing ${cardDecl.timing} and property ${cardDecl.property}. WHY: a rise is 360 ms of place and strength on the one curve, and nothing else about the part may travel. HOW: declare opacity and transform alone, over 0.36s, on ${CURVE}.`,
     ).toEqual(['0.36s', CURVE, ['opacity', 'transform']])
+    const above = Array.from(new Set(frames.flatMap((frame) => frame.risingAboveTheCard)))
+    expect(
+      above,
+      `WHAT: these parts were raised above the balance card: ${above.join(', ')}. WHY: the owner asked for the Statement to start at the summary card, so there is nothing over it to raise; anything rising up there is a title or a period line the screen no longer has. HOW: open the screen at the card and raise nothing above it.`,
+    ).toEqual([])
 
     // And they move in the board's order, each at its own delay, each travelling 360 ms
     const timed = moments.map((moment) => ({ key: moment.key, at: moment.at! }))
@@ -1212,7 +1219,7 @@ for (const ledger of RISE_LEDGERS) {
     )
     expect(
       outOfOrder.map((moment) => `${moment.key} at ${Math.round(moment.at)} ms`),
-      `WHAT: these parts moved before the part they follow: ${outOfOrder.map((moment) => moment.key).join(', ')}. Read in order, the parts first moved at ${timed.map((moment) => `${moment.key} ${Math.round(moment.at - tapAt)}`).join(', ')} ms after the tap. WHY: the order heading, balance card, pill, rows, footer is how the screen assembles itself for the owner; raised together or backwards it is one flash. HOW: delay each part by 120 + min(index, 14) x 22 ms in exactly that order.`,
+      `WHAT: these parts moved before the part they follow: ${outOfOrder.map((moment) => moment.key).join(', ')}. Read in order, the parts first moved at ${timed.map((moment) => `${moment.key} ${Math.round(moment.at - tapAt)}`).join(', ')} ms after the tap. WHY: the order balance card, pill, rows, footer is how the screen assembles itself for the owner; raised together or backwards it is one flash. HOW: delay each part by 120 + min(index, 14) x 22 ms in exactly that order, the card first.`,
     ).toEqual([])
     const wrongDelay = timed.filter((moment, index) => {
       const expected = riseDelayOf(Math.min(index, RISE_INDEX_CAP))
@@ -1223,7 +1230,7 @@ for (const ledger of RISE_LEDGERS) {
         (moment) =>
           `${moment.key} moved ${Math.round(moment.at - tapAt)} ms after the tap, not ${riseDelayOf(timed.indexOf(moment))} ms`,
       ),
-      `WHAT: these parts did not first move at the delay the board gives them: ${wrongDelay.map((moment) => moment.key).join(', ')}. WHY: the delay law 120 + min(index, 14) x 22 ms is what makes the arrival one sweep instead of a stack of separate movements, and the cap at part fourteen is what keeps a long list from arriving slowly. HOW: delay part ${0} by 120 ms and every later part by 22 ms more, stopping at part 14.`,
+      `WHAT: these parts did not first move at the delay the board gives them: ${wrongDelay.map((moment) => moment.key).join(', ')}. WHY: the balance card is the first thing the owner sees, so it starts 120 ms after the tap and every later part 22 ms after the one before it, to a limit of 14 steps; starting the card at any other delay, or raising everything together, is not one sweep. HOW: delay the card by 120 ms, the pill by 142 ms, and each row and the footer 22 ms further on, stopping at part 14.`,
     ).toEqual([])
     const slowOrInstant = timed
       .map((moment) => ({ ...moment, arrival: arrivalOf(frames, moment.key, moment.at) }))
@@ -1244,10 +1251,10 @@ for (const ledger of RISE_LEDGERS) {
 
 /**
  * Law V3-L-steady, and the pill clause of the rise law V3-c-rise: through a pill switch the
- * heading and the balance card do not move at all, while the arriving list's own rows and
+ * balance card does not move at all, while the arriving list's own rows and
  * footer rise in index order.
  */
-test('switching lists leaves the heading and the balance card exactly where they were', async ({
+test('switching lists leaves the balance card exactly where it was', async ({
   browser,
 }) => {
   // Given the owner on the Statement, reading what they sent, with every frame recorded
@@ -1261,30 +1268,28 @@ test('switching lists leaves the heading and the balance card exactly where they
   await whenTheOwnerTapsTheList(page, 'back')
   const frames = await recording
 
-  // Then the heading and the card hold one box and one strength in every frame of the switch
+  // Then the balance card holds one box and one strength in every frame of the switch
   const switching = frames.filter((frame) => frame.motions.length > 0)
   expect(
     switching.length,
-    'WHAT: no frame of the pill tap showed any motion running at all. WHY: the claim that the heading and the card stay still is empty unless the switch they stay still through actually ran. HOW: declare the list slide and the arriving list\'s entrance while they travel.',
+    'WHAT: no frame of the pill tap showed any motion running at all. WHY: the claim that the card stays still is empty unless the switch it stays still through actually ran. HOW: declare the list slide and the arriving list\'s entrance while they travel.',
   ).toBeGreaterThan(1)
-  for (const key of ['heading', 'card'] as const) {
-    const boxes = switching.map((frame) => partOf(frame, key).box)
-    const opacities = switching.map((frame) => partOf(frame, key).opacity)
-    const moved = boxes.filter(
-      (box) => Math.abs(box.left - boxes[0]!.left) > PIXEL || Math.abs(box.top - boxes[0]!.top) > PIXEL,
-    )
-    expect(
-      moved.map((box) => `${Math.round(box.left)},${Math.round(box.top)}`),
-      `WHAT: the ${key === 'heading' ? 'heading' : 'balance card'} moved during a pill tap, reading ${boxes
-        .slice(0, 4)
-        .map((box) => `${Math.round(box.left)},${Math.round(box.top)}`)
-        .join(' ')}. WHY: the pill switches the LIST, not the screen: a heading or a card that shifts makes the owner look again at figures that never changed. HOW: move only the two list panels and the thumb on a pill tap.`,
-    ).toEqual([])
-    expect(
-      Math.max(...opacities) - Math.min(...opacities),
-      `WHAT: the ${key === 'heading' ? 'heading' : 'balance card'} changed strength during a pill tap, between ${Math.min(...opacities)} and ${Math.max(...opacities)}. WHY: a figure that dims and brightens reads as a figure that was recomputed. HOW: leave the heading and the card out of the pill switch's motion altogether.`,
-    ).toBeLessThanOrEqual(0.01)
-  }
+  const boxes = switching.map((frame) => partOf(frame, 'card').box)
+  const opacities = switching.map((frame) => partOf(frame, 'card').opacity)
+  const moved = boxes.filter(
+    (box) => Math.abs(box.left - boxes[0]!.left) > PIXEL || Math.abs(box.top - boxes[0]!.top) > PIXEL,
+  )
+  expect(
+    moved.map((box) => `${Math.round(box.left)},${Math.round(box.top)}`),
+    `WHAT: the balance card moved during a pill tap, reading ${boxes
+      .slice(0, 4)
+      .map((box) => `${Math.round(box.left)},${Math.round(box.top)}`)
+      .join(' ')}. WHY: the pill switches the LIST, not the screen, and the card is now the first thing the owner reads: a card that shifts makes them look again at figures that never changed. HOW: move only the two list panels and the thumb on a pill tap.`,
+  ).toEqual([])
+  expect(
+    Math.max(...opacities) - Math.min(...opacities),
+    `WHAT: the balance card changed strength during a pill tap, between ${Math.min(...opacities)} and ${Math.max(...opacities)}. WHY: a figure that dims and brightens reads as a figure that was recomputed. HOW: leave the card out of the pill switch's motion altogether.`,
+  ).toBeLessThanOrEqual(0.01)
 
   // And the arriving list declares its own entrance and raises its rows in index order
   expect(
@@ -1377,7 +1382,7 @@ for (const reduced of REDUCED_CASES) {
     ).toBeGreaterThan(0)
     expect(
       quietEnd,
-      'WHAT: the quiet phone and the phone that allows motion came to rest on different screens. WHY: motion is a way of showing a change, never a change of its own: the same taps must leave the same heading, figures, rows, totals and tabs either way. HOW: paint the end state first and always, and let the motion be nothing but how the parts get there.',
+      'WHAT: the quiet phone and the phone that allows motion came to rest on different screens. WHY: motion is a way of showing a change, never a change of its own: the same taps must leave the same figures, rows, totals and tabs either way. HOW: paint the end state first and always, and let the motion be nothing but how the parts get there.',
     ).toEqual(livelyEnd)
 
     await quiet.context.close()

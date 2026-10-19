@@ -22,7 +22,7 @@ import {
 } from '../support/accounts.js'
 
 // The Statement the owner reads: a bottom bar with two tabs, and a read-only screen
-// showing the period, the mint balance card and the Sent for Abbaas list, pinned so
+// starting at the mint balance card, with the Sent for Abbaas list below it, pinned so
 // that only its rows scroll.
 //
 // Judged only through the declared public port: the BUILT bundle as Chrome loads it
@@ -46,9 +46,8 @@ import {
 const PASSWORD_FIELD = 'input[type="password"]'
 const VIEWPORT = { width: 360, height: 780 } as const
 
-/** The separators the board draws: a middle dot between parts, an en dash between dates. */
+/** The separator the board draws between the parts of a line. */
 const DOT = '·'
-const DASH = '–'
 
 /** The bar's own height, which is what the panes end above. */
 const BAR_HEIGHT = 84
@@ -82,7 +81,8 @@ type SentRowReading = {
 /** The whole Statement screen, as the owner reads it. */
 type StatementReading = {
   readonly present: boolean
-  readonly period: string
+  readonly above: readonly string[]
+  readonly headings: number
   readonly totals: ReadonlyArray<{ which: string; cents: string | null; text: string }>
   readonly head: readonly string[]
   readonly rows: ReadonlyArray<{ no: string; party: string; sub: string | null }>
@@ -107,7 +107,6 @@ const shortDate = (date: string): string => {
 }
 /** The same label without its year, which is how a date inside one year reads. */
 const shortDateNoYear = (date: string): string => shortDate(date).split(' ').slice(0, 2).join(' ')
-const yearOf = (date: string): string => date.slice(0, 4)
 
 /** A USD figure as the card and the footer read it, and as a row cell reads it unsigned. */
 const usdWithSign = (cents: number): string => `$${dollars.format(Math.abs(cents) / 100)}`
@@ -173,19 +172,6 @@ const expectedFigures = (
   return { sent, paid, balance: Math.abs(sent - paid) }
 }
 
-/** The period line the stored dates mean, with a year on each date when they differ. */
-const expectedPeriod = (rows: readonly StoredLedgerRow[]): string => {
-  if (rows.length === 0) return `You and Abbaas ${DOT} in USD`
-  const dates = [...rows].map((row) => row.entry_date).sort()
-  const first = dates[0]!
-  const last = dates[dates.length - 1]!
-  if (first === last) return `You and Abbaas ${DOT} ${shortDate(first)} ${DOT} in USD`
-  if (yearOf(first) === yearOf(last)) {
-    return `You and Abbaas ${DOT} ${shortDateNoYear(first)} ${DASH} ${shortDate(last)} ${DOT} in USD`
-  }
-  return `You and Abbaas ${DOT} ${shortDate(first)} ${DASH} ${shortDate(last)} ${DOT} in USD`
-}
-
 /** The footer of the sent list: its words, its count and its total. */
 const expectedFoot = (rows: readonly StoredLedgerRow[]): { count: string; cents: string; text: string } => {
   const sends = rows.filter((row) => row.kind === 'send')
@@ -211,7 +197,7 @@ const MARIYAM = 'Mariyam Nisha'
 /**
  * The brief's seven rows: five sends across a month and two repayments inside it, one
  * send in rufiyaa with a method, one in rufiyaa without, one in dollars without, and
- * the earliest and the latest entry a send, so the period line's ends are decidable.
+ * the earliest and the latest entry a send, so the oldest-first order has both ends.
  */
 const SEVEN: readonly EntrySeed[] = [
   {
@@ -428,7 +414,7 @@ const whenTheOwnerTapsStatement = async (page: Page): Promise<void> => {
   await statementTab(page).click()
   await expect(
     statement(page),
-    'WHAT: tapping Statement showed no statement screen. WHY: the tap is what brings the heading, the period line, the figures and the rows into the viewport. HOW: show the pane whose screen carries data-screen=statement.',
+    'WHAT: tapping Statement showed no statement screen. WHY: the tap is what brings the figures and the rows into the viewport. HOW: show the pane whose screen carries data-screen=statement.',
   ).toBeVisible()
   await thenEveryPartHasComeToRest(page)
 }
@@ -452,7 +438,8 @@ const readStatement = (page: Page): Promise<StatementReading> =>
     if (!screen) {
       return {
         present: false,
-        period: '',
+        above: [],
+        headings: 0,
         totals: [],
         head: [],
         rows: [],
@@ -462,9 +449,19 @@ const readStatement = (page: Page): Promise<StatementReading> =>
         pageScrolls,
       }
     }
-    const periodText = squash(
-      screen.querySelector('h1')?.parentElement?.textContent?.replace(/^\s*Statement\s*/, '') ?? '',
-    )
+    const above: string[] = []
+    const cardAncestors: Element[] = []
+    for (let part: Element | null = screen.querySelector('[data-statement-total]'); part !== null && part !== screen; part = part.parentElement) {
+      cardAncestors.push(part)
+    }
+    const cardPart = cardAncestors[cardAncestors.length - 1] ?? null
+    if (cardPart !== null) {
+      for (const part of Array.from(screen.children)) {
+        if (part === cardPart) break
+        above.push(`${part.tagName.toLowerCase()} '${squash(part.textContent).slice(0, 40)}'`)
+      }
+    }
+    const headings = screen.querySelectorAll('h1, h2, h3, h4, h5, h6, [role="heading"]').length
     const totals = Array.from(screen.querySelectorAll('[data-statement-total]')).map((row) => ({
       which: row.getAttribute('data-statement-total') ?? '',
       cents: row.getAttribute('data-cents'),
@@ -497,7 +494,8 @@ const readStatement = (page: Page): Promise<StatementReading> =>
       ).length
     return {
       present: true,
-      period: periodText,
+      above,
+      headings,
       totals,
       head,
       rows,
@@ -755,7 +753,7 @@ test("the bottom bar offers Entries and Statement, and the Entries tab still sho
   ).toHaveCount(1)
 })
 
-test('a tap on Statement reads the period, the three figures and every send oldest first, and offers nothing that records money', async ({
+test('a tap on Statement starts at the balance card, reads the three figures and every send oldest first, and offers nothing that records money', async ({
   page,
 }) => {
   // Given the owner has a month of sends and repayments, and the ledger was read once
@@ -776,7 +774,7 @@ test('a tap on Statement reads the period, the three figures and every send olde
   // When the owner taps the Statement tab
   await whenTheOwnerTapsStatement(page)
 
-  // Then the screen reads its period, its figures and its rows, and nothing can write
+  // Then the screen starts at the card, reads its figures and its rows, and nothing can write
   const reading = await readStatement(page)
   const figures = expectedFigures(stored)
   const rows = expectedSentRows(stored)
@@ -787,9 +785,17 @@ test('a tap on Statement reads the period, the three figures and every send olde
   ).toEqual({ sent: SEVEN_SENT_CENTS, paid: SEVEN_PAID_CENTS, balance: SEVEN_BALANCE_CENTS })
 
   expect(
-    reading.period,
-    `WHAT: the period line does not read '${expectedPeriod(stored)}'. WHY: it tells the owner whose ledger this is, over which days, and in which currency. HOW: word it from the first and last stored entry dates with the year once at the end.`,
-  ).toBe(expectedPeriod(stored))
+    reading.above,
+    'WHAT: something stands above the balance card inside the Statement. WHY: the owner asked to start at the figures: a heading or a line of dates above the card costs the phone its first screenful and says nothing the tab and the card do not already say. HOW: draw the card as the first part inside the pane, and nothing before it.',
+  ).toEqual([])
+  expect(
+    reading.headings,
+    'WHAT: the Statement holds a heading. WHY: the view names itself through its tab and the pane\'s own accessible name, so a heading inside it repeats what the owner already read. HOW: draw no heading element inside the pane.',
+  ).toBe(0)
+  await expect(
+    statementPane(page),
+    'WHAT: the statement pane is no longer named Statement. WHY: dropping the heading must not cost an owner using a screen reader the name of the view they are in. HOW: keep the pane\'s accessible name Statement.',
+  ).toHaveAccessibleName('Statement')
 
   expect(
     reading.totals.map((total) => [total.which, total.cents, total.text]),
@@ -865,7 +871,7 @@ test('a tap on Statement reads the period, the three figures and every send olde
   ).toEqual(rows.map((row) => row.sub))
   expect(
     reading.rowTexts.filter((text) => text.includes('$')),
-    'WHAT: a row prints a currency sign. WHY: the column is headed USD and the period line already says in USD. HOW: draw each row\'s figure unsigned.',
+    'WHAT: a row prints a currency sign. WHY: the column is headed USD and every figure on this screen is in US dollars. HOW: draw each row\'s figure unsigned.',
   ).toEqual([])
 
   expect(
@@ -893,18 +899,16 @@ test('a tap on Statement reads the period, the three figures and every send olde
   ).toBe(historyBefore)
 })
 
-test('only the rows of the statement scroll: the heading, the card, the column header and the footer stay where they are', async ({
+test('only the rows of the statement scroll: the card, the column header and the footer stay where they are', async ({
   page,
 }) => {
   // Given the owner is reading their statement
   await givenTheOwnerIsSignedIn(page, seven)
   await whenTheOwnerTapsStatement(page)
-  const heading = statement(page).getByRole('heading', { name: 'Statement' })
   const card = statement(page).locator('[data-statement-total="balance"]')
   const head = statement(page).locator('[data-statement-head="sent"]')
   const foot = statement(page).locator('[data-statement-foot="sent"]')
   const before = {
-    heading: await boxOf(heading, 'the heading'),
     card: await boxOf(card, "the balance card's own Balance figure"),
     head: await boxOf(head, 'the column header'),
     foot: await boxOf(foot, 'the footer'),
@@ -919,12 +923,11 @@ test('only the rows of the statement scroll: the heading, the card, the column h
     'WHAT: the statement has no rows area to scroll. WHY: the pinned layout is the claim that the rows area alone scrolls, so it must be there to scroll. HOW: draw the scrolling rows area of the sent list.',
   ).toBeGreaterThanOrEqual(0)
   const after = {
-    heading: await boxOf(heading, 'the heading'),
     card: await boxOf(card, "the balance card's own Balance figure"),
     head: await boxOf(head, 'the column header'),
     foot: await boxOf(foot, 'the footer'),
   }
-  for (const part of ['heading', 'card', 'head', 'foot'] as const) {
+  for (const part of ['card', 'head', 'foot'] as const) {
     expect(
       Math.abs(after[part].y - before[part].y),
       `WHAT: ${part === 'head' ? 'the column header' : part === 'foot' ? 'the footer' : `the ${part}`} moved when the rows were scrolled. WHY: the owner must keep the figures and the column words in sight while they read down the list. HOW: scroll the rows area alone, inside a panel whose header and footer cannot move.`,
@@ -953,7 +956,7 @@ test('only the rows of the statement scroll: the heading, the card, the column h
   ).toBeLessThanOrEqual(scroll.client + PIXEL)
   expect(
     scroll.scrollers,
-    'WHAT: something other than the rows area can scroll inside the statement. WHY: only the rows scroll, so the heading, the card, the header and the footer cannot be scrolled away. HOW: let the rows area alone be the overflowing one.',
+    'WHAT: something other than the rows area can scroll inside the statement. WHY: only the rows scroll, so the card, the header and the footer cannot be scrolled away. HOW: let the rows area alone be the overflowing one.',
   ).toBe(0)
 
   // And Home's own fade, which belongs to the other pane, lies nowhere over these rows
@@ -982,9 +985,9 @@ test('an owner with nothing recorded still reads the whole statement, with no ro
   // Then the same screen reads zero three times, lists no row, and says so in words
   const reading = await readStatement(page)
   expect(
-    reading.period,
-    `WHAT: the period line of an empty ledger does not read 'You and Abbaas ${DOT} in USD'. WHY: with no entry there are no dates to name, and inventing one would claim a day the owner never recorded. HOW: drop the dates when the ledger is empty.`,
-  ).toBe(`You and Abbaas ${DOT} in USD`)
+    [reading.above, reading.headings],
+    'WHAT: an empty ledger draws something above the balance card, or a heading. WHY: the Statement starts at the figures at every ledger length, and an owner with nothing recorded is shown the same screen as one with a year of entries. HOW: draw the card first inside the pane, with no heading and no line of dates before it.',
+  ).toEqual([[], 0])
   expect(
     reading.totals.map((total) => [total.which, total.cents, total.text]),
     'WHAT: an empty ledger does not read $0.00 three times. WHY: an owner who has recorded nothing is owed nothing and owes nothing. HOW: sum an empty ledger to zero rather than hiding the card.',
@@ -1225,11 +1228,11 @@ test('every generated ledger numbers its sends oldest first, adds them up and st
       `seed ${GENERATOR_SEED}, ledger '${failing.label}' of ${failing.entries.length} entries, ` +
       `smallest still failing: ${smallest.entries.length} entries ` +
       `${JSON.stringify(smallest.entries.map((entry) => [entry.kind, entry.currency, entry.entryDate, entry.amountMinor, entry.rate, entry.method ?? null]))}; ` +
-      `${smallest.reasons.join(' | ')}`
+      `${smallest.reasons.length > 0 ? smallest.reasons.join(' | ') : `no disagreement on the re-read, so the first reading was not repeatable; it read: ${failing.reasons.join(' | ')}`}`
   }
   expect(
     report,
-    'WHAT: a generated ledger was not reported as the stored rows mean it. WHY: these laws are what make the statement true of every ledger and not only of the seeded one: the sends are numbered 1 upward oldest first, each row reads its own stored date, party, sub-line and dollars, the card and the footer add up the stored dollars, the period names the first and last day, and the page never scrolls. HOW: read the failing ledger printed above, which is the smallest one that still disagrees.',
+    'WHAT: a generated ledger was not reported as the stored rows mean it. WHY: these laws are what make the statement true of every ledger and not only of the seeded one: the sends are numbered 1 upward oldest first, each row reads its own stored date, party, sub-line and dollars, the card and the footer add up the stored dollars, nothing stands above the card, and the page never scrolls. HOW: read the failing ledger printed above, which is the smallest one that still disagrees.',
   ).toBe('')
 })
 
@@ -1372,7 +1375,7 @@ test('the statement modules depend inward only', async () => {
   // Assert: the two new modules exist and the law holds over every module it governs
   expect(
     statementDomain === null ? 'missing' : 'present',
-    'WHAT: there is no module owning the statement\'s meaning. WHY: the period, the order, the figures and the sub-lines are decided once, away from the DOM, so a screen cannot quietly decide money. HOW: own that projection in the statement\'s domain module.',
+    'WHAT: there is no module owning the statement\'s meaning. WHY: the order, the figures and the sub-lines are decided once, away from the DOM, so a screen cannot quietly decide money. HOW: own that projection in the statement\'s domain module.',
   ).toBe('present')
   expect(
     statementUi === null ? 'missing' : 'present',
@@ -1414,7 +1417,6 @@ const numbersFrom = (seed: number): (() => number) => {
 }
 
 const DATE_POOL_ONE_YEAR = ['2026-01-05', '2026-03-17', '2026-07-01', '2026-09-14', '2026-12-28'] as const
-const DATE_POOL_TWO_YEARS = ['2025-11-02', '2025-12-31', '2026-01-01', '2026-06-09'] as const
 
 /**
  * One generated entry. The dollars it stores are deliberately unrelated to a rufiyaa
@@ -1424,15 +1426,11 @@ const DATE_POOL_TWO_YEARS = ['2025-11-02', '2025-12-31', '2026-01-01', '2026-06-
 const generatedEntry = (
   next: () => number,
   index: number,
-  options: { readonly sendsOnly: boolean; readonly twoYears: boolean; readonly oneDay: boolean },
+  options: { readonly sendsOnly: boolean; readonly oneDay: boolean },
 ): EntrySeed => {
   const kind = options.sendsOnly || next() < 0.6 ? 'send' : 'receive'
   const currency = next() < 0.5 ? 'MVR' : 'USD'
-  const dates = options.oneDay
-    ? (['2026-04-04'] as const)
-    : options.twoYears
-      ? DATE_POOL_TWO_YEARS
-      : DATE_POOL_ONE_YEAR
+  const dates = options.oneDay ? (['2026-04-04'] as const) : DATE_POOL_ONE_YEAR
   const entryDate = dates[Math.floor(next() * dates.length)] ?? '2026-04-04'
   const amountMinor = 1 + Math.floor(next() * 5_000_000)
   const rateScaled = 1 + Math.floor(next() * 99_999_999)
@@ -1456,12 +1454,11 @@ const generatedLedgers = (): ReadonlyArray<{ label: string; entries: readonly En
   const next = numbersFrom(GENERATOR_SEED)
   const build = (
     size: number,
-    options: { sendsOnly?: boolean; twoYears?: boolean; oneDay?: boolean } = {},
+    options: { sendsOnly?: boolean; oneDay?: boolean } = {},
   ): readonly EntrySeed[] =>
     Array.from({ length: size }, (_unused, index) =>
       generatedEntry(next, index, {
         sendsOnly: options.sendsOnly ?? false,
-        twoYears: options.twoYears ?? false,
         oneDay: options.oneDay ?? false,
       }),
     )
@@ -1478,7 +1475,6 @@ const generatedLedgers = (): ReadonlyArray<{ label: string; entries: readonly En
     { label: 'sends only, one of them with no method', entries: build(5, { sendsOnly: true }) },
     { label: 'a rufiyaa send whose rate has four decimals', entries: fourDecimalRate },
     { label: 'everything on one day', entries: build(6, { oneDay: true }) },
-    { label: 'days in two different years', entries: build(7, { twoYears: true }) },
     { label: 'both kinds across a year', entries: build(9) },
     { label: 'the longest this generator draws', entries: build(12) },
   ]
@@ -1529,8 +1525,8 @@ const readLedgerAndJudge = async (
   if (JSON.stringify(reading.foot) !== JSON.stringify(foot)) {
     reasons.push(`footer read ${JSON.stringify(reading.foot)} not ${JSON.stringify(foot)}`)
   }
-  if (reading.period !== expectedPeriod(stored)) {
-    reasons.push(`period read '${reading.period}' not '${expectedPeriod(stored)}'`)
+  if (reading.above.length > 0 || reading.headings > 0) {
+    reasons.push(`${JSON.stringify(reading.above)} stands above the card and ${reading.headings} headings are inside the pane`)
   }
   if (reading.writingControls !== 0) {
     reasons.push(`${reading.writingControls} controls that record money are on the screen`)

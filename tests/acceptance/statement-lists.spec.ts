@@ -24,7 +24,7 @@ import {
 // The two lists of the Statement, as the owner reads them: a segmented pill named
 // Statement lists offers Sent for Abbaas and Paid back by Abbaas, the sent list is the
 // one the Statement opens on, and a tap on the other shows every repayment oldest first
-// with its stored method and its own total, while the heading, the balance card and the
+// with its stored method and its own total, while the balance card and the
 // pill stay exactly where they were.
 //
 // Judged only through the declared public port: the BUILT bundle as Chrome loads it over
@@ -467,7 +467,7 @@ const theShownListComesToRest = async (page: Page, which: Which): Promise<void> 
 
 /**
  * The marks of the parts of a switch that are still moving, named by their own journey or
- * kind: a sliding track, a sliding pair of panels, and the arriving screen's heading, card,
+ * kind: a sliding track, a sliding pair of panels, and the arriving screen's card,
  * pill, panel and pinned parts. Two marks are left out on purpose. A row rising or crossing
  * inside its own scrolling area carries no box, hook or reading these scenarios take, and a
  * long list keeps its rows marked after the switch itself has rested; and a screen's own
@@ -676,11 +676,30 @@ const boxOf = async (
   return box
 }
 
-/** The three boxes that must not move: the heading, the balance card and the pill. */
+/** What stands above the balance card inside the Statement, and any heading inside it. */
+const readWhatStandsAboveTheCard = (page: Page): Promise<{ above: readonly string[]; headings: number }> =>
+  page.evaluate(() => {
+    const squash = (text: string | null | undefined): string => (text ?? '').replace(/\s+/g, ' ').trim()
+    const screen = document.querySelector('[data-screen="statement"]')
+    if (!screen) return { above: ['there is no statement screen at all'], headings: 0 }
+    const chain: Element[] = []
+    for (let part: Element | null = screen.querySelector('[data-statement-total]'); part !== null && part !== screen; part = part.parentElement) {
+      chain.push(part)
+    }
+    const cardPart = chain[chain.length - 1] ?? null
+    const above: string[] = []
+    if (cardPart === null) return { above: ['there is no balance card inside the pane'], headings: 0 }
+    for (const part of Array.from(screen.children)) {
+      if (part === cardPart) break
+      above.push(`${part.tagName.toLowerCase()} '${squash(part.textContent).slice(0, 40)}'`)
+    }
+    return { above, headings: screen.querySelectorAll('h1, h2, h3, h4, h5, h6, [role="heading"]').length }
+  })
+
+/** The two boxes that must not move: the balance card and the pill. */
 const readSteadyBoxes = async (
   page: Page,
-): Promise<Record<'heading' | 'card' | 'pill', { x: number; y: number; width: number; height: number }>> => ({
-  heading: await boxOf(statement(page).getByRole('heading', { name: 'Statement' }), 'the heading'),
+): Promise<Record<'card' | 'pill', { x: number; y: number; width: number; height: number }>> => ({
   card: await boxOf(statement(page).locator('[data-statement-total="balance"]'), "the balance card's Balance figure"),
   pill: await boxOf(statement(page).getByRole('tablist', { name: PILL_NAME }), 'the pill'),
 })
@@ -739,6 +758,15 @@ test('the statement opens on what the owner sent, and offers the paid-back list 
     Math.abs((reading.pill.thumb?.width ?? 0) - (reading.pill.width / 2 - THUMB_INSET)),
     'WHAT: the thumb does not span one half of the pill less six pixels. WHY: a thumb under both tabs, or under neither, names no list at all. HOW: give the thumb the width the board gives it.',
   ).toBeLessThanOrEqual(PIXEL)
+  const top = await readWhatStandsAboveTheCard(page)
+  expect(
+    [top.above, top.headings],
+    'WHAT: something stands above the balance card inside the Statement, or a heading is drawn inside the pane. WHY: the owner asked to start at the figures, so the card is the first part of this screen and the view names itself through its tab and the pane. HOW: draw the card first inside the pane, with no heading and no line of dates before it.',
+  ).toEqual([[], 0])
+  await expect(
+    page.getByRole('region', { name: 'Statement' }),
+    'WHAT: the statement pane is not named Statement. WHY: dropping the heading must not cost an owner using a screen reader the name of the view they are in. HOW: keep the pane\'s accessible name Statement.',
+  ).toHaveCount(1)
   expect(
     [reading.sent.name, reading.back.name],
     `WHAT: the two panels are not still named '${SENT_TAB}' and '${BACK_TAB}'. WHY: the owner reading a list with a screen reader must be told which list it is. HOW: keep those accessible names on the two panels.`,
@@ -824,7 +852,7 @@ test('a tap on the paid-back list reads every repayment oldest first, its stored
   ).toEqual(repayments.map(() => BACK_FIGURE_INK))
   expect(
     reading.back.rows.filter((row) => row.text.includes('$')).length,
-    'WHAT: a paid-back row prints a currency sign. WHY: the column is headed USD and the period line already says in USD. HOW: draw each row\'s figure unsigned.',
+    'WHAT: a paid-back row prints a currency sign. WHY: the column is headed USD and every figure on this screen is in US dollars. HOW: draw each row\'s figure unsigned.',
   ).toBe(0)
   expect(
     reading.back.rows.filter((row) => row.hasPerson || row.hasSub).length,
@@ -894,10 +922,10 @@ for (const settled of [
       ),
       'WHAT: a rufiyaa send\'s sub-line does not name its stored rate with no trailing zeros after the round trip. WHY: a padded rate reads \'@ 20.00\' where the owner gave 20, which states a rate they never gave. HOW: word the rate with no trailing zeros, and keep the row through a switch.',
     ).toEqual(ratedRows.map(() => true))
-    for (const part of ['heading', 'card', 'pill'] as const) {
+    for (const part of ['card', 'pill'] as const) {
       expect(
         Math.abs(boxesAfter[part].y - boxesBefore[part].y) + Math.abs(boxesAfter[part].x - boxesBefore[part].x),
-        `WHAT: the ${part === 'card' ? 'balance card' : part} moved across the two switches. WHY: only the lists move: a heading, a card or a pill that shifts makes the screen jump under the owner's thumb. HOW: switch the panels inside their own area, leaving everything above it alone.`,
+        `WHAT: the ${part === 'card' ? 'balance card' : 'pill'} moved across the two switches. WHY: only the lists move: a card or a pill that shifts makes the screen jump under the owner's thumb. HOW: switch the panels inside their own area, leaving everything above it alone.`,
       ).toBeLessThanOrEqual(PIXEL)
     }
     expect(
@@ -1328,7 +1356,7 @@ test('every stored ledger splits into its two lists, numbers each from its own r
       `seed ${GENERATOR_SEED}, ledger '${failing.label}' of ${failing.entries.length} entries, ` +
       `smallest still failing: ${smallest.entries.length} entries ` +
       `${JSON.stringify(smallest.entries.map((entry) => [entry.kind, entry.entryDate, entry.usdCents, entry.method ?? null]))}; ` +
-      `${smallest.reasons.join(' | ')}`
+      `${smallest.reasons.length > 0 ? smallest.reasons.join(' | ') : `no disagreement on the re-read, so the first reading was not repeatable; it read: ${failing.reasons.join(' | ')}`}`
   }
   expect(
     report,
