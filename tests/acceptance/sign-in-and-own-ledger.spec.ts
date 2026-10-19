@@ -90,8 +90,15 @@ const entryIdsOn = (page: Page): Promise<string[]> =>
     nodes.map((node) => node.getAttribute('data-entry') ?? ''),
   )
 
+// The people Home names, read inside Home's own pane. Both views stand in the page at
+// once now, and a statement row names its person too, so a page-scope [data-person]
+// would count the same people twice; on a product that has no panes yet the page itself
+// is that scope, so this reads the same there.
+const HOME_PERSON =
+  '[data-pane="entries"] [data-person], body:not(:has([data-pane])) [data-person]'
+
 const personIdsOn = (page: Page): Promise<string[]> =>
-  page.locator('[data-person]').evaluateAll((nodes) =>
+  page.locator(HOME_PERSON).evaluateAll((nodes) =>
     nodes.map((node) => node.getAttribute('data-person') ?? ''),
   )
 

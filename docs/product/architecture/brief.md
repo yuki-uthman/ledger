@@ -5431,6 +5431,13 @@ npm run build
   designer scopes this read to [data-pane="entries"], which is the cure the
   prefix decision already states; Home's own element, its attribute and its
   value are unchanged.
+- V1-a-person-migrate: This oracle collects the account's person ids through a
+  page-scope [data-person] query and counts the distinct ones. Each statement
+  row carries the person's own id on the element naming the person, so the query
+  answers twice over while both panes stand in the page. The acceptance designer
+  scopes it to [data-pane="entries"]; Home's own elements and their ids are
+  unchanged, so the ownership observation this oracle makes, that one account's
+  people and entries are invisible to another, still holds exactly as it did.
 - V1-a-count-delete-migrate: This oracle reads Home's entry count through a bare
   [data-count] selector at five places, before and after a delete. The
   acceptance designer scopes each of them to [data-pane="entries"] in the same
@@ -5740,6 +5747,7 @@ None
 | V1-P-entrances | Home's public DOM hook contract | consumer | `tests/acceptance/entrances.spec.ts:502` | UNCHANGED_COMPATIBLE | F-a-entrance-compatible |
 | V1-P-layout | Home's public DOM hook contract | consumer | `tests/acceptance/layout-and-install.spec.ts:339` | UNCHANGED_COMPATIBLE | F-a-layout-compatible |
 | V1-P-entry-list-count | Home's public DOM hook contract | consumer | `tests/acceptance/entry-list.spec.ts:345` | MIGRATED | V1-a-count-migrate |
+| V1-P-sign-in-person | Home's public DOM hook contract | consumer | `tests/acceptance/sign-in-and-own-ledger.spec.ts:94` | MIGRATED | V1-a-person-migrate |
 | V1-P-delete-entry-count | Home's public DOM hook contract | consumer | `tests/acceptance/delete-entry.spec.ts:167` | MIGRATED | V1-a-count-delete-migrate |
 | V1-P-entry-sheet-count | Home's public DOM hook contract | consumer | `tests/acceptance/entry-sheet.spec.ts:151` | MIGRATED | V1-a-count-sheet-migrate |
 | V1-P-layout-producer | The app's viewport layout: one screen filling the reading column | producer | `src/ui/theme.css:79` | MIGRATED | V1-a-overflow-migrate |
@@ -5864,6 +5872,14 @@ None
       "decision": "MIGRATED",
       "reason": {
         "ref": "V1-a-count-delete-migrate"
+      }
+    },
+    {
+      "kind": "test",
+      "locator": "tests/acceptance/sign-in-and-own-ledger.spec.ts:94",
+      "decision": "MIGRATED",
+      "reason": {
+        "ref": "V1-a-person-migrate"
       }
     },
     {
