@@ -61,6 +61,29 @@ const MONTHS = [
 
 const pad = (value: number): string => String(value).padStart(2, '0')
 
+/** A stored date read off the calendar itself: no instant, no zone, no guess. */
+type CalendarDate = {
+  readonly year: number
+  readonly month: number
+  readonly day: number
+}
+
+/**
+ * The three numbers of a stored YYYY-MM-DD, or null for anything the store could
+ * not have stored. Every label below is built from this one reading, so a
+ * malformed date is recognised in one place and shown as it stands rather than
+ * guessed at by two labels in two different ways.
+ */
+const calendarDate = (date: string): CalendarDate | null => {
+  const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date)
+  if (!parts) return null
+  const year = Number(parts[1])
+  const month = Number(parts[2])
+  const day = Number(parts[3])
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null
+  return { year, month, day }
+}
+
 /**
  * The date a device is on right now, as YYYY-MM-DD in its own zone. This is the
  * only impure reading the list needs, and it is kept to one named function so
@@ -75,21 +98,29 @@ export const deviceToday = (now: Date = new Date()): string =>
  * never slide a day either side of midnight.
  */
 const plainLabel = (date: string): string => {
-  const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date)
   // A date the store could not have stored is shown as it stands rather than
   // guessed at.
-  if (!parts) return date
-  const year = Number(parts[1])
-  const month = Number(parts[2])
-  const day = Number(parts[3])
-  if (month < 1 || month > 12 || day < 1 || day > 31) return date
-  const weekday = WEEKDAYS[new Date(Date.UTC(year, month - 1, day)).getUTCDay()]
-  return `${weekday} ${day} ${MONTHS[month - 1]}`
+  const calendar = calendarDate(date)
+  if (calendar === null) return date
+  const weekday = WEEKDAYS[new Date(Date.UTC(calendar.year, calendar.month - 1, calendar.day)).getUTCDay()]
+  return `${weekday} ${calendar.day} ${MONTHS[calendar.month - 1]}`
 }
 
 /** The label a day group reads; the device's today says so first. */
 export const dayLabel = (date: string, today: string): string =>
   date === today ? `Today · ${plainLabel(date)}` : plainLabel(date)
+
+/**
+ * A date as a statement row reads it: the day and the short month, with no
+ * leading zero and no weekday ('2026-09-14' is '14 Sep'). It reads the same
+ * month table as the day label above, so the two can never name a month
+ * differently, and a date the store could not have stored is shown as it stands.
+ */
+export const shortDayLabel = (date: string): string => {
+  const calendar = calendarDate(date)
+  if (calendar === null) return date
+  return `${calendar.day} ${MONTHS[calendar.month - 1]}`
+}
 
 /**
  * What the Entries count reads beside its heading: 'No entries' when the ledger

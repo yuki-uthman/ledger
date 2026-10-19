@@ -100,27 +100,62 @@ body {
   height: 100dvh;
   min-height: 0;
   padding: 0;
+  /* The track takes whatever height the navigation bar leaves. */
+  display: flex;
+  flex-direction: column;
+  /* The track is twice the shell wide, so the half of it that is not shown is
+     clipped here rather than hanging off the page sideways. A sheet raised over
+     the shell is fixed to the viewport, whose containing block this is not, so
+     nothing of a sheet is clipped by this. */
+  overflow: hidden;
+}
+
+/* The track the two panes stand on: twice the shell wide, holding a pane on each
+   half, and moved sideways by exactly one pane to switch between them. The
+   resting place is drawn from the shell's own data-shown, so the value that adds
+   motion adds a transition over these same two states. */
+.views-track {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 200%;
+  display: flex;
+  transform: translateX(0);
+}
+
+.screen.views[data-shown='statement'] .views-track {
+  transform: translateX(-50%);
 }
 
 /* The pane. Three things at once, and each is load-bearing:
 
    - a transform of its OWN, which makes the pane the containing block of the
      fixed furniture of the screen inside it - Home's bottom buttons and its fade
-     - rather than the viewport. Later values move the two panes sideways on a
-     track, and a fixed element placed against that moving track would travel
-     with it; placed against the pane, the furniture stays with its own view.
-   - exactly the dynamic viewport height, so the pane the owner is reading is the
-     whole of what he can see and his buttons sit at the foot of it. Later values
-     take the navigation bar's height off this one declaration.
+     - rather than the viewport. The two panes move sideways on the track above,
+     and a fixed element placed against that moving track would travel with it;
+     placed against the pane, the furniture stays with its own view.
+   - exactly the height of the track, which is the viewport less the navigation
+     bar, so the pane the owner is reading is the whole of what the phone shows
+     and the buttons of that view sit at the foot of it.
    - it holds its own height and never scrolls: the SCREEN inside it is the one
      scrolling area. Measured 2026-10-19 in this repository's own Chromium: a
      pane that is both the containing block and the scrolling element carries the
      bottom bar away with the list, because a fixed element whose containing
      block is the scroller scrolls with the content. */
 .pane {
-  height: 100dvh;
+  /* One half of the track, which is the shell's own width. */
+  flex: 0 0 50%;
+  width: 50%;
+  /* The whole of the track, which is the viewport less the navigation bar. */
+  height: 100%;
   transform: translateZ(0);
   overflow: hidden;
+  /* The view that is not shown rests dimmed behind the one that is. */
+  opacity: 0.4;
+}
+
+.screen.views[data-shown='entries'] .pane[data-pane='entries'],
+.screen.views[data-shown='statement'] .pane[data-pane='statement'] {
+  opacity: 1;
 }
 
 /* The screen inside the pane fills it and is the only thing that scrolls, so a
@@ -2301,4 +2336,277 @@ body {
   transition:
     transform 200ms var(--curve),
     opacity 200ms var(--curve);
+}
+
+/* --- The navigation bar (src/ui/views.ts). ---
+
+   84 px tall and white, with a hairline over it, standing OUTSIDE the track: it
+   is what the panes end above, so it cannot be carried off the phone by a list
+   however long the ledger grows, and nothing of a pane is drawn over it. */
+.views-nav {
+  flex: 0 0 auto;
+  position: relative;
+  height: 84px;
+  /* The board's own padding: the 20 px below is the room Android's gesture bar
+     takes, which is why the tabs sit high in the bar rather than centred. */
+  padding: 8px 0 20px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: #ffffff;
+  border-top: 1px solid #dfe6e4;
+  /* Over both panes, under a sheet and its scrim. */
+  z-index: 3;
+}
+
+/* The pill's holder is one half of the bar, so it moves by one half of the bar
+   when it moves by its own width - at 360 px that is the board's 180 px, and at
+   every other width it is still one half. */
+.views-pill-holder {
+  position: absolute;
+  top: 8px;
+  bottom: 20px;
+  left: 0;
+  width: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Behind the words, and never the thing a thumb lands on. */
+  pointer-events: none;
+  transform: translateX(0);
+}
+
+.screen.views[data-shown='statement'] .views-pill-holder {
+  transform: translateX(100%);
+}
+
+.views-pill {
+  width: 56px;
+  height: 30px;
+  border-radius: 999px;
+  background: var(--abbaas-tint);
+}
+
+.views-tab {
+  /* Over the pill, which is what makes the words readable on the mint. */
+  position: relative;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--title-font);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.views-tab[aria-current='page'] {
+  color: var(--abbaas-deep);
+}
+
+/* --- The Statement screen (src/ui/statement.ts). ---
+
+   A column of fixed parts and one growing panel. The screen itself never
+   scrolls: it is exactly its pane, and the only overflowing thing on it is the
+   rows area inside the panel, so the heading, the card, the column words and the
+   total cannot be scrolled away from the owner reading down a long list. */
+.pane > .screen.statement {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: calc(24px + env(safe-area-inset-top)) var(--side) var(--side);
+  overflow: hidden;
+}
+
+.statement-heading {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.statement-title {
+  margin: 0;
+  font-family: var(--title-font);
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.statement-period {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* A failed read says so and nothing else: no card, no rows, no totals. */
+.statement-notice {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+/* --- The mint balance card: the three figures the owner opens this screen for. --- */
+
+.statement-card {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 14px 16px 16px;
+  border-radius: 24px;
+  background: var(--abbaas-tint);
+}
+
+/* The figure column is a fixed width so the three figures line up under each
+   other, with the middle column holding a repayment's minus sign. */
+.statement-card-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 14px 120px;
+  align-items: baseline;
+}
+
+.statement-card-label {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.statement-card-sign {
+  text-align: center;
+  color: var(--abbaas);
+}
+
+.statement-card-figure {
+  text-align: right;
+  font-family: var(--title-font);
+  font-size: 15px;
+  font-weight: 700;
+  /* Figures read as a column, not as words. */
+  font-variant-numeric: tabular-nums;
+}
+
+.statement-card [data-statement-total='sent'] {
+  color: var(--you);
+}
+
+.statement-card [data-statement-total='paid'] {
+  color: var(--abbaas);
+}
+
+.statement-card-divider {
+  height: 1px;
+  /* The board's own line across the mint card. */
+  background: #c9e4df;
+}
+
+.statement-card-row[data-statement-figure='balance'] .statement-card-label {
+  font-family: var(--title-font);
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--abbaas-deep);
+}
+
+.statement-card [data-statement-total='balance'] {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--abbaas-deep);
+}
+
+/* --- The Sent for Abbaas panel: a header, the rows, and a footer. --- */
+
+.statement-panel {
+  /* The one part of the screen that takes what is left, and min-height 0 is what
+     lets the rows area inside it shrink enough to scroll. */
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-radius: 18px;
+  background: #ffffff;
+  /* The rounded corners clip the rows; this is not a scrolling area. */
+  overflow: hidden;
+}
+
+.statement-head-row,
+.statement-row {
+  display: grid;
+  grid-template-columns: 22px 44px minmax(0, 1fr) 70px;
+  column-gap: 8px;
+}
+
+.statement-head-row {
+  flex: 0 0 auto;
+  padding: 10px 12px;
+  border-bottom: 1px solid #eef3f1;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* The only overflowing area of this screen. */
+.statement-rows {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.statement-row {
+  padding: 9px 12px;
+  align-items: start;
+  font-size: 13px;
+}
+
+/* Alternating tints, starting white at the first row. */
+.statement-rows > .statement-row:nth-child(even) {
+  background: #fafcfb;
+}
+
+.statement-no,
+.statement-date {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.statement-party {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.statement-person {
+  color: var(--ink);
+}
+
+.statement-sub {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.statement-usd {
+  text-align: right;
+  color: var(--you);
+  font-variant-numeric: tabular-nums;
+}
+
+.statement-foot {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 10px 12px;
+  background: var(--you-tint);
+  color: var(--you-deep);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.statement-foot-total {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }

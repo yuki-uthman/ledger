@@ -98,3 +98,20 @@ export const formatRate = (rate: number): string => {
   }).format(rate)
   return text
 }
+
+const plainRate = new Intl.NumberFormat('en-US', {
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 4,
+  useGrouping: false,
+})
+
+/**
+ * A rate inside a sentence: no trailing zeros and at most the four decimals it
+ * is stored to, so 20 reads '20', 15.4 reads '15.4' and 15.425 reads '15.425'.
+ *
+ * It stands BESIDE formatRate rather than replacing it: an entry's sheet names
+ * the rate as a figure of its own ('20.00 MVR per $1'), where the padding is
+ * what makes a column of figures read as money, while a statement's sub-line
+ * names it mid-sentence, where a padded zero reads as a precision nobody typed.
+ */
+export const formatRatePlain = (rate: number): string => plainRate.format(rate)

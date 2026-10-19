@@ -18,6 +18,7 @@ import { centreOf, growFrom, prefersReducedMotion, rippleAt, type Point } from '
 import { renderReceiveForm } from './ui/receive-form.js'
 import { renderSendForm } from './ui/send-form.js'
 import { emptySignInState, renderSignIn, type SignInState } from './ui/sign-in.js'
+import { renderStatement } from './ui/statement.js'
 import { renderViews } from './ui/views.js'
 
 /** The one hash the send form answers to, so Android's back button closes it. */
@@ -215,7 +216,11 @@ const start = async (root: HTMLElement, identity: Identity, store: LedgerStore):
     // Home lives in the shell's own pane, which is the containing block of the
     // buttons and the fade it fixes to its foot and the only scrolling area of
     // its screen. The shell is what the root holds; Home is untouched by it.
-    const shell = renderViews({ entries: screen })
+    //
+    // Both panes are built from the ONE read above: the statement's figures and
+    // Home's figures are read off the same entries, so the two can never
+    // disagree, and the tab that switches between them reads nothing at all.
+    const shell = renderViews({ entries: screen, statement: renderStatement(ledger) })
     // This Home, the shell it is mounted in, and what it was painted from, so a
     // sheet can be raised over it without reading the ledger a second time.
     mountedHome = screen
