@@ -367,8 +367,8 @@ const statementPane = (page: Page): Locator => page.locator('[data-pane="stateme
 
 /**
  * The marks of the parts of a switch that are still moving, named by their own journey or
- * kind: a sliding track, a sliding pair of panels, and the arriving screen's heading, card,
- * pill, panel and pinned parts. Two marks are left out on purpose. A row rising or crossing
+ * kind: a sliding track, a sliding pair of panels, and the arriving screen's card, pill,
+ * panel and pinned parts. Two marks are left out on purpose. A row rising or crossing
  * inside its own scrolling area carries no box, hook or reading these scenarios take, and a
  * long list keeps its rows marked after the switch itself has rested; and a screen's own
  * arrival on a paint is a different journey, which these scenarios never read mid-flight.

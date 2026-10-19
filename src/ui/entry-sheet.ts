@@ -271,15 +271,18 @@ export type EntrySheetHandlers = {
  * count, its boxes and its totals cannot move while the sheet is up, and no
  * entrance of Home's can be replayed by opening one.
  *
- * The scrim is appended first and the sheet over it, both inside Home's own
- * screen: a screen that is replaced takes them with it, so a sheet can never
- * outlive the Home it was raised over.
+ * The scrim is appended first and the sheet over it, both on the SHELL and so
+ * OUTSIDE Home's own pane: the pane is the containing block of everything fixed
+ * inside it, so a scrim appended to Home would dim that pane alone, while the
+ * dim layer and the sheet must cover the whole viewport. The shell is what any
+ * other screen replaces, so a sheet can never outlive the Home it was raised
+ * over.
  *
  * Focus moves to Close when it opens and returns to the element the sheet was
  * opened from when it closes, so a sheet opened from a card hands the card back.
  */
 export const openEntrySheet = (
-  screen: HTMLElement,
+  shell: HTMLElement,
   entry: LedgerEntry,
   openedFrom: HTMLElement | null,
   handlers: EntrySheetHandlers,
@@ -289,7 +292,7 @@ export const openEntrySheet = (
   scrim.dataset.sheetScrim = ''
 
   const sheet = renderSheet(entry)
-  screen.append(scrim, sheet)
+  shell.append(scrim, sheet)
 
   // A tap on the dimmed Home is a close: the scrim is the whole of Home as far
   // as a tap is concerned, and the sheet over it takes its own taps.
