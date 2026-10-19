@@ -2536,14 +2536,12 @@ Verification command: `npm run test:acceptance -- tests/acceptance/entry-method.
   saved_at ascending, then id, and are numbered 1 upward in that order; Home
   keeps its newest-first order.
 - F-c-usd-column: The USD column shows its figure with no currency sign, because
-  the column is headed USD and the period line already says in USD; the balance
-  card keeps its '$' and shows every figure unsigned.
-- F-c-period: The period line reads 'You and Abbaas - \<first date> - \<last
-  date> \<year> - in USD' from the first and last entry dates with the year once
-  at the end, carries a year on each date when the two fall in different years,
-  names one date once when every entry falls on it, and drops the dates on an
-  empty ledger to read 'You and Abbaas - in USD'. The separators are the middle
-  dot and the en dash the board draws.
+  the column is headed USD and every figure on this screen is in US dollars; the
+  balance card keeps its '$' and shows every figure unsigned.
+- F-c-no-top: The Statement pane draws nothing above the balance card: no
+  heading and no period line, at any ledger length, the empty one included. The
+  pane keeps the accessible name Statement, so a screen reader still names the
+  view and the navigation tab still reads Statement.
 - F-c-count-label: A footer's count is worded by the repository's own
   entryCountLabel, so it reads 'No entries', '1 entry' or 'N entries'.
 - F-c-method-null: A stored method is one of the tokens cash, cheque and
@@ -2568,8 +2566,8 @@ Verification command: `npm run test:acceptance -- tests/acceptance/entry-method.
   panes and the tab switch, as one function from the two pane contents to DOM.
 - F-t-statement-ui: Owns the Statement screen as a function from the read
   outcome to DOM, and decides nothing about money, order or wording itself.
-- F-t-statement-domain: Owns the pure Statement projection: the period dates,
-  the three card figures in cents and the two numbered row lists.
+- F-t-statement-domain: Owns the pure Statement projection: the three card
+  figures in cents and the two numbered row lists.
 - F-t-theme: Carries the shell, the navigation bar, the pane anchoring, the
   Statement's panels and the transitions of every switch.
 - F-t-main: Composes the shell for the Home route, passes it the Statement built
@@ -2627,10 +2625,10 @@ Verification command: `npm run test:acceptance -- tests/acceptance/entry-method.
   and the accessible name Entries or Statement; the navigation bar is labelled
   Views.
 - F-d-domain-owner: src/domain/statement.ts owns the Statement model and nothing
-  else: statementOf(entries) answers the period's first and last dates, the
-  three card figures in cents and the two row lists, each row carrying its
-  number, its date label, its party or its method, its sub-line text and its
-  usdCents. It imports no DOM, no port adapter and no Supabase client.
+  else: statementOf(entries) answers the three card figures in cents and the two
+  row lists, each row carrying its number, its date label, its party or its
+  method, its sub-line text and its usdCents. It imports no DOM, no port adapter
+  and no Supabase client.
 - F-d-ui-owner: src/ui/statement.ts owns the Statement DOM:
   renderStatement(ledger) is a function from the read outcome to one screen
   element, and every figure, word, order and count it draws comes from
@@ -2656,14 +2654,13 @@ Verification command: `npm run test:acceptance -- tests/acceptance/entry-method.
   writes.
 - F-d-layer-domain: Domain layer. States: a read ledger of n entries, n at least
   0\. Operations: statementOf, the short date label, the unpadded rate text,
-  entryCountLabel, balanceOf. Observations: the period's two dates, the three
-  figures in cents, the two ordered row lists, and each footer's count and
-  total. Laws a test can check: the sent rows are exactly the entries of kind
-  send and the paid-back rows exactly those of kind receive; the numbers are 1
-  to n in entry_date, then saved_at, then id ascending; a footer's total is the
-  sum of its own rows' usdCents and its count is the number of them; the three
-  figures are the sum of the sends, the sum of the receives and the unsigned
-  difference of the two.
+  entryCountLabel, balanceOf. Observations: the three figures in cents, the two
+  ordered row lists, and each footer's count and total. Laws a test can check:
+  the sent rows are exactly the entries of kind send and the paid-back rows
+  exactly those of kind receive; the numbers are 1 to n in entry_date, then
+  saved_at, then id ascending; a footer's total is the sum of its own rows'
+  usdCents and its count is the number of them; the three figures are the sum of
+  the sends, the sum of the receives and the unsigned difference of the two.
 - F-d-layer-application: Application and port layer. States: the shown tab, the
   shown list and the last read outcome. Operations: render the shell, render the
   Statement, switch the tab, switch the list. Observations: which tab carries
@@ -2795,6 +2792,11 @@ Verification command: `npm run test:acceptance -- tests/acceptance/entry-method.
   a failed case whose first error line names expect( is an assertion failure,
   and every other failed case or report-level error is a setup failure. The
   wrapper exits with the runner's own status.
+- F-d-period-removed: Nothing above the balance card is built, and nothing that
+  built it is left behind: the Statement model answers no period dates, the text
+  that worded them is removed with the line, and no helper of it stays in the
+  modules unused. The short date label stays, because every row's date cell
+  reads it.
 - F-d-readiness: The acceptance support waits for the auth service to answer
   before it creates an account after a database reset, with a bounded wait that
   fails loudly when it runs out, because every oracle of this Request creates
@@ -2859,7 +2861,7 @@ Verification command: `npm run test:acceptance -- tests/acceptance/entry-method.
 - F-i-adapter-compatible: The decoding this feature consumes is unchanged.
 - F-b-driving: The driving port is the built bundle's DOM as a 360 px phone
   browser sees it: the two navigation tabs, the two panes, and the Statement's
-  heading, period line, balance card, pill, rows and footers.
+  balance card, pill, rows and footers.
 - F-b-driven-store: Driven port: LedgerStore.readEntries over PostgREST under
   row-level security, read once per paint and shared by both panes.
 - F-b-driven-motion: Driven port: the browser's prefers-reduced-motion media
@@ -2969,9 +2971,9 @@ Verification command: `npm run test:acceptance -- tests/acceptance/entry-method.
   its data-cents.
 - F-ob-foot-blind: It says nothing about the footer's own colour or where it
   sits.
-- F-ob-pinned: The bounding boxes of the heading, the balance card, the pill,
-  the column header and the footer, read before and after the rows area is
-  scrolled to its end.
+- F-ob-pinned: The bounding boxes of the balance card, the pill, the column
+  header and the footer, read before and after the rows area is scrolled to its
+  end.
 - F-ob-pinned-blind: It cannot see a sub-pixel drift and says nothing about what
   is painted over what.
 - F-ob-page: The document element's scrollHeight, clientHeight, scrollWidth,
@@ -3006,8 +3008,7 @@ Verification command: `npm run test:acceptance -- tests/acceptance/entry-method.
   clientWidth, and its scrollTop stays zero while a rows area is scrolled to its
   end.
 - F-law-pinned: Scrolling a rows area to its end moves no pinned part: the
-  heading, the balance card, the pill, the column header and the footer keep
-  their boxes.
+  balance card, the pill, the column header and the footer keep their boxes.
 - F-law-retry: A read outcome of retry yields one element with role=alert and no
   row, no figure and no footer, on either pane.
 - F-refuted-rerender: A tab switch may re-render the pane it shows.
@@ -3101,7 +3102,6 @@ Verification command: `npm run test:acceptance -- tests/acceptance/entry-method.
 - F-gen-must-receives: A ledger of repayments only.
 - F-gen-must-null-method: An entry with no stored method.
 - F-gen-must-mvr: An MVR entry whose rate has four decimals.
-- F-gen-must-years: Two entries whose dates fall in different years.
 - F-gen-must-tie: Two entries with the same entry_date and the same saved_at.
 - F-model-na: No model or proof file is delivered, because formal verification
   is waived for this Request and no checker is installed; the claims a model
@@ -3146,7 +3146,8 @@ F-d-layer-infra, F-d-closure, F-d-waiver, F-d-switch-machine, F-d-stress-read,
 F-d-stress-date, F-d-stress-size, F-d-stress-width, F-d-stress-motion,
 F-d-stress-taps, F-d-stress-rate, F-d-spof, F-d-stress-second, F-d-admitted,
 F-d-excluded, F-d-unknown-state, F-d-unknown-owner, F-d-selffals, F-d-pbt,
-F-d-oracle-observation, F-d-readiness, F-d-substrate, F-d-arch-law
+F-d-oracle-observation, F-d-readiness, F-d-substrate, F-d-arch-law,
+F-d-period-removed
 
 ### Oracle (Shared design)
 
@@ -3177,7 +3178,7 @@ F-purpose
 
 F-c-board, F-c-nav-metrics, F-c-pill-offset, F-c-viewport, F-c-no-page-scroll,
 F-c-home-unchanged, F-c-read-only, F-c-one-read, F-c-stored-cents,
-F-c-rate-text, F-c-order, F-c-usd-column, F-c-period, F-c-count-label,
+F-c-rate-text, F-c-order, F-c-usd-column, F-c-no-top, F-c-count-label,
 F-c-method-null, F-c-amount-bounds, F-c-motion-math, F-c-paradigm, F-c-approval
 
 ### Inherits (Shared design)
@@ -3662,9 +3663,6 @@ None
                 },
                 {
                   "ref": "F-gen-must-mvr"
-                },
-                {
-                  "ref": "F-gen-must-years"
                 },
                 {
                   "ref": "F-gen-must-tie"
@@ -4337,10 +4335,10 @@ npm run build
 
 - V3-purpose: Value 3 draws every switch of the Statement as one movement: a tap
   on a navigation tab slides the mint pill and the two panes together and raises
-  the arriving Statement's parts one after another, a tap on a pill tab slides
-  the two lists and raises the arriving list's rows and footer while the heading
-  and the balance card do not move at all, and a phone that asks for reduced
-  motion shows the same end screens at once.
+  the arriving Statement's parts one after another, beginning with the balance
+  card, a tap on a pill tab slides the two lists and raises the arriving list's
+  rows and footer while the balance card does not move at all, and a phone that
+  asks for reduced motion shows the same end screens at once.
 - V3-c-slide: A slide takes 420 ms on cubic-bezier(0.2, 0.8, 0.2, 1): the track
   travels between translateX(0) and translateX(-50%), the navigation pill
   travels by one half of the bar, the leaving pane's opacity travels to 0.4 and
@@ -4350,10 +4348,11 @@ npm run build
   and #0f6f68.
 - V3-c-rise: A rise takes 360 ms on the same curve, from translateY(10px) and
   opacity 0, delayed by 120 + min(index, 14) x 22 ms: on a navigation switch the
-  arriving Statement's heading is index 0, its balance card 1, its pill 2, its
-  rows 3 upward and its footer the index after its last row; on a pill switch
-  only the arriving list's rows and footer rise, in the same order and by the
-  same law.
+  arriving Statement's balance card is index 0, its pill 1, its rows 2 upward
+  and its footer the index after its last row, so the card starts at 120 ms and
+  each later part 22 ms after the one before it, to a limit of 14 steps; on a
+  pill switch only the arriving list's rows and footer rise, in the same order
+  and by the same law.
 - V3-c-reduced: With prefers-reduced-motion set, no transition and no rise runs
   at all, no element carries data-motion at any frame, no part is ever
   displaced, and every reading of the end screen is the same as on a phone that
@@ -4426,13 +4425,13 @@ npm run build
 - V3-po-observation: Every switch is drawn as one movement. A tap on a
   navigation tab slides the mint pill and the two panes together over 420 ms on
   cubic-bezier(0.2, 0.8, 0.2, 1), fades the leaving pane to 0.4, and raises the
-  arriving Statement's heading, balance card, pill, rows and footer one after
-  another over 360 ms, each delayed by 120 + min(index, 14) x 22 ms. A tap on
-  the pill slides the two lists the same way, turns the thumb from blue to teal,
-  and raises the arriving list's rows and footer in the same order, while the
-  heading and the balance card do not move at all. On a phone that asks for
-  reduced motion the same taps show the same end screens at once, with no
-  transition.
+  arriving Statement's parts one after another over 360 ms in the order balance
+  card, pill, rows, footer, the card starting at 120 ms and each later part 22
+  ms after the one before it, to a limit of 14 steps. A tap on the pill slides
+  the two lists the same way, turns the thumb from blue to teal, and raises the
+  arriving list's rows and footer in the same order, while the balance card does
+  not move at all. On a phone that asks for reduced motion the same taps show
+  the same end screens at once, with no transition.
 - V3-po-stimulus: The acceptance support starts the stack, resets it, waits for
   the auth service, builds and serves the bundle, creates one account and seeds
   one person and nine entries, five sends and four repayments, so both lists
@@ -4441,11 +4440,11 @@ npm run build
   by Abbaas, recording for every frame the data-motion of the track, the
   statement screen, the list area and the arriving panel, the computed transform
   and opacity of the track, the navigation pill, both panes, the thumb, both
-  panels, the heading, the balance card, the pill, the first rows and both
-  footers, and the clock of each frame. It reads the transition declarations of
-  those same elements, waits past the rest bound and reads every element again.
-  A second context with reducedMotion set to reduce repeats both taps with the
-  same sampler.
+  panels, the balance card, the pill, the first rows and both footers, and the
+  clock of each frame. It reads the transition declarations of those same
+  elements, waits past the rest bound and reads every element again. A second
+  context with reducedMotion set to reduce repeats both taps with the same
+  sampler.
 - V3-po-expected: On the navigation tap the track carries data-motion=view-slide
   from the first sampled frame, its computed transform travels monotonically
   from translateX(0) towards minus one half of its width and reaches it within
@@ -4453,31 +4452,32 @@ npm run build
   the bar over the same frames, the leaving pane's opacity reaches 0.4 and the
   arriving pane's 1, and the track's served transition-duration is 420ms with
   the timing function cubic-bezier(0.2, 0.8, 0.2, 1). The arriving statement
-  screen carries data-motion=view-enter, and the heading, the balance card, the
-  pill, the first row and the footer each carry data-enter-rise while displaced
-  and are never displaced without it; the frame at which each of them first
-  moves is ordered heading, card, pill, rows, footer, and each one's own travel
-  is over within 360 ms plus two frames of its first movement. On the pill tap
-  the list area carries data-motion=list-slide, the sent panel's transform
-  travels to minus its own width less 16 px and the paid-back panel's from plus
-  its own width plus 16 px, the thumb's transform travels by its own width plus
-  4 px and its background from rgb(36, 80, 138) to rgb(15, 111, 104), the
-  arriving panel carries data-motion=list-enter while its rows and its footer
-  rise in index order, and the heading's and the balance card's boxes and
-  opacities are identical in every frame of that switch. 1200 ms after each tap
-  no element carries data-motion, no element carries an inline transform or
-  opacity, and every reading of value 1's and value 2's oracles still holds. In
-  the reduced-motion context no element carries data-motion at any sampled
-  frame, no transform is ever other than none, and both end screens read exactly
-  as in the first context.
+  screen carries data-motion=view-enter, and the balance card, the pill, the
+  first row and the footer each carry data-enter-rise while displaced and are
+  never displaced without it, with nothing of the pane above the card to raise
+  at all; the frame at which each of them first moves is ordered card, pill,
+  rows, footer, and each one's own travel is over within 360 ms plus two frames
+  of its first movement. On the pill tap the list area carries
+  data-motion=list-slide, the sent panel's transform travels to minus its own
+  width less 16 px and the paid-back panel's from plus its own width plus 16 px,
+  the thumb's transform travels by its own width plus 4 px and its background
+  from rgb(36, 80, 138) to rgb(15, 111, 104), the arriving panel carries
+  data-motion=list-enter while its rows and its footer rise in index order, and
+  the balance card's box and opacity are identical in every frame of that
+  switch. 1200 ms after each tap no element carries data-motion, no element
+  carries an inline transform or opacity, and every reading of value 1's and
+  value 2's oracles still holds. In the reduced-motion context no element
+  carries data-motion at any sampled frame, no transform is ever other than
+  none, and both end screens read exactly as in the first context.
 - V3-po-falsifier: Transitioning on a property other than transform and opacity,
   or with a duration other than 420 ms, breaks the sampled travel and the served
   declaration. Raising every part with one delay, or in another order, breaks
-  the ordering of first movements. Moving the heading or the balance card during
-  a pill switch breaks their frame-by-frame boxes. Leaving a part displaced
-  without data-motion, or leaving data-motion set after the rest bound, fails
-  the attribute readings. Running the transitions under prefers-reduced-motion
-  puts a data-motion and a transform in the reduced-motion context's frames.
+  the ordering of first movements. Starting the balance card at any delay but
+  120 ms breaks the first of them. Moving the balance card during a pill switch
+  breaks its frame-by-frame boxes. Leaving a part displaced without data-motion,
+  or leaving data-motion set after the rest bound, fails the attribute readings.
+  Running the transitions under prefers-reduced-motion puts a data-motion and a
+  transform in the reduced-motion context's frames.
 - V3-o-arch: The two new switches live in src/ui/motion.ts, which still imports
   nothing of the domain and still removes data-motion the moment a motion ends;
   the Statement and the shell hand it their own elements and read nothing back.
@@ -4538,10 +4538,11 @@ npm run build
   over 420 ms on cubic-bezier(0.2, 0.8, 0.2, 1), and no other property of them
   is transitioned.
 - V3-law-rise-order: The frame at which each arriving part first moves follows
-  the delay law 120 + min(index, 14) x 22 ms in the order heading, balance card,
-  pill, rows, footer, and each part's own travel lasts 360 ms.
-- V3-law-steady: During a pill switch the heading's and the balance card's boxes
-  and opacities are identical in every sampled frame.
+  the delay law 120 + min(index, 14) x 22 ms in the order balance card, pill,
+  rows, footer, with the card at index 0, and each part's own travel lasts 360
+  ms.
+- V3-law-steady: During a pill switch the balance card's box and opacity are
+  identical in every sampled frame.
 - V3-law-declares: No part is displaced in a frame in which it carries no
   data-motion or data-enter-rise, and no element carries either past the rest
   bound.
@@ -5307,15 +5308,15 @@ npm run build
 
 - V1-purpose: Value 1 is this Request's walking skeleton for the Statement and
   extends the app's one existing end-to-end path: the bottom bar with its two
-  tabs, and a Statement showing its heading, its period line, the mint balance
-  card and the Sent for Abbaas list alone, pinned so that only its rows scroll.
+  tabs, and a Statement that starts at the mint balance card and holds the Sent
+  for Abbaas list alone under it, pinned so that only its rows scroll.
 - V1-c-no-pill: Value 1 builds no segmented pill: the sent panel is a region
   with the accessible name Sent for Abbaas, and value 2 is what turns the two
   panels into a tablist, so no role of this value is replaced later, only added
   to.
-- V1-c-heading: The heading reads Statement in Manrope 800 at 22 px with the
-  period line under it at 13 px in #4c5f5b, inside a pane padded 24 px 16 px 16
-  px with a 16 px gap between its parts.
+- V1-c-top: The first part of the pane is the balance card: nothing at all is
+  drawn above it. The pane keeps its padding of 24 px 16 px 16 px and the 16 px
+  gap between its parts, and keeps the accessible name Statement.
 - V1-c-card: The balance card is #e0f0ed, radius 24 px, padding 14 px 16 px 16
   px, gap 9 px, with each row on the grid minmax(0, 1fr) 14px 120px and tabular
   figures: Total Sent with its figure in #24508a, Paid Back with a minus sign in
@@ -5341,15 +5342,14 @@ npm run build
   an MVR entry with no stored method, and nothing at all for a USD entry with no
   stored method, whose row then carries no data-statement-sub and is a single
   line.
-- V1-d-empty: On an empty ledger the Statement still shows its heading, its
-  period line without dates, its balance card reading $0.00 three times, and the
-  sent panel with its column header, no row and the footer 'Total sent - No
-  entries' with $0.00.
+- V1-d-empty: On an empty ledger the Statement still shows its balance card
+  reading $0.00 three times, and the sent panel with its column header, no row
+  and the footer 'Total sent - No entries' with $0.00.
 - V1-d-pinned-layout: The pinned layout: the pane is a column of fixed parts and
   one growing panel, the panel is a column of header, rows and footer with the
   rows area the only overflow-y auto inside a flex 1 and min-height 0 container,
-  so the heading, the card, the header and the footer cannot move and the pane
-  itself never scrolls.
+  so the card, the header and the footer cannot move and the pane itself never
+  scrolls.
 - V1-d-nav-tap: A tap on a navigation tab is the only way into the Statement in
   this value: it writes the shell's data-shown and the two aria-current values,
   and no hash, no history entry and no second read is involved.
@@ -5361,12 +5361,16 @@ npm run build
   every box the layout oracle measures is where it was.
 - V1-d-closure: Constructive closure of this value. Safety, that the Statement
   draws no control that writes: DESIGN PASS, runtime DESIGNED_NOT_BUILT.
-  Inhabitation, that the heading, the period line, the three figures and the
-  numbered sent rows are built from stored rows: DESIGN PASS, runtime
-  DESIGNED_NOT_BUILT. Public reachability, that a tap on the Statement tab
-  reaches them: DESIGN PASS, runtime DESIGNED_NOT_BUILT. Liveness: not
-  applicable, one synchronous attribute change with nothing to wait for but the
-  read that is already awaited.
+  Inhabitation, that the three figures and the numbered sent rows are built from
+  stored rows: DESIGN PASS, runtime DESIGNED_NOT_BUILT. Public reachability,
+  that a tap on the Statement tab reaches them: DESIGN PASS, runtime
+  DESIGNED_NOT_BUILT. Liveness: not applicable, one synchronous attribute change
+  with nothing to wait for but the read that is already awaited.
+- V1-d-remove-period: Nothing above the balance card is built, and the producer
+  of what used to stand there goes with it: the Statement model answers no
+  period dates, the text that worded the period line is removed rather than left
+  unused, and no element of the pane precedes the card. The short date label
+  stays, because every row's date cell reads it.
 - V1-d-pbt-scope: The broad laws of this value are checked over the seeded
   generator's eight ledgers, each read through one page load: the numbering and
   order of the sent rows, the footer's count and total, the three card figures,
@@ -5380,8 +5384,8 @@ npm run build
   px tall, the served stylesheet naming env(safe-area-inset-bottom), the
   manifest and its icons, and the page painted rgb(244, 247, 246).
 - V1-b-driving: The driving port is the built bundle's DOM at 360 by 780: the
-  two navigation tabs, and the Statement's heading, period line, balance card,
-  column header, numbered rows and footer.
+  two navigation tabs, and the Statement's balance card, column header, numbered
+  rows and footer.
 - V1-b-direction: src/ui/statement.ts depends on src/domain/statement.ts,
   src/domain/money.ts, src/domain/ledger-view.ts, src/domain/balance.ts and the
   port's types; src/domain/statement.ts depends on the entry shape alone;
@@ -5389,16 +5393,18 @@ npm run build
   composes them.
 - V1-po-observation: On a 360 px phone the bottom bar shows the two tabs Entries
   and Statement with the mint pill and aria-current=page under the active one,
-  the Entries tab shows today's Home unchanged, and a tap on Statement shows the
-  heading Statement, the line 'You and Abbaas - 14 Sep - 14 Oct 2026 - in USD',
-  the mint card with Total Sent in blue, Paid Back with a minus in teal, a
-  divider and the Balance in large teal type, and the Sent for Abbaas list
-  headed No., Date, Paid to and USD with one numbered row for each send oldest
-  first, each reading its date, the person paid, a sub-line naming the method
-  first and then the rufiyaa figure and rate for an MVR entry, and its USD
-  figure, over the footer 'Total sent' with the count and the total. The
-  Statement shows no You or Abbaas box and no Send or Receive button; only the
-  rows scroll and the page never scrolls; and an empty ledger shows the same
+  and the Entries tab shows today's Home unchanged. A tap on Statement shows a
+  read-only Statement screen that starts at the mint balance card: nothing is
+  drawn above the card, and the card reads Total Sent in blue, Paid Back with a
+  minus in teal, a divider, and the Balance in large teal type. The pane is
+  still named Statement for a screen reader. Under the card the Sent for Abbaas
+  list reads the column header No., Date, Paid to and USD, one numbered row for
+  each send oldest first with its date, the person paid, a sub-line reading the
+  method first and then the rufiyaa figure and rate for an MVR entry, and its
+  USD figure, and the footer 'Total sent' with the count and the total. The
+  Statement shows no You or Abbaas box and no Send or Receive button. Only the
+  rows scroll: the balance card and the list's column header and footer stay in
+  place, and the page itself never scrolls. An empty ledger shows the same
   screen with $0.00 figures, no rows and the footer 'Total sent - No entries'.
 - V1-po-stimulus: The acceptance support starts this project's local Supabase
   stack, resets it to the repository migrations, waits for the auth service,
@@ -5417,8 +5423,9 @@ npm run build
   context signs in as B and taps Statement; and the generator's eight seeded
   ledgers are each read through one further load.
 - V1-po-expected: The statement screen carries data-screen=statement and holds
-  no data-box, no data-action and no control named Send or Receive. Its period
-  line reads 'You and Abbaas - 14 Sep - 14 Oct 2026 - in USD'. The three
+  no data-box, no data-action and no control named Send or Receive. It holds no
+  heading and no period line: the first part inside the pane is the balance card
+  itself, and the pane's accessible name is still Statement. The three
   data-statement-total rows carry data-cents 459635, 1100000 and 640365 with the
   texts $4,596.35, $11,000.00 and $6,403.65. The sent panel carries
   data-statement-list=sent, its data-statement-head=sent reads No., Date, Paid
@@ -5430,10 +5437,10 @@ npm run build
   data-statement-sub at all on the 3 Oct row, and USD cells with no currency
   sign. Its data-statement-foot=sent carries data-count 5 and data-cents 459635
   and reads 'Total sent - 5 entries' with $4,596.35. After the rows area is
-  scrolled to its end the heading, the card, the column header and the footer
-  keep their boxes within a pixel, document.documentElement.scrollTop is 0 and
-  its scrollHeight is at most its clientHeight plus one. Account B's Statement
-  reads 'You and Abbaas - in USD', three figures of $0.00 with data-cents 0, no
+  scrolled to its end the card, the column header and the footer keep their
+  boxes within a pixel, document.documentElement.scrollTop is 0 and its
+  scrollHeight is at most its clientHeight plus one. Account B's Statement
+  starts at the card too, with three figures of $0.00 and data-cents 0, no
   data-statement-row and the footer 'Total sent - No entries' with $0.00. For
   each generated ledger the rows' numbers are 1 upward in the spec's own
   oldest-first order, the footer's count and cents equal the spec's own count
@@ -5448,9 +5455,11 @@ npm run build
   at 20.0000 convert to exactly the 64935 and 85000 cents they store. Printing a
   currency sign in the USD column, or signing the Balance row, fails the cell
   texts. Inventing a method word for the two rows stored without one makes them
-  read Cash, Cheque or Transfer. Letting the page scroll instead of the rows
-  area breaks the scrollHeight check, and letting the header or the footer
-  scroll with the rows moves a pinned box.
+  read Cash, Cheque or Transfer. Drawing any heading or period line above the
+  card makes the pane's first part something other than the balance card.
+  Letting the page scroll instead of the rows area breaks the scrollHeight
+  check, and letting the header or the footer scroll with the rows moves a
+  pinned box.
 - V1-o-arch: The Statement's two new modules obey the repository's dependency
   law: src/domain/statement.ts names no DOM and no adapter, and
   src/ui/statement.ts names no writing operation of LedgerStore.
@@ -5500,24 +5509,24 @@ npm run build
 - V1-adr-na: The architectural decision of this feature is recorded once with
   the shared design; this value adds no decision of its own that changes a
   boundary.
-- V1-ob-screen: The Statement screen's parts, read as the period line's text,
-  the three data-statement-total rows with their data-cents, the
-  data-statement-head cells, the ordered data-statement-row tuples and the
-  data-statement-foot's text, data-count and data-cents.
+- V1-ob-screen: The Statement screen's parts, read as the three
+  data-statement-total rows with their data-cents, the data-statement-head
+  cells, the ordered data-statement-row tuples and the data-statement-foot's
+  text, data-count and data-cents.
 - V1-ob-screen-blind: It says nothing about colours, fonts, row tints or the
   pane's padding.
-- V1-ob-pinned: The boxes of the heading, the balance card, the column header
-  and the footer, read before and after the rows area is scrolled to its end,
-  with the document's own scrollTop and scrollHeight.
+- V1-ob-pinned: The boxes of the balance card, the column header and the footer,
+  read before and after the rows area is scrolled to its end, with the
+  document's own scrollTop and scrollHeight.
 - V1-ob-pinned-blind: It cannot see a sub-pixel drift and says nothing about how
   far the rows themselves travelled.
 - V1-ob-absent: The count of data-box, data-action and controls named Send or
   Receive inside the statement screen.
 - V1-ob-absent-blind: It says nothing about a control that writes without
   carrying one of those hooks or names.
-- V1-eq: Two Statement states are equal when they agree on the period line, the
-  three figures in cents, the ordered row tuples, both footer readings, the
-  pinned boxes and the counts of the absent controls.
+- V1-eq: Two Statement states are equal when they agree on the three figures in
+  cents, the ordered row tuples, both footer readings, the pinned boxes and the
+  counts of the absent controls.
 - V1-law-order: The sent rows are the read entries of kind send, oldest first by
   entry_date, then saved_at, then id, numbered 1 upward in that order, and no
   other row is present.
@@ -5528,9 +5537,8 @@ npm run build
   rufiyaa figure with its unpadded rate, both joined by the board's separator,
   or absent, according to what the entry stores, and the rate text carries no
   trailing zero.
-- V1-law-pinned: Scrolling the rows area to its end leaves the heading, the
-  card, the column header and the footer in their boxes and the document's
-  scrollTop at zero.
+- V1-law-pinned: Scrolling the rows area to its end leaves the card, the column
+  header and the footer in their boxes and the document's scrollTop at zero.
 - V1-law-absent: The statement screen holds no data-box, no data-action and no
   control named Send or Receive, at every ledger length.
 - V1-gen: Ledgers of 0 to 12 entries from a fixed seed, mixing both kinds, USD
@@ -5546,14 +5554,11 @@ npm run build
 - V1-gen-must-sends: A ledger of sends only, including one with no stored
   method.
 - V1-gen-must-mvr: An MVR send whose rate has four decimals.
-- V1-gen-must-years: A ledger whose first and last entry dates fall in two
-  different years, so the period line carries a year on each date.
-- V1-cl-subject: The Statement's heading, period line, balance card and sent
-  list, as value 1 ships them.
+- V1-cl-subject: The Statement's balance card and sent list, as value 1 ships
+  them.
 - V1-cl-safety: No control value 1 draws on the Statement can write, and no
   figure it draws is converted a second time.
-- V1-cl-inhab: A period line, three figures and numbered sent rows are built
-  from stored rows.
+- V1-cl-inhab: Three figures and numbered sent rows are built from stored rows.
 - V1-cl-reach: A tap on the Statement tab brings them into the viewport through
   the bundle's own DOM.
 - V1-cl-live: Liveness is not applicable: the switch is one synchronous
@@ -5587,7 +5592,7 @@ F-d-pane-containing-block, F-d-sheet-parent, F-d-reuse-balance, F-d-reuse-money,
 F-d-layer-domain, F-d-layer-application, F-d-selffals, F-d-stress-read,
 F-d-stress-date, F-d-stress-size, F-d-stress-rate, F-d-admitted, F-d-excluded,
 V1-d-sent-row, V1-d-subline, V1-d-empty, V1-d-pinned-layout, V1-d-nav-tap,
-V1-d-prefactor-move, V1-d-closure, V1-d-pbt-scope
+V1-d-prefactor-move, V1-d-closure, V1-d-pbt-scope, V1-d-remove-period
 
 ### Oracle (Value 1)
 
@@ -5619,8 +5624,8 @@ V1-purpose
 F-c-board, F-c-viewport, F-c-no-page-scroll, F-c-read-only, F-c-one-read,
 F-c-stored-cents, F-c-order, F-c-count-label, F-c-method-null,
 F-c-amount-bounds, F-c-paradigm, F-c-approval, F-c-nav-metrics, F-c-pill-offset,
-F-c-home-unchanged, F-c-rate-text, F-c-usd-column, F-c-period, V1-c-no-pill,
-V1-c-heading, V1-c-card, V1-c-sent-panel, V1-c-row-cells
+F-c-home-unchanged, F-c-rate-text, F-c-usd-column, F-c-no-top, V1-c-no-pill,
+V1-c-top, V1-c-card, V1-c-sent-panel, V1-c-row-cells
 
 ### Inherits (Value 1)
 
@@ -5999,7 +6004,7 @@ None
               "description": {
                 "ref": "V1-ob-screen"
               },
-              "result_type": "period text, three cent integers, header cells, row tuples, footer triple",
+              "result_type": "three cent integers, header cells, row tuples, footer triple",
               "cannot_distinguish": {
                 "ref": "V1-ob-screen-blind"
               }
@@ -6009,7 +6014,7 @@ None
               "description": {
                 "ref": "V1-ob-pinned"
               },
-              "result_type": "four boxes twice and two document integers",
+              "result_type": "three boxes twice and two document integers",
               "cannot_distinguish": {
                 "ref": "V1-ob-pinned-blind"
               }
@@ -6072,9 +6077,6 @@ None
                 },
                 {
                   "ref": "V1-gen-must-mvr"
-                },
-                {
-                  "ref": "V1-gen-must-years"
                 }
               ],
               "depth_bound": null
@@ -6389,8 +6391,8 @@ npm run build
   two panels to slide.
 - V2-d-pill-state: The shown list is one attribute,
   data-statement-shown=sent|back, on the statement screen; a tap on a pill tab
-  writes it and the two aria-selected values and nothing else, so the heading,
-  the balance card and the pill itself cannot move and no row is rebuilt.
+  writes it and the two aria-selected values and nothing else, so the balance
+  card and the pill itself cannot move and no row is rebuilt.
 - V2-d-tabs: Value 2 turns the two panels into tabpanels of that tablist and
   keeps their accessible names Sent for Abbaas and Paid back by Abbaas, so value
   1's own reading of the sent panel by name and by data-statement-list=sent
@@ -6418,17 +6420,18 @@ npm run build
 - V2-b-direction: The pill and both panels are built by src/ui/statement.ts from
   what src/domain/statement.ts answers; neither knows of the shell, and nothing
   of either reaches a writing operation.
-- V2-po-observation: On the Statement screen a pill named Statement lists offers
-  the two tabs Sent for Abbaas and Paid back by Abbaas. The sent tab is selected
-  when the Statement opens and the thumb under it is blue. A tap on Paid back by
-  Abbaas selects that tab, turns the thumb teal and shows the paid-back list
-  headed No., Date, Method and USD with one numbered row for each repayment
-  oldest first reading its date, its stored method and its USD figure in teal,
-  over the footer 'Total paid back' with its count and total; a repayment with
-  no stored method leaves its Method cell empty. A tap back on Sent for Abbaas
-  shows the sent list again. The balance card, the heading and the pill stay in
-  place through both switches, each list's column header and footer stay in
-  place, and only the rows of the list shown scroll.
+- V2-po-observation: On the Statement screen a segmented pill named Statement
+  lists sits under the balance card and offers the two tabs Sent for Abbaas and
+  Paid back by Abbaas. The sent tab is selected when the Statement opens and the
+  pill's thumb is blue under it. A tap on Paid back by Abbaas selects that tab,
+  turns the thumb teal, and shows the paid-back list with the column header No.,
+  Date, Method and USD, one numbered row for each repayment oldest first with
+  its date, its stored method and its USD figure in teal, and the footer 'Total
+  paid back' with its count and the total; a repayment with no stored method
+  leaves its Method cell empty. A tap back on Sent for Abbaas shows the sent
+  list again. The balance card and the pill stay in place through both switches,
+  each list's column header and footer stay in place, and only the rows of the
+  shown list scroll.
 - V2-po-stimulus: The acceptance support starts the stack, resets it, waits for
   the auth service, builds and serves the bundle, creates one account and seeds,
   with explicit saved_at times, one person and nine entries: five sends as value
@@ -6438,9 +6441,9 @@ npm run build
   entries. A Chromium context at 360 by 780 signs in, taps Statement, reads the
   pill at rest, taps Paid back by Abbaas, reads the whole paid-back list,
   scrolls its rows to the end and reads the pinned parts again, taps Sent for
-  Abbaas, reads the sent list again, and reads the heading's and the card's
-  boxes before and after each switch; the second context opens the Statement and
-  taps the paid-back tab.
+  Abbaas, reads the sent list again, and reads the card's and the pill's boxes
+  before and after each switch; the second context opens the Statement and taps
+  the paid-back tab.
 - V2-po-expected: The tablist is named Statement lists and holds exactly two
   tabs named Sent for Abbaas and Paid back by Abbaas. On opening, the sent tab
   carries aria-selected=true, the other false, the statement screen carries
@@ -6454,20 +6457,19 @@ npm run build
   Sep, 23 Sep, 2 Oct and 8 Oct, the Method cells read Cash, Cheque, nothing and
   Transfer with data-statement-method carried only by the first, second and
   fourth, and its data-statement-foot=back carries data-count 4 and data-cents
-  1600000 and reads 'Total paid back - 4 entries' with $16,000.00. The heading's
-  and the balance card's boxes are identical before and after both switches, the
-  pill's box is identical too, and after the rows are scrolled to the end the
-  column header and the footer keep their boxes and the document's scrollTop is
-  still 0. The tap back on Sent for Abbaas restores every reading value 1 takes
-  of the sent list. On the empty account both footers read No entries with $0.00
-  and neither panel holds a row.
+  1600000 and reads 'Total paid back - 4 entries' with $16,000.00. The balance
+  card's and the pill's boxes are identical before and after both switches, and
+  after the rows are scrolled to the end the column header and the footer keep
+  their boxes and the document's scrollTop is still 0. The tap back on Sent for
+  Abbaas restores every reading value 1 takes of the sent list. On the empty
+  account both footers read No entries with $0.00 and neither panel holds a row.
 - V2-po-falsifier: Showing a repayment in the sent list, or a send in the
   paid-back list, breaks the row counts and the footers. Numbering each list
   from the whole ledger instead of from its own rows breaks the data-no
   sequence. Writing a word in the Method cell of the row stored without one
   makes it read Cash, Cheque or Transfer. Keeping the thumb blue on the
   paid-back list, or leaving both tabs aria-selected=true, fails the pill
-  readings. Rebuilding the screen on a switch moves the heading's or the card's
+  readings. Rebuilding the screen on a switch moves the card's or the pill's
   box, and scrolling the whole panel instead of its rows moves the footer.
 - V2-o-arch: The pill writes nothing: src/ui/statement.ts still names no writing
   operation of LedgerStore, and the paid-back rows are decided by
@@ -6498,13 +6500,13 @@ npm run build
   count and cents.
 - V2-ob-lists-blind: It says nothing about the row tints, the fonts or the
   panel's shadow.
-- V2-ob-steady: The boxes of the heading, the balance card and the pill, read
-  before and after each switch.
+- V2-ob-steady: The boxes of the balance card and the pill, read before and
+  after each switch.
 - V2-ob-steady-blind: It cannot see a sub-pixel drift and says nothing about
   what moved between the two readings.
 - V2-eq: Two list states are equal when they agree on the shown attribute, both
   aria-selected values, the thumb's colour, which panel is in the viewport, both
-  headers, both ordered row lists, both footers and the three steady boxes.
+  headers, both ordered row lists, both footers and the two steady boxes.
 - V2-law-exclusive: Exactly one pill tab carries aria-selected=true and exactly
   one panel lies inside the viewport, and the thumb's colour is the shown list's
   own.
@@ -6513,8 +6515,8 @@ npm run build
   within its own list, so no entry is in both lists and none is missing from its
   own.
 - V2-law-roundtrip: Tapping the other pill tab and tapping back restores every
-  reading of the sent list and leaves the heading's, the card's and the pill's
-  boxes where they were.
+  reading of the sent list and leaves the card's and the pill's boxes where they
+  were.
 - V2-law-method-cell: A repayment's Method cell reads the word of its stored
   token, or is empty and carries no hook when the token is null, and never reads
   a word outside the three.
@@ -6821,7 +6823,7 @@ None
               "description": {
                 "ref": "V2-ob-steady"
               },
-              "result_type": "three boxes twice",
+              "result_type": "two boxes twice",
               "cannot_distinguish": {
                 "ref": "V2-ob-steady-blind"
               }
