@@ -107,27 +107,32 @@ const start = async (root: HTMLElement, identity: Identity, store: LedgerStore):
   let opening = true
 
   /**
-   * The Home that is mounted right now, and the entries it was painted from.
+   * The Home that is mounted right now, with the shell it is mounted inside:
+   * one value, because the two are mounted and let go of in the same breath and
+   * neither means anything without the other.
    *
-   * Both live here because a sheet is raised OVER the Home that is already
-   * there: Home is not rebuilt to open one and not rebuilt to close one, which
-   * is what makes 'Home stays exactly as it was' true of the DOM itself rather
-   * than only of what it reads. The entries are kept beside it so the sheet can
-   * be given the entry the owner is looking at without a second read, and so a
-   * hash naming an entry this Home does not hold is answered by Home alone.
-   */
-  let mountedHome: HTMLElement | null = null
-  /**
-   * The shell that Home is mounted inside: what the router actually puts in the
-   * root, what grows from a save button, and what a sheet is raised on.
-   *
-   * It is kept beside the Home it holds because the two are mounted and let go
-   * of together, and because a sheet must be appended OUTSIDE Home's own pane:
-   * the pane is the containing block of everything fixed inside it, so a scrim
-   * appended to Home would cover the pane alone, while the sheet must cover the
+   * The shell is what the router actually puts in the root, what grows from a
+   * save button, and what a sheet is raised on - OUTSIDE Home's own pane, whose
+   * transform is the containing block of everything fixed inside it, so a scrim
+   * appended to Home would dim that pane alone while the sheet must cover the
    * whole viewport.
    */
-  let mountedShell: HTMLElement | null = null
+  type MountedHome = {
+    readonly screen: HTMLElement
+    readonly shell: HTMLElement
+  }
+  /**
+   * They are held here at all because a sheet is raised OVER the Home that is
+   * already there: Home is not rebuilt to open one and not rebuilt to close one,
+   * which is what makes 'Home stays exactly as it was' true of the DOM itself
+   * rather than only of what it reads.
+   */
+  let mounted: MountedHome | null = null
+  /**
+   * What that Home was painted from, so the sheet can be given the entry the
+   * owner is looking at without a second read, and so a hash naming an entry
+   * this Home does not hold is answered by Home alone.
+   */
   let homeEntries: readonly LedgerEntry[] = []
 
   /** The sheet that is open over Home, or null when none is. */
@@ -171,8 +176,7 @@ const start = async (root: HTMLElement, identity: Identity, store: LedgerStore):
    */
   const forgetHome = (): void => {
     void closeSheet()
-    mountedHome = null
-    mountedShell = null
+    mounted = null
     homeEntries = []
     homeStale = false
   }
@@ -181,7 +185,7 @@ const start = async (root: HTMLElement, identity: Identity, store: LedgerStore):
     // A Home that is already mounted is left exactly as it is: the ordinary
     // arrival at Home over a Home is a sheet being closed, and closing a sheet
     // must not repaint, re-read or replay anything underneath it.
-    if (mountedHome !== null && mountedHome.isConnected && justSaved === null && !homeStale) {
+    if (mounted !== null && mounted.screen.isConnected && justSaved === null && !homeStale) {
       void closeSheet()
       return
     }
@@ -223,8 +227,7 @@ const start = async (root: HTMLElement, identity: Identity, store: LedgerStore):
     const shell = renderViews({ entries: screen, statement: renderStatement(ledger) })
     // This Home, the shell it is mounted in, and what it was painted from, so a
     // sheet can be raised over it without reading the ledger a second time.
-    mountedHome = screen
-    mountedShell = shell
+    mounted = { screen, shell }
     homeEntries = ledger.outcome === 'read' ? ledger.entries : []
     openSheet = null
 
@@ -447,10 +450,10 @@ const start = async (root: HTMLElement, identity: Identity, store: LedgerStore):
     // Leaving Home for a sheet ends any earlier save: the sheet is a reading of
     // one entry, and nothing of a save is replayed under it.
     justSaved = null
-    if (mountedHome === null || !mountedHome.isConnected) await showHome(false)
-    const screen = mountedHome
-    const shell = mountedShell
-    if (screen === null || shell === null) return
+    if (mounted === null || !mounted.screen.isConnected) await showHome(false)
+    const home = mounted
+    if (home === null) return
+    const { screen, shell } = home
     // Already the sheet being asked for: nothing to raise and nothing to move.
     if (openSheet !== null && openSheet.entryId === id) return
     void closeSheet()

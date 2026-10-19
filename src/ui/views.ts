@@ -36,7 +36,15 @@
 //     Entries or Statement
 //   - the bar is named Views; each tab carries data-view="entries|statement" and
 //     aria-current="page" on the one showing, "false" on the other
+//
+// WHY the arriving screen is TOLD it has arrived. The shell is the only thing
+// that knows the moment a view becomes the one being read, and the screen inside
+// the pane is the only thing that knows which of its own parts assemble on
+// arrival. So the shell says no more than "you are the view now", on the screen
+// it was handed, and the screen answers for its own parts: the shell still
+// decides nothing about what a pane holds.
 
+import { VIEW_SHOWN, slideViews } from './motion.js'
 /** The two views of the shell, in the order the bar offers them. */
 const VIEWS = ['entries', 'statement'] as const
 
@@ -82,9 +90,10 @@ const renderTab = (name: View): HTMLButtonElement => {
 }
 
 /**
- * The mint pill, inside the half of the bar it rests on. The pill says nothing a
- * reader needs: the tab it lies under already says it with aria-current, so the
- * pill is hidden from anything that reads the page aloud.
+ * The mint pill, inside the half of the bar it rests on. Neither the pill nor the
+ * holder it travels in says anything a reader needs - the tab it lies under
+ * already says it with aria-current - so the whole of it is hidden from anything
+ * that reads the page aloud, on the holder that carries it.
  *
  * It travels by one half of the bar at every width, because the holder it sits
  * in is one half of the bar and moves by its own width. The board draws 195 px
@@ -93,9 +102,9 @@ const renderTab = (name: View): HTMLButtonElement => {
 const renderPill = (): HTMLElement => {
   const holder = document.createElement('div')
   holder.className = 'views-pill-holder'
+  holder.setAttribute('aria-hidden', 'true')
   const pill = document.createElement('span')
   pill.className = 'views-pill'
-  pill.setAttribute('aria-hidden', 'true')
   holder.append(pill)
   return holder
 }
@@ -120,18 +129,35 @@ export const renderViews = (panes: Panes): HTMLElement => {
     entries: renderTab('entries'),
     statement: renderTab('statement'),
   }
+  const pill = renderPill()
   // The pill first, so it lies behind the words it rests under.
-  bar.append(renderPill(), ...VIEWS.map((name) => tabs[name]))
+  bar.append(pill, ...VIEWS.map((name) => tabs[name]))
 
-  /** The whole of a switch: which view shows, and which tab says so. */
+  /** The whole of the state a switch leaves: which view shows, and which tab says so. */
   const show = (shown: View): void => {
     shell.dataset.shown = shown
     for (const name of VIEWS) {
       tabs[name].setAttribute('aria-current', name === shown ? 'page' : 'false')
     }
   }
+
+  /**
+   * The switch the owner taps, drawn as one movement: the slide is declared on
+   * the strip and the pill BEFORE the state changes, because a transition travels
+   * only over a state the stylesheet was already timing when it changed. Then the
+   * arriving screen is told it is the view now, and raises its own parts.
+   *
+   * A tap on the view already being read switches nothing, so it draws nothing
+   * and writes nothing twice.
+   */
+  const switchTo = (shown: View): void => {
+    if (shell.dataset.shown === shown) return
+    slideViews(track, pill)
+    show(shown)
+    panes[shown].dispatchEvent(new CustomEvent(VIEW_SHOWN))
+  }
   for (const name of VIEWS) {
-    tabs[name].addEventListener('click', () => show(name))
+    tabs[name].addEventListener('click', () => switchTo(name))
   }
   // The shell opens on the entries, which is the view the owner arrives at.
   show('entries')

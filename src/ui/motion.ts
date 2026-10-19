@@ -20,7 +20,11 @@
 //     'swap' (both boxes while the holder changes), 'home-enter' (Home's root
 //     while the opening entrance runs), 'row' (a form row rising in) or
 //     'sheet-rise'/'sheet-fall' (the entry sheet and its scrim, which travel
-//     together as one motion)
+//     together as one motion), 'view-slide' (the strip the two views stand on
+//     and the mint pill under the tabs, while they travel), 'view-enter' (the
+//     arriving view's screen, until its last part rests), 'list-slide' (the area
+//     the two lists stand in and the thumb of the pill, while they travel) or
+//     'list-enter' (the arriving list's panel, until its last part rests)
 //   - the attribute is removed the moment that motion ends
 //   - with prefers-reduced-motion: reduce nothing here runs at all, so
 //     data-motion is never set, nothing is ever clipped, and the screen the
@@ -940,6 +944,168 @@ export const lowerSheet = (sheet: HTMLElement, scrim: HTMLElement, settle: () =>
     for (const part of sheetParts(sheet, scrim)) delete part.dataset.motion
     settle()
   }, SHEET_FALL_MS + ENTER_SLACK_MS)
+}
+
+// ---------------------------------------------------------------------------
+// Value 3: the two switches of the Statement, drawn as one movement each. A
+// switch is a SLIDE - the parts that travel between the two resting states the
+// stylesheet declares - and, for the screen or the list arriving, the RISE of its
+// parts one after another.
+//
+// Built the same way as every entrance above: a part is put in its start state
+// while it is held, declares which kind of part it is, travels on the one curve
+// and is left with no inline style of its own. Nothing of a balance, an entry or
+// a list means anything here: the caller hands over the elements that travel, the
+// kind each part is and where each stands in the order its screen assembles in.
+// ---------------------------------------------------------------------------
+
+/**
+ * What a pane's screen is told, on itself, the moment it becomes the shown view.
+ *
+ * The name lives here, with the rest of the vocabulary of movement, because the
+ * arrival IS a motion: the shell knows WHEN a view becomes the one being read and
+ * nothing about what it holds, and the screen knows which of its own parts
+ * assemble and nothing about when. Neither can name the moment without this.
+ */
+export const VIEW_SHOWN = 'view-shown'
+
+/** How long a slide takes: the one length the board gives every switch. */
+export const SWITCH_SLIDE_MS = 420
+/** How long one arriving part travels for, and how far below it comes from. */
+export const SWITCH_RISE_MS = 360
+const SWITCH_RISE_PX = 10
+/** The board's delay law: 120 ms, then 22 ms more for each part, capped at 14. */
+const SWITCH_RISE_DELAY_MS = 120
+const SWITCH_RISE_STEP_MS = 22
+const SWITCH_RISE_INDEX_CAP = 14
+
+/**
+ * Which motion each element last claimed. A second tap inside a running switch
+ * is neither dropped nor queued, so the end of the FIRST motion must not clear
+ * the attribute or the start state of the second: the end only clears what still
+ * claims the token it was given.
+ */
+const claimedBy = new WeakMap<HTMLElement, object>()
+
+/** Claims every element of one motion, answering with the token that names it. */
+const claim = (elements: readonly HTMLElement[]): object => {
+  const token = {}
+  for (const element of elements) claimedBy.set(element, token)
+  return token
+}
+
+const stillClaims = (element: HTMLElement, token: object): boolean => claimedBy.get(element) === token
+
+/**
+ * Declares one slide on the parts that travel it, and clears each the moment
+ * that slide is over - not when the rest of the switch is, because the parts
+ * arriving keep rising after the strip has stopped.
+ *
+ * Nothing is displaced here: both ends of the journey are resting states the
+ * stylesheet draws from the caller's own attribute, and the duration and the
+ * curve between them hang on the attribute this sets. So the caller declares the
+ * slide BEFORE it writes that attribute, and with reduced motion asked for this
+ * does nothing at all: no attribute is set, so no transition is declared and the
+ * screen simply reads its end state.
+ */
+const slide = (parts: readonly HTMLElement[], motion: string): void => {
+  if (prefersReducedMotion()) return
+  const token = claim(parts)
+  for (const part of parts) part.dataset.motion = motion
+  window.setTimeout(() => {
+    for (const part of parts) {
+      if (stillClaims(part, token)) delete part.dataset.motion
+    }
+  }, SWITCH_SLIDE_MS + ENTER_SLACK_MS)
+}
+
+/** The navigation switch: the strip the two views stand on, and the mint pill. */
+export const slideViews = (track: HTMLElement, pill: HTMLElement): void => slide([track, pill], 'view-slide')
+
+/** The pill switch: the area the two lists stand in, and the thumb over it. */
+export const slideLists = (area: HTMLElement, thumb: HTMLElement): void => slide([area, thumb], 'list-slide')
+
+/**
+ * One part of an arriving screen or list: the kind the stylesheet times it by,
+ * and where it stands in the order the screen assembles itself in - which is the
+ * whole of what decides its delay.
+ */
+export type SwitchPart = {
+  readonly element: HTMLElement
+  readonly kind: 'switch-card' | 'switch-pill' | 'switch-row' | 'switch-foot'
+  readonly index: number
+}
+
+/** The delay the board gives the part at this place in the order. */
+const riseDelayOf = (index: number): number =>
+  SWITCH_RISE_DELAY_MS + Math.min(index, SWITCH_RISE_INDEX_CAP) * SWITCH_RISE_STEP_MS
+
+/**
+ * Raises the parts of an arriving screen or list one after another: each comes
+ * from 10 px below where it belongs, over 360 ms on the one curve, after its own
+ * delay. `root` is the element the whole arrival is read from - it carries
+ * `motion` from before the first part is displaced until the last one rests - and
+ * each part declares its own kind while it travels, so no part can sit displaced
+ * without saying so.
+ *
+ * Every start state is applied BEFORE the kind that declares the travel, with one
+ * read of the layout in between: the part is therefore simply put where it comes
+ * from instead of animating into it, and the declaration a reader finds on the
+ * part is the 360 ms journey from its first frame onward.
+ *
+ * Each journey begins on a timer and travels on the stylesheet's own clock, so a
+ * phone whose frame callbacks stopped mid-switch lands on exactly the same end
+ * state on its next visible frame. Parts past the cap share one delay, and so one
+ * timer, which is what keeps a long list the same work as a short one.
+ */
+export const riseParts = (root: HTMLElement, parts: readonly SwitchPart[], motion: string): void => {
+  if (prefersReducedMotion() || parts.length === 0) return
+  const elements = parts.map((part) => part.element)
+  const token = claim([root, ...elements])
+  // Declared before anything is displaced: the hold is part of the motion.
+  root.dataset.motion = motion
+
+  for (const part of parts) {
+    // A part caught mid-rise by a second tap is put back without travelling
+    // there: with its kind gone, nothing times the start state below.
+    delete part.element.dataset.enterRise
+    delete part.element.dataset.enterPhase
+    part.element.style.transform = `translateY(${SWITCH_RISE_PX}px)`
+    part.element.style.opacity = '0'
+  }
+  // One read of the layout holds every part at once, so each is where it comes
+  // from before the kind below declares the journey away from it.
+  void root.offsetHeight
+  for (const part of parts) {
+    part.element.dataset.enterRise = part.kind
+    part.element.dataset.enterPhase = 'held'
+  }
+
+  const byDelay = new Map<number, HTMLElement[]>()
+  for (const part of parts) {
+    const delayMs = riseDelayOf(part.index)
+    byDelay.set(delayMs, [...(byDelay.get(delayMs) ?? []), part.element])
+  }
+  for (const [delayMs, group] of byDelay) {
+    window.setTimeout(() => {
+      for (const element of group) {
+        if (!stillClaims(element, token)) continue
+        element.dataset.enterPhase = 'travel'
+        element.style.transform = 'none'
+        element.style.opacity = '1'
+      }
+    }, delayMs)
+  }
+
+  // A little past the last journey's end, so no part is left displaced and the
+  // arrival stops claiming to move only once nothing of it is moving.
+  const restsAt = Math.max(...parts.map((part) => riseDelayOf(part.index))) + SWITCH_RISE_MS
+  window.setTimeout(() => {
+    for (const element of elements) {
+      if (stillClaims(element, token)) settleRise(element)
+    }
+    if (stillClaims(root, token)) delete root.dataset.motion
+  }, restsAt + ENTER_SLACK_MS)
 }
 
 /**

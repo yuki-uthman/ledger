@@ -1,6 +1,6 @@
-// The Statement as a pure projection of the account's entries: the period it
-// covers, the three figures of its balance card, and the numbered rows of its
-// lists with every word each row reads.
+// The Statement as a pure projection of the account's entries: the three
+// figures of its balance card, and the numbered rows of its lists with every
+// word each row reads.
 //
 // Values in, values out. This module names no DOM, no port adapter and no
 // Supabase client, so the meaning of the statement - what it covers, in which
@@ -10,8 +10,9 @@
 // WHY the derived TEXT lives here and not on the screen. A figure, a date, a
 // count and a sub-line are all readings of stored values, and a screen that
 // worded them itself would be a second owner of what the owner's money says.
-// The screen owns only the board's own furniture - the heading, the column
-// words, the colours - which say the same thing at every ledger length.
+// The screen owns only the board's own furniture - the column words, the
+// colours, the shape of a card - which says the same thing at every ledger
+// length.
 //
 // The rule, in one line: the sent rows are the entries of kind send and the
 // paid-back rows exactly those of kind receive, each oldest first and numbered 1
@@ -30,9 +31,6 @@ import { formatMvrLaari, formatRatePlain, formatUsdCents } from './money.js'
  * one line of the screen reading a different dot would be the board drawn twice.
  */
 export const SEPARATOR = '·'
-
-/** The en dash the board draws between the two ends of the period. */
-const RANGE_DASH = '–'
 
 /** The part of an entry this projection depends on; a wider entry satisfies it. */
 export type StatementEntry = {
@@ -124,8 +122,6 @@ export type StatementFigure = {
 
 /** The whole statement of one read ledger. */
 export type Statement = {
-  /** 'You and Abbaas · 14 Sep – 14 Oct 2026 · in USD'. */
-  readonly period: string
   /** The three figures in the order the card reads them, top to bottom. */
   readonly figures: readonly StatementFigure[]
   /** What the owner sent: the entries of kind send. */
@@ -155,22 +151,12 @@ const methodOf = (method: string | null): StatementMethod | null => {
 }
 
 /**
- * The USD column of a list is headed USD and the period line already says in
- * USD, so a row's figure is read without its sign. It is taken off the ONE
+ * The USD column of a list is headed USD, so a row's figure is read without its
+ * sign. It is taken off the ONE
  * formatter that words every USD figure in this app, so a row and the card can
  * never group or round their dollars differently.
  */
 const withoutCurrencySign = (figure: string): string => figure.replace('$', '')
-
-/** A date with its year, as the ends of the period name it: '14 Oct 2026'. */
-const dateWithYear = (date: string): string => {
-  const label = shortDayLabel(date)
-  // A date the store could not have stored carries no year to name.
-  return label === date ? date : `${label} ${date.slice(0, 4)}`
-}
-
-/** The year a stored date falls in, which decides how the two ends are worded. */
-const yearOf = (date: string): string => date.slice(0, 4)
 
 /**
  * What a send's sub-line names: the stored method first, then, for a rufiyaa
@@ -241,36 +227,6 @@ const listOf = <E extends StatementEntry>(
 }
 
 /**
- * The period the statement covers, worded from the first and last day the owner
- * recorded: the year is named once at the end when both ends fall in it, on
- * each end when they do not, once when every entry falls on one day, and not at
- * all when there is no entry, where a date would claim a day nobody recorded.
- */
-const periodOf = (entries: readonly StatementEntry[]): string =>
-  // One line of the board: its parts, joined by the board's own separator. The
-  // days are one part of it, or no part at all on an empty ledger.
-  ['You and Abbaas', ...daysCovered(entries), 'in USD'].join(` ${SEPARATOR} `)
-
-/**
- * The days the entries cover, as the one part of the period line that names
- * them, or nothing at all when there is no entry: a date invented there would
- * claim a day nobody recorded.
- */
-const daysCovered = (entries: readonly StatementEntry[]): readonly string[] => {
-  if (entries.length === 0) return []
-  const dates = entries.map((entry) => entry.entryDate).sort()
-  const first = dates[0] ?? ''
-  const last = dates[dates.length - 1] ?? ''
-  // Every entry on one day: that day, named once.
-  if (first === last) return [dateWithYear(first)]
-  // The year is named once at the end when both ends fall in it, and on each
-  // end when they do not.
-  return yearOf(first) === yearOf(last)
-    ? [`${shortDayLabel(first)} ${RANGE_DASH} ${dateWithYear(last)}`]
-    : [`${dateWithYear(first)} ${RANGE_DASH} ${dateWithYear(last)}`]
-}
-
-/**
  * The statement of these entries, in any order they arrive in.
  *
  * The three figures are read from balanceOf, which stays the ONE owner of the
@@ -280,7 +236,6 @@ const daysCovered = (entries: readonly StatementEntry[]): readonly string[] => {
 export const statementOf = <E extends StatementEntry>(entries: readonly E[]): Statement => {
   const balance = balanceOf(entries)
   return {
-    period: periodOf(entries),
     figures: [
       { which: 'sent', cents: balance.sentCents, text: formatUsdCents(balance.sentCents) },
       { which: 'paid', cents: balance.paidBackCents, text: formatUsdCents(balance.paidBackCents) },

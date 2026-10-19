@@ -3,8 +3,8 @@
 //
 // It decides nothing about money, order or wording. Every figure, date, count
 // and sub-line it draws is read off src/domain/statement.ts; what this module
-// owns is the board's own furniture - the heading, the four column words, the
-// shape of the card and the panel - and the hooks a reader finds them by.
+// owns is the board's own furniture - the four column words, the shape of the
+// card and the panel - and the hooks a reader finds them by.
 //
 // It is READ-ONLY by construction: it is handed a read outcome and nothing that
 // writes, so there is no operation within its reach that could change the money
@@ -12,7 +12,9 @@
 // the one screen that only reports offers nothing that records.
 //
 // The hooks, which every later value keeps:
-//   - the screen carries data-screen="statement"
+//   - the screen carries data-screen="statement" and draws nothing above the
+//     balance card: the view is named by its tab and by the pane's own
+//     accessible name, so no heading of its own repeats that
 //   - each card figure carries data-statement-total="sent|paid|balance" with
 //     data-cents, and holds the figure and nothing else
 //   - the screen carries data-statement-shown="sent|back", which is the whole
@@ -39,6 +41,7 @@ import {
   type StatementRow,
 } from '../domain/statement.js'
 import type { ReadEntriesOutcome } from '../ports/ledger-store.js'
+import { VIEW_SHOWN, riseParts, slideLists, type SwitchPart } from './motion.js'
 
 /** The board's own minus, in the middle column of the Paid Back row. */
 const MINUS = '−'
@@ -133,20 +136,6 @@ const appendCells = (parent: HTMLElement, cells: readonly Node[]): void => {
   })
 }
 
-/** The heading and, unless the read failed, the period it covers. */
-const renderHeading = (period: string | null): HTMLElement => {
-  const heading = element('header', 'statement-heading')
-  const title = element('h1', 'statement-title')
-  title.textContent = 'Statement'
-  heading.append(title)
-  if (period !== null) {
-    const line = element('p', 'statement-period')
-    line.textContent = period
-    heading.append(line)
-  }
-  return heading
-}
-
 /**
  * The mint balance card: Total Sent, Paid Back with its minus, a divider, and
  * the Balance in the large type the board draws. The figure itself carries the
@@ -230,6 +219,16 @@ const renderBackRow = (row: StatementRow): HTMLElement => {
 }
 
 /**
+ * One panel and the parts of it that rise when it arrives, in the order they are
+ * read: its rows from the oldest down, and then its total.
+ */
+type PanelParts = {
+  readonly panel: HTMLElement
+  readonly rows: readonly HTMLElement[]
+  readonly foot: HTMLElement
+}
+
+/**
  * One panel of the statement: its column header, its scrolling rows and its
  * footer. The header and the footer stand OUTSIDE the scrolling area, which is
  * what keeps the column words and the total in sight while the rows are read.
@@ -238,7 +237,7 @@ const renderBackRow = (row: StatementRow): HTMLElement => {
  * screen differ in nothing but which list they are, the words of their header
  * and the shape of the rows handed to them.
  */
-const renderPanel = ({ which, columns, list, row: renderOneRow }: Panel): HTMLElement => {
+const renderPanel = ({ which, columns, list, row: renderOneRow }: Panel): PanelParts => {
   const panel = element('section', 'statement-panel')
   panel.dataset.statementList = which
   panel.id = panelId(which)
@@ -256,7 +255,8 @@ const renderPanel = ({ which, columns, list, row: renderOneRow }: Panel): HTMLEl
 
   const rows = element('ul', 'statement-rows')
   rows.dataset.statementRows = which
-  for (const row of list.rows) rows.append(renderOneRow(row))
+  const lines = list.rows.map((row) => renderOneRow(row))
+  rows.append(...lines)
 
   const foot = element('div', 'statement-foot')
   foot.dataset.statementFoot = which
@@ -268,9 +268,8 @@ const renderPanel = ({ which, columns, list, row: renderOneRow }: Panel): HTMLEl
   ])
 
   panel.append(head, rows, foot)
-  return panel
+  return { panel, rows: lines, foot }
 }
-
 
 /**
  * One tab of the pill: a button carrying the name of its list and saying, with
@@ -298,7 +297,9 @@ const renderListTab = (which: ShownList): HTMLButtonElement => {
  * alone, so the value that adds motion adds transitions over these same states
  * and reworks nothing.
  */
-const renderStatementPill = (tabs: readonly HTMLButtonElement[]): HTMLElement => {
+const renderStatementPill = (
+  tabs: readonly HTMLButtonElement[],
+): { pill: HTMLElement; thumb: HTMLElement } => {
   const pill = element('div', 'statement-pill')
   pill.setAttribute('role', 'tablist')
   pill.setAttribute('aria-label', 'Statement lists')
@@ -306,22 +307,46 @@ const renderStatementPill = (tabs: readonly HTMLButtonElement[]): HTMLElement =>
   thumb.setAttribute('aria-hidden', 'true')
   // The thumb first, so it lies behind the words it rests under.
   pill.append(thumb, ...tabs)
-  return pill
+  return { pill, thumb }
 }
 
 /**
- * The whole of a switch: the one attribute that names the shown list, and the
- * two tabs that say which is being read. Nothing is read, re-rendered or
- * unmounted - both panels and every row of both stay as they were built, so the
- * figures cannot change under the tap and no scroll offset is thrown away.
+ * The whole of the state a switch leaves: the one attribute that names the shown
+ * list, and the two tabs that say which is being read. Nothing is read,
+ * re-rendered or unmounted - both panels and every row of both stay as they were
+ * built, so the figures cannot change under the tap and no scroll offset is
+ * thrown away.
  */
-const switchList = (statement: HTMLElement, list: ShownList): void => {
+const showList = (
+  statement: HTMLElement,
+  tabs: Readonly<Record<ShownList, HTMLButtonElement>>,
+  list: ShownList,
+): void => {
   statement.dataset.statementShown = list
   for (const which of LISTS) {
-    const tab = statement.querySelector(`[data-statement-tab="${which}"]`)
-    tab?.setAttribute('aria-selected', String(which === list))
+    tabs[which].setAttribute('aria-selected', String(which === list))
   }
 }
+
+/** Which list is being read, which is the whole of this screen's own state. */
+const shownList = (statement: HTMLElement): ShownList =>
+  statement.dataset.statementShown === 'back' ? 'back' : 'sent'
+
+/** The parts of an arriving list, in the order they are read, from this place on. */
+const listRiseParts = (list: PanelParts, from: number): readonly SwitchPart[] => [
+  ...list.rows.map((row, index) => ({ element: row, kind: 'switch-row' as const, index: from + index })),
+  { element: list.foot, kind: 'switch-foot' as const, index: from + list.rows.length },
+]
+
+/** What the whole screen is assembled from: the card first, then the pill and the shown list. */
+const screenRiseParts = (
+  furniture: { readonly card: HTMLElement; readonly pill: HTMLElement },
+  list: PanelParts,
+): readonly SwitchPart[] => [
+  { element: furniture.card, kind: 'switch-card' as const, index: 0 },
+  { element: furniture.pill, kind: 'switch-pill' as const, index: 1 },
+  ...listRiseParts(list, 2),
+]
 
 /**
  * The statement of this read ledger.
@@ -330,7 +355,7 @@ const switchList = (statement: HTMLElement, list: ShownList): void => {
  * row at all: $0.00 figures over an empty list would read as a ledger with
  * nothing in it, which is a different and false statement about the owner's
  * money. An empty ledger, by contrast, shows the whole screen - the card at
- * zero, the header, and a footer saying so in words.
+ * zero, the column words, and a footer saying so in words.
  */
 export const renderStatement = (ledger: ReadEntriesOutcome): HTMLElement => {
   const screen = document.createElement('section')
@@ -338,7 +363,6 @@ export const renderStatement = (ledger: ReadEntriesOutcome): HTMLElement => {
   screen.className = 'screen statement'
 
   if (ledger.outcome === 'retry') {
-    screen.append(renderHeading(null))
     const notice = element('p', 'statement-notice')
     notice.setAttribute('role', 'alert')
     notice.textContent = ledger.message
@@ -347,29 +371,57 @@ export const renderStatement = (ledger: ReadEntriesOutcome): HTMLElement => {
   }
 
   const statement = statementOf(ledger.entries)
-  screen.append(renderHeading(statement.period))
-  screen.append(renderCard(statement.figures))
+  const card = renderCard(statement.figures)
+  screen.append(card)
 
   const tabs: Readonly<Record<ShownList, HTMLButtonElement>> = {
     sent: renderListTab('sent'),
     back: renderListTab('back'),
   }
-  screen.append(renderStatementPill(LISTS.map((which) => tabs[which])))
+  const { pill, thumb } = renderStatementPill(LISTS.map((which) => tabs[which]))
+  screen.append(pill)
 
   // Both panels stand in one area, each filling it, so a switch moves no pinned
   // part of the screen and the list not being read waits off the phone.
-  const lists = element('div', 'statement-lists')
-  lists.append(
-    renderPanel({ which: 'sent', columns: SENT_COLUMNS, list: statement.sent, row: renderSentRow }),
-    renderPanel({ which: 'back', columns: BACK_COLUMNS, list: statement.back, row: renderBackRow }),
-  )
-  screen.append(lists)
-
-  for (const which of LISTS) {
-    tabs[which].addEventListener('click', () => switchList(screen, which))
+  const panels: Readonly<Record<ShownList, PanelParts>> = {
+    sent: renderPanel({ which: 'sent', columns: SENT_COLUMNS, list: statement.sent, row: renderSentRow }),
+    back: renderPanel({ which: 'back', columns: BACK_COLUMNS, list: statement.back, row: renderBackRow }),
   }
+  const area = element('div', 'statement-lists')
+  area.append(panels.sent.panel, panels.back.panel)
+  screen.append(area)
+
+  /**
+   * The pill switch, drawn as one movement: the slide is declared on the area and
+   * the thumb BEFORE the state changes, because a transition travels only over a
+   * state the stylesheet was already timing when it changed, and then the
+   * arriving list raises its own rows and its total. The balance card is no part
+   * of it, so it does not move at all.
+   *
+   * A tap on the list already being read switches nothing, so it draws nothing.
+   */
+  const switchList = (which: ShownList): void => {
+    if (shownList(screen) === which) return
+    slideLists(area, thumb)
+    showList(screen, tabs, which)
+    riseParts(panels[which].panel, listRiseParts(panels[which], 0), 'list-enter')
+  }
+  for (const which of LISTS) {
+    tabs[which].addEventListener('click', () => switchList(which))
+  }
+
+  // The whole screen arriving, which only the shell knows the moment of: the
+  // card, the pill and then the shown list's own rows and total.
+  screen.addEventListener(VIEW_SHOWN, () => {
+    riseParts(
+      screen,
+      screenRiseParts({ card, pill }, panels[shownList(screen)]),
+      'view-enter',
+    )
+  })
+
   // The Statement opens on what the owner sent every time it is built, so a
   // switch is never carried across a paint.
-  switchList(screen, 'sent')
+  showList(screen, tabs, 'sent')
   return screen
 }

@@ -107,7 +107,12 @@ body {
      clipped here rather than hanging off the page sideways. A sheet raised over
      the shell is fixed to the viewport, whose containing block this is not, so
      nothing of a sheet is clipped by this. */
-  overflow: hidden;
+  /* CLIP and not hidden: a hidden box is still a box the browser may SCROLL -
+     reaching a control that is still travelling scrolls its ancestors to show
+     it - and a box that was never meant to scroll would then keep that offset
+     for good, carrying everything inside it out of place. A clipped box is no
+     scrolling box at all, so there is nothing to leave behind. */
+  overflow: clip;
 }
 
 /* The track the two panes stand on: twice the shell wide, holding a pane on each
@@ -148,6 +153,9 @@ body {
   /* The whole of the track, which is the viewport less the navigation bar. */
   height: 100%;
   transform: translateZ(0);
+  /* Hidden and NOT clipped, against the reason above: the pane holds exactly
+     the screen inside it, so it has no overflow of its own that a scroll could
+     carry away, and Home's own scrolling area is reached through it. */
   overflow: hidden;
   /* The view that is not shown rests dimmed behind the one that is. */
   opacity: 0.4;
@@ -2408,10 +2416,11 @@ body {
 
 /* --- The Statement screen (src/ui/statement.ts). ---
 
-   A column of fixed parts and one growing panel. The screen itself never
-   scrolls: it is exactly its pane, and the only overflowing thing on it is the
-   rows area inside the panel, so the heading, the card, the column words and the
-   total cannot be scrolled away from the owner reading down a long list. */
+   A column of fixed parts and one growing panel, starting at the balance card:
+   nothing is drawn above it. The screen itself never scrolls - it is exactly its
+   pane, and the only overflowing thing on it is the rows area inside the panel -
+   so the card, the column words and the total cannot be scrolled away from the
+   owner reading down a long list. */
 .pane > .screen.statement {
   height: 100%;
   min-height: 0;
@@ -2419,28 +2428,8 @@ body {
   flex-direction: column;
   gap: 16px;
   padding: calc(24px + env(safe-area-inset-top)) var(--side) var(--side);
-  overflow: hidden;
-}
-
-.statement-heading {
-  flex: 0 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.statement-title {
-  margin: 0;
-  font-family: var(--title-font);
-  font-size: 22px;
-  font-weight: 800;
-  color: var(--ink);
-}
-
-.statement-period {
-  margin: 0;
-  font-size: 13px;
-  color: var(--muted);
+  /* Clipped, not hidden, for the reason given on .screen.views above. */
+  overflow: clip;
 }
 
 /* A failed read says so and nothing else: no card, no rows, no totals. */
@@ -2528,7 +2517,8 @@ body {
   border-radius: 18px;
   background: #ffffff;
   /* The rounded corners clip the rows; this is not a scrolling area. */
-  overflow: hidden;
+  /* Clipped, not hidden, for the reason given on .screen.views above. */
+  overflow: clip;
 }
 
 .statement-head-row,
@@ -2630,7 +2620,11 @@ body {
   background: #e3e9e7;
 }
 
-/* One half of the bed less its gutters: exactly the tab it lies under. */
+/* One half of the bed less its gutters: exactly the tab it lies under. It stands
+   on the left gutter at both ends of its journey and TRAVELS to the other tab -
+   its own width plus the 4 px gutter between the two, which is the same place the
+   second tab begins - so the one thing that changes between the two states is a
+   transform the value that adds motion can travel over. */
 .statement-thumb {
   position: absolute;
   top: 4px;
@@ -2639,10 +2633,11 @@ body {
   width: calc(50% - 6px);
   border-radius: 10px;
   background: var(--you);
+  transform: translateX(0);
 }
 
 .screen.statement[data-statement-shown='back'] .statement-thumb {
-  left: calc(50% + 2px);
+  transform: translateX(calc(100% + 4px));
   background: var(--abbaas);
 }
 
@@ -2673,8 +2668,8 @@ body {
 /* --- The area both panels stand in. ---
 
    One relative box taking what is left of the screen, with each panel filling
-   it: the panels can therefore be exchanged without moving the heading, the
-   card, the pill or anything pinned inside a panel. The list not being read
+   it: the panels can therefore be exchanged without moving the card, the pill
+   or anything pinned inside a panel. The list not being read
    waits one panel and one gutter off the phone, on the side its own tab lies
    on, rather than being hidden away - so it keeps its rows, its scroll offset
    and a box the owner can be shown. */
@@ -2683,7 +2678,8 @@ body {
   min-height: 0;
   position: relative;
   /* Not a scrolling area: the rows inside each panel are the only one. */
-  overflow: hidden;
+  /* Clipped, not hidden, for the reason given on .screen.views above. */
+  overflow: clip;
 }
 
 .statement-lists > .statement-panel {
@@ -2713,4 +2709,61 @@ body {
 .statement-foot[data-statement-foot='back'] {
   background: var(--abbaas-tint);
   color: var(--abbaas-deep);
+}
+
+/* --- Value 3: the motion of every switch, drawn over the states above. ---
+
+   Both switches travel between exactly the resting states values 1 and 2 draw
+   from data-shown and data-statement-shown: nothing of those states is reworked
+   here, and this declares only the journeys between them.
+
+   Every journey hangs on the data-motion the switch itself sets, so a state
+   written on any other occasion - the first paint of a screen, or a phone that
+   has asked for less motion, where motion.ts sets no attribute at all - is
+   simply the end state, with nothing to travel over.
+
+   Only transform, opacity and the thumb's own colour travel, so no frame of a
+   switch can force the page to lay itself out again. */
+
+/* The slide: the strip the two views stand on, and the mint pill under the tabs,
+   over the board's 420 ms on the one curve. */
+.views-track[data-motion='view-slide'],
+.views-pill-holder[data-motion='view-slide'] {
+  transition: transform 420ms var(--curve);
+}
+
+/* The view being left fades to where it rests behind the one arriving, over the
+   same 420 ms: the fade travels WITH the slide, and nothing else of a pane does. */
+.views-track[data-motion='view-slide'] > .pane {
+  transition: opacity 420ms var(--curve);
+}
+
+/* The two lists travel inside the area that says their switch is running: each
+   by its own width and the board's 16 px gutter, to the side its own tab lies
+   on. */
+.statement-lists[data-motion='list-slide'] > .statement-panel {
+  transition: transform 420ms var(--curve);
+}
+
+/* The thumb crosses to the other tab and turns from the blue of what was sent to
+   the teal of what came back. Its place and its colour are the only two things
+   that travel, and one duration is written for both: that is what the served
+   stylesheet reports back, as one 420 ms rather than a pair of them. */
+.statement-thumb[data-motion='list-slide'] {
+  transition-property: transform, background-color;
+  transition-duration: 420ms;
+  transition-timing-function: var(--curve);
+}
+
+/* Every part of an arriving screen or list: 360 ms of place and strength on the
+   one curve, which is the whole of a rise.
+
+   It hangs on the kind of part alone and not on the travelling phase, because
+   motion.ts puts each part where it comes from BEFORE it declares that kind - so
+   there is nothing left for a transition to animate into - and a reader of the
+   part finds its journey declared from the first frame it rises in. */
+[data-enter-rise^='switch-'] {
+  transition-property: transform, opacity;
+  transition-duration: 360ms;
+  transition-timing-function: var(--curve);
 }
