@@ -430,7 +430,13 @@ const readStatement = (page: Page): Promise<StatementReading> =>
     const head = Array.from(screen.querySelectorAll('[data-statement-head="sent"] > *')).map((cell) =>
       squash(cell.textContent),
     )
-    const rowElements = Array.from(screen.querySelectorAll('[data-statement-row]'))
+    // Rows are read inside the sent panel, as the header, the footer and the scrolling
+    // area beside them already are: the paid-back list numbers its own rows from one
+    // upward too, so a reading taken across the whole screen would run the two lists
+    // together and call it one.
+    const rowElements = Array.from(
+      screen.querySelectorAll('[data-statement-list="sent"] [data-statement-row]'),
+    )
     const rows = rowElements.map((row) => {
       const sub = row.querySelector('[data-statement-sub]')
       const party = row.querySelector('[data-person]')
@@ -618,10 +624,13 @@ test('a tap on Statement reads the period, the three figures and every send olde
     statement(page).locator('[data-statement-list="sent"]'),
     'WHAT: there is no sent panel on the Statement. WHY: the Sent for Abbaas list is the body of this screen. HOW: draw the panel carrying data-statement-list=sent.',
   ).toHaveCount(1)
+  // Named, not typed: what the owner must get is a list that says what it holds. Which
+  // kind of thing carries that name is the screen's business, and a later value makes
+  // these two panels the pages of a switch.
   await expect(
-    page.getByRole('region', { name: 'Sent for Abbaas' }),
-    'WHAT: the sent list is not a region named Sent for Abbaas. WHY: the owner must be told what the list he reads holds. HOW: name that region Sent for Abbaas.',
-  ).toHaveCount(1)
+    statement(page).locator('[data-statement-list="sent"]'),
+    'WHAT: the sent list is not named Sent for Abbaas. WHY: the owner must be told what the list the owner reads holds. HOW: give that panel the accessible name Sent for Abbaas.',
+  ).toHaveAccessibleName('Sent for Abbaas')
   expect(
     reading.head,
     'WHAT: the column header does not read No., Date, Paid to and USD. WHY: those four words are what make the four cells of a row readable. HOW: draw the header the board draws.',
@@ -1071,7 +1080,7 @@ test('a stored MVR row and a row with no method read as recorded', async ({ page
   // And the real screen, reading through the real adapter, reads those two rows as stored
   await givenTheOwnerIsSignedIn(page, seven)
   await whenTheOwnerTapsStatement(page)
-  const mvrRow = statement(page).locator(`[data-statement-row="${mvr!.id}"]`)
+  const mvrRow = statement(page).locator(`[data-statement-list="sent"] [data-statement-row="${mvr!.id}"]`)
   await expect(
     mvrRow,
     'WHAT: the stored rufiyaa send has no row of its own on the statement. WHY: every stored send is one numbered row, named by the entry it came from. HOW: carry the entry\'s own id on its row.',
@@ -1085,7 +1094,7 @@ test('a stored MVR row and a row with no method read as recorded', async ({ page
     'WHAT: the rufiyaa row\'s dollars are not the dollars it stores. WHY: converting the rufiyaa figure a second time moves the owner\'s money by the rounding. HOW: draw the stored dollars, unsigned.',
   ).toContainText(usdNoSign(mvr!.usd_cents))
 
-  const noMethodRow = statement(page).locator(`[data-statement-row="${noMethod!.id}"]`)
+  const noMethodRow = statement(page).locator(`[data-statement-list="sent"] [data-statement-row="${noMethod!.id}"]`)
   await expect(
     noMethodRow,
     'WHAT: the send stored with no method has no row of its own. WHY: a row stored before a method was asked for is still a send the owner made. HOW: list it like any other send.',
