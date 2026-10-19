@@ -153,14 +153,16 @@ const expectNoHorizontalOverflow = async (page: Page, label: string): Promise<vo
     const escapes: string[] = []
     // The view the owner is not reading rests off the side of the phone, on a track
     // twice the viewport's width that carries both views: that is where it belongs, not
-    // an escape anyone can see. So the pane that is not shown, and the track holding the
-    // panes, are passed over; on a product that has no panes yet nothing is passed over
-    // and this reads exactly as it did.
+    // an escape anyone can see. So the pane that is not shown is passed over, and so is
+    // the one track that holds the panes as its own children -- and nothing else. The
+    // shell around that track stays in the scan, where a sideways escape of the shell
+    // itself is exactly what the owner would see. On a product that has no panes yet
+    // nothing is passed over and this reads exactly as it did.
     const shown = document.querySelector('[data-shown]')?.getAttribute('data-shown') ?? null
     for (const element of Array.from(document.body.querySelectorAll('*'))) {
       const pane = element.closest('[data-pane]')
       if (pane !== null && shown !== null && pane.getAttribute('data-pane') !== shown) continue
-      if (element.querySelector('[data-pane]') !== null) continue
+      if (element.querySelector(':scope > [data-pane]') !== null) continue
       const rect = element.getBoundingClientRect()
       if (rect.width === 0 || rect.height === 0) continue
       const style = window.getComputedStyle(element)

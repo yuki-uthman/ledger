@@ -515,6 +515,143 @@ const readStatement = (page: Page): Promise<StatementReading> =>
     }
   })
 
+// ===== The balance card, as the board draws it and the owner reads it =====
+
+/** The card's own colours, corners and line, as the board fixes them. */
+const SENT_FIGURE_INK = 'rgb(36, 80, 138)'
+const PAID_FIGURE_INK = 'rgb(15, 111, 104)'
+const BALANCE_INK = 'rgb(11, 87, 80)'
+const CARD_BED = 'rgb(224, 240, 237)'
+const CARD_RADIUS = '24px'
+const DIVIDER_INK = 'rgb(201, 228, 223)'
+/** The sign the card draws before what came back: a minus, not a hyphen. */
+const MINUS = '\u2212'
+
+/** The card as the owner reads it: its words, its sign, its line, its colours and its type. */
+type CardReading = {
+  readonly present: boolean
+  readonly bed: string
+  readonly radius: string
+  readonly labels: readonly string[]
+  readonly signs: readonly string[]
+  readonly signInks: readonly string[]
+  readonly figureInks: readonly string[]
+  readonly divider: {
+    readonly found: boolean
+    readonly ink: string
+    readonly thickness: number
+    readonly spans: boolean
+    readonly above: boolean
+  }
+  readonly balanceLabel: { family: string; weight: string; size: string; ink: string } | null
+  readonly balanceFigure: { family: string; weight: string; size: string; ink: string } | null
+}
+
+/**
+ * Reads the balance card as the owner sees it, found from the figures it holds rather than
+ * from any hook the design does not declare: the card is the nearest thing around all three
+ * figures. Answers its bed and corners, the three labels in order, whatever stands between
+ * each label and its own figure, the ink of each sign and figure, the line above the Balance
+ * row, and the type of the Balance row itself.
+ */
+const readBalanceCard = (page: Page): Promise<CardReading> =>
+  page.evaluate((): CardReading => {
+    const squash = (text: string | null | undefined): string => (text ?? '').replace(/\s+/g, ' ').trim()
+    const nothing = { found: false, ink: '', thickness: 0, spans: false, above: false }
+    const absent: CardReading = {
+      present: false,
+      bed: '',
+      radius: '',
+      labels: [],
+      signs: [],
+      signInks: [],
+      figureInks: [],
+      divider: nothing,
+      balanceLabel: null,
+      balanceFigure: null,
+    }
+    const screen = document.querySelector('[data-screen="statement"]')
+    if (!screen) return absent
+    const figures = Array.from(screen.querySelectorAll('[data-statement-total]'))
+    const first = figures[0]
+    if (first === undefined) return absent
+
+    let climbing: Element | null = first.parentElement
+    for (;;) {
+      if (climbing === null) return absent
+      const probe = climbing
+      if (figures.every((figure) => probe.contains(figure))) break
+      climbing = climbing.parentElement
+    }
+    const card = climbing
+
+    const rowOf = (figure: Element): Element => {
+      let row: Element = figure
+      while (row.parentElement !== null && row.parentElement !== card) row = row.parentElement
+      return row
+    }
+    const rows = figures.map(rowOf)
+    const cellsBeforeTheFigure = (row: Element, figure: Element): readonly Element[] => {
+      const cells = Array.from(row.children)
+      const at = cells.findIndex((cell) => cell.contains(figure))
+      return cells.slice(1, at < 0 ? cells.length : at)
+    }
+    const typeOf = (element: Element | null): { family: string; weight: string; size: string; ink: string } | null => {
+      if (element === null) return null
+      const style = window.getComputedStyle(element)
+      return { family: style.fontFamily, weight: style.fontWeight, size: style.fontSize, ink: style.color }
+    }
+
+    const balanceAt = figures.findIndex((figure) => figure.getAttribute('data-statement-total') === 'balance')
+    const balanceFigure = balanceAt < 0 ? null : (figures[balanceAt] ?? null)
+    const balanceRow = balanceAt < 0 ? null : (rows[balanceAt] ?? null)
+    const before = balanceRow?.previousElementSibling ?? null
+    const line = before !== null && !rows.includes(before) ? before : null
+    const cardBox = card.getBoundingClientRect()
+    let divider = nothing
+    if (line !== null && balanceRow !== null) {
+      const lineBox = line.getBoundingClientRect()
+      divider = {
+        found: true,
+        ink: window.getComputedStyle(line).backgroundColor,
+        thickness: Math.round(lineBox.height * 10) / 10,
+        spans: lineBox.width >= cardBox.width / 2,
+        above: lineBox.bottom <= balanceRow.getBoundingClientRect().top + 1,
+      }
+    } else if (balanceRow !== null) {
+      // A line drawn as the row's own edge rather than as a part of its own.
+      const edge = window.getComputedStyle(balanceRow)
+      const thickness = Number.parseFloat(edge.borderTopWidth)
+      if (thickness > 0) {
+        divider = { found: true, ink: edge.borderTopColor, thickness, spans: true, above: true }
+      }
+    }
+
+    const cardStyle = window.getComputedStyle(card)
+    return {
+      present: true,
+      bed: cardStyle.backgroundColor,
+      radius: cardStyle.borderTopLeftRadius,
+      labels: rows.map((row) => squash(row.firstElementChild?.textContent)),
+      signs: rows.map((row, index) =>
+        cellsBeforeTheFigure(row, figures[index] as Element)
+          .map((cell) => squash(cell.textContent))
+          .join(' ')
+          .trim(),
+      ),
+      signInks: rows.map((row, index) => {
+        const spoken = cellsBeforeTheFigure(row, figures[index] as Element).find(
+          (cell) => squash(cell.textContent) !== '',
+        )
+        return spoken === undefined ? '' : window.getComputedStyle(spoken).color
+      }),
+      figureInks: figures.map((figure) => window.getComputedStyle(figure).color),
+      divider,
+      balanceLabel: typeOf(balanceRow?.firstElementChild ?? null),
+      balanceFigure: typeOf(balanceFigure),
+    }
+  })
+
 /** The box of one part of the screen, read only once the part is really there. */
 const boxOf = async (locator: Locator, what: string): Promise<{ x: number; y: number; width: number; height: number }> => {
   await expect(
@@ -662,6 +799,41 @@ test('a tap on Statement reads the period, the three figures and every send olde
     ['paid', String(figures.paid), usdWithSign(figures.paid)],
     ['balance', String(figures.balance), usdWithSign(figures.balance)],
   ])
+
+  // And the card itself reads as the board draws it: its words, its minus, its line,
+  // its colours and its type, none of which a hook token can stand in for.
+  const card = await readBalanceCard(page)
+  expect(
+    card.labels,
+    "WHAT: the balance card's three rows do not read 'Total Sent', 'Paid Back' and 'Balance', in that order. WHY: a figure with no word beside it tells the owner nothing about what it counts, and the order is what makes the third the sum of the first two. HOW: label the three rows with those words, top to bottom.",
+  ).toEqual(['Total Sent', 'Paid Back', 'Balance'])
+  expect(
+    [card.signs, card.signInks[1]],
+    `WHAT: the Paid Back row does not read a teal '${MINUS}' between its words and its figure, or another row reads a sign. WHY: the minus is what tells the owner that this money came back against what went out, rather than adding to it. HOW: draw the minus before the Paid Back figure, in the same teal, and nowhere else.`,
+  ).toEqual([['', MINUS, ''], PAID_FIGURE_INK])
+  expect(
+    card.figureInks,
+    'WHAT: the three figures are not inked blue, teal and deep teal. WHY: the colours are how the owner tells money sent from money back, and both from the balance, at a glance. HOW: ink the figures as the board inks them.',
+  ).toEqual([SENT_FIGURE_INK, PAID_FIGURE_INK, BALANCE_INK])
+  expect(
+    [card.divider.found, card.divider.ink, card.divider.thickness <= 2, card.divider.spans, card.divider.above],
+    "WHAT: there is no thin pale-teal line across the card above the Balance row. WHY: the line is what separates the two figures the balance is made of from the balance itself, so the owner reads a sum and not a third amount. HOW: draw a one-pixel line of that colour across the card, above the Balance row.",
+  ).toEqual([true, DIVIDER_INK, true, true, true])
+  expect(
+    [
+      card.balanceLabel?.weight,
+      card.balanceLabel?.size,
+      card.balanceLabel?.ink,
+      card.balanceFigure?.weight,
+      card.balanceFigure?.size,
+      card.balanceFigure?.ink,
+    ],
+    'WHAT: the Balance row is not set in heavy type at 15 px and 22 px in deep teal. WHY: the balance is the one figure the owner opens this screen for, so it is the one that must stand out from the two it is made of. HOW: set the Balance label and figure as the board sets them.',
+  ).toEqual(['800', '15px', BALANCE_INK, '800', '22px', BALANCE_INK]);
+  expect(
+    [card.balanceLabel?.family.includes('Manrope'), card.balanceFigure?.family.includes('Manrope'), card.bed, card.radius],
+    "WHAT: the card is not the board's card: its own heavy face, its pale teal bed and its 24 px corners. WHY: the board is the authority for this screen, and the card is the first thing the owner looks at. HOW: draw the card as the board draws it.",
+  ).toEqual([true, true, CARD_BED, CARD_RADIUS])
 
   await expect(
     statement(page).locator('[data-statement-list="sent"]'),
