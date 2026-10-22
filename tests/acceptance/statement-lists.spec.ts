@@ -179,8 +179,6 @@ const shortDateNoYear = (date: string): string => {
 
 /** A USD figure as a footer and the card read it: always to two decimals. */
 const usdWithSign = (cents: number): string => `$${dollars.format(Math.abs(cents) / 100)}`
-/** The same reading without its mark, which is how a paid-back row still reads its dollars. */
-const usdNoSign = (cents: number): string => dollars.format(Math.abs(cents) / 100)
 
 /**
  * Whole minor units as a row of the sending list reads them: grouped with commas, with no
@@ -193,13 +191,19 @@ const minorFigure = (minor: number): string => {
 
 /**
  * What one stored send reads in the USD column of the sending list: the marked whole
- * reading of the dollars it stores, bracketed where the send was made in rufiyaa. The
- * paid-back list is not this list, and keeps its own unsigned two-decimal reading.
+ * reading of the dollars it stores, bracketed where the send was made in rufiyaa.
  */
 const sentFigureOf = (row: StoredLedgerRow): string => {
   const figure = `$${minorFigure(row.usd_cents)}`
   return row.currency === 'MVR' ? `(${figure})` : figure
 }
+
+/**
+ * What one stored repayment reads in the USD column of the paid-back list: the same
+ * marked reading under the same row rule, never bracketed, because this list holds one
+ * currency and has no rufiyaa column to compare a converted figure with.
+ */
+const backFigureOf = (row: StoredLedgerRow): string => `$${minorFigure(row.usd_cents)}`
 
 /** A stored rate as the owner reads it beside a figure: no trailing zeros, at most four decimals. */
 const plainRate = (stored: string): string =>
@@ -891,29 +895,24 @@ test('a tap on the paid-back list reads every repayment oldest first, its stored
   ).toEqual(['inside', 'outside'])
   expect(
     reading.back.head,
-    'WHAT: the paid-back column header does not read No., Date, Method and USD. WHY: those four words are what make the four cells of a repayment readable. HOW: draw the header the board draws for this list.',
-  ).toEqual(['No.', 'Date', 'Method', 'USD'])
+    'WHAT: the paid-back column header does not read Date, Method and USD. WHY: those three words are what make the cells of a repayment readable, and a No. column would promise a number this list no longer draws. HOW: head this list with those three words in that order.',
+  ).toEqual(['Date', 'Method', 'USD'])
   expect(
     reading.back.rows.map((row) => row.no),
-    'WHAT: the repayments are not numbered 1 upward in document order. WHY: the numbering is how the owner counts what Abbaas paid back. HOW: number the repayments 1 upward within their own list, oldest first.',
+    'WHAT: the repayments do not carry their place 1 upward in document order. WHY: the drawn number is gone but the place each repayment holds is still what a reading counts what came back by. HOW: keep data-no on every repayment row, 1 upward within its own list, oldest first.',
   ).toEqual(expectedNumbers(repayments.length))
   expect(
     reading.back.rows.map((row) => row.id),
     'WHAT: the paid-back rows are not the stored repayments, oldest first. WHY: a missing, extra or misplaced repayment misstates what came back. HOW: list every stored repayment once, by entry date, then by the instant it was saved, then by its id.',
   ).toEqual(repayments.map((row) => row.id))
   expect(
-    reading.back.rows.map((row) => row.cells.slice(0, 4)),
-    'WHAT: a repayment does not read its number, its stored date, its stored method and its stored dollars across the row. WHY: this list is the statement of what came back: a wrong date, a wrong method or a wrong figure misstates it. HOW: build each row from its own stored entry.',
+    reading.back.rows.map((row) => row.cells),
+    'WHAT: a repayment does not read its stored date, its stored method and its marked stored dollars across three cells. WHY: this list is the statement of what came back: a wrong date, a wrong method, a wrong figure or a fourth cell holding a number this list no longer draws misstates it. HOW: build each row from its own stored entry, as those three cells alone.',
   ).toEqual(
-    repayments.map((row, index) => [
-      String(index + 1),
-      shortDateNoYear(row.entry_date),
-      methodWordOf(row),
-      usdNoSign(row.usd_cents),
-    ]),
+    repayments.map((row) => [shortDateNoYear(row.entry_date), methodWordOf(row), backFigureOf(row)]),
   )
   expect(
-    [reading.back.rows.map((row) => row.cells[1] ?? ''), reading.back.rows.map((row) => row.cells[2] ?? '')],
+    [reading.back.rows.map((row) => row.cells[0] ?? ''), reading.back.rows.map((row) => row.cells[1] ?? '')],
     'WHAT: the four repayments do not read 17 Sep, 23 Sep, 2 Oct and 8 Oct with Cash, Cheque, nothing and Transfer. WHY: those are the days and the ways the money came back, and the row stored without a method must say nothing in its place. HOW: word each cell from the stored entry and invent nothing for a missing method.',
   ).toEqual([[...BACK_DATES], [...BACK_METHOD_WORDS]])
   expect(
@@ -921,12 +920,12 @@ test('a tap on the paid-back list reads every repayment oldest first, its stored
     'WHAT: a paid-back figure is not inked the board\'s teal. WHY: the colour is what separates money that came back from money that went out. HOW: ink this list\'s figures teal.',
   ).toEqual(repayments.map(() => BACK_FIGURE_INK))
   expect(
-    reading.back.rows.filter((row) => row.text.includes('$')).length,
-    'WHAT: a paid-back row prints a currency sign. WHY: the column is headed USD and every figure on this screen is in US dollars. HOW: draw each row\'s figure unsigned.',
-  ).toBe(0)
+    reading.back.rows.filter((row) => row.usd.startsWith('$')).length,
+    'WHAT: a paid-back figure does not carry the dollar mark. WHY: a figure whose currency is unstated leaves the owner guessing which money came back. HOW: word every repayment figure with its mark, under the same row rule as the sending list.',
+  ).toBe(repayments.length)
   expect(
     reading.back.rows.filter((row) => row.hasPerson || row.hasSub).length,
-    'WHAT: a repayment names a person or carries a sub-line. WHY: a repayment names nobody and has no rate or rufiyaa figure to word, so anything there would be invented. HOW: build a repayment row from its number, its date, its method and its dollars alone.',
+    'WHAT: a repayment names a person or carries a sub-line. WHY: a repayment names nobody and has no rate or rufiyaa figure to word, so anything there would be invented. HOW: build a repayment row from its date, its method and its dollars alone.',
   ).toBe(0)
   expect(
     [reading.back.foot?.count, reading.back.foot?.cents, reading.back.foot?.text],
@@ -1071,8 +1070,8 @@ test('an owner with nothing recorded reads both lists empty, and neither counts 
   const reading = await readScreen(page)
   expect(
     reading.back.head,
-    'WHAT: the paid-back column header is missing on an empty ledger. WHY: the owner must see what the list would hold before anything is in it. HOW: draw the header whether or not there is a row.',
-  ).toEqual(['No.', 'Date', 'Method', 'USD'])
+    'WHAT: the paid-back column header does not read Date, Method and USD on an empty ledger. WHY: the owner must see what the list would hold, in the same three words, before anything is in it. HOW: draw the same header whether or not there is a row.',
+  ).toEqual(['Date', 'Method', 'USD'])
   expect(
     [reading.sent.rows.length, reading.back.rows.length],
     'WHAT: an empty ledger shows a row in one of the lists. WHY: a row the owner never recorded is a lie about their money. HOW: list a row for each stored entry of that kind and no other.',
@@ -1559,11 +1558,11 @@ const readBothListsAndJudge = async (
     if (JSON.stringify(seenFoot) !== JSON.stringify([foot.count, foot.cents, foot.text])) {
       reasons.push(`the ${which} footer reads ${JSON.stringify(seenFoot)} not ${JSON.stringify(foot)}`)
     }
-    // Each list words its own figure: a send reads its stored dollars marked, and
-    // bracketed where it was sent in rufiyaa, while a repayment still reads the
-    // unsigned two decimals that list keeps until its own value.
+    // Each list words its own figure under the one row rule: a send reads its stored
+    // dollars marked, and bracketed where it was sent in rufiyaa, while a repayment
+    // reads the same marked dollars with no brackets at all.
     const figureOf = (row: StoredLedgerRow): string =>
-      which === 'sent' ? sentFigureOf(row) : usdNoSign(row.usd_cents)
+      which === 'sent' ? sentFigureOf(row) : backFigureOf(row)
     if (seen.rows.map((row) => row.usd).join(',') !== expectedRows.map(figureOf).join(',')) {
       reasons.push(
         `the ${which} figures read ${seen.rows.map((row) => row.usd).join(',')} not ${expectedRows.map(figureOf).join(',')}`,
@@ -1572,7 +1571,7 @@ const readBothListsAndJudge = async (
   }
 
   const repayments = storedRowsOf(stored, 'back')
-  const seenMethods = reading.back.rows.map((row) => row.cells[2] ?? '')
+  const seenMethods = reading.back.rows.map((row) => row.cells[1] ?? '')
   const meantMethods = repayments.map((row) => methodWordOf(row))
   if (seenMethods.join('|') !== meantMethods.join('|')) {
     reasons.push(`the Method cells read ${JSON.stringify(seenMethods)} not ${JSON.stringify(meantMethods)}`)

@@ -217,8 +217,6 @@ const convertedFigure = (cents: number): string => `(${usdFigure(cents)})`
 const mvrFigure = (laari: number): string => `${minorFigure(laari)}/-`
 /** A figure as the card and the two footers read it, always to two decimals. */
 const twoDecimalFigure = (cents: number): string => `$${groupedWithMinor.format(Math.abs(cents) / 100)}`
-/** The same reading without its mark, which is how a paid-back row still reads its dollars. */
-const unsignedTwoDecimals = (cents: number): string => groupedWithMinor.format(Math.abs(cents) / 100)
 
 /** A stored rate as the owner reads it beside a figure: no trailing zeros and no padding. */
 const plainRate = (stored: string): string =>
@@ -285,16 +283,33 @@ const expectedRows = (stored: readonly StoredLedgerRow[]): readonly ExpectedRow[
     }
   })
 
-/** The footer of the sending list, which this value leaves exactly as it reads today. */
+/**
+ * The footer of the sending list: three lines in the order they are drawn, read as the one
+ * block of text they stand in. The rufiyaa line reads the laari the sends stored in MVR add
+ * up to, with the dollars those same sends store in brackets; the dollar line reads the sends
+ * stored in USD; the total line reads every send, whatever its currency. Each count is worded
+ * as this app words a count, every figure keeps its two decimals except the rufiyaa subtotal,
+ * which reads like a rufiyaa amount, and the block's own count and cents are still the total
+ * line's, so a reader that knew only the old hooks still reads the total. All three lines
+ * stand at every ledger, the empty one included.
+ */
 const expectedFoot = (
   stored: readonly StoredLedgerRow[],
 ): { count: string; cents: string; text: string } => {
   const sends = sendsOf(stored)
-  const cents = sends.reduce((sum, row) => sum + row.usd_cents, 0)
+  const centsOf = (group: readonly StoredLedgerRow[]): number =>
+    group.reduce((sum, row) => sum + row.usd_cents, 0)
+  const inRufiyaa = sends.filter((row) => row.currency === 'MVR')
+  const inDollars = sends.filter((row) => row.currency === 'USD')
+  const laari = inRufiyaa.reduce((sum, row) => sum + row.amount_minor, 0)
   return {
     count: String(sends.length),
-    cents: String(cents),
-    text: `Total sent ${DOT} ${countLabel(sends.length)} ${twoDecimalFigure(cents)}`,
+    cents: String(centsOf(sends)),
+    text: [
+      `Sent in MVR ${DOT} ${countLabel(inRufiyaa.length)} ${mvrFigure(laari)} (${twoDecimalFigure(centsOf(inRufiyaa))})`,
+      `Sent in USD ${DOT} ${countLabel(inDollars.length)} ${twoDecimalFigure(centsOf(inDollars))}`,
+      `Total Sent ${DOT} ${countLabel(sends.length)} ${twoDecimalFigure(centsOf(sends))}`,
+    ].join(' '),
   }
 }
 
@@ -1021,14 +1036,14 @@ test('the sending list tells a rufiyaa send from a dollar send at a glance', asy
     'WHAT: the rows that say they read a converted figure are not exactly the rufiyaa sends of this list. WHY: every send is of one of the two kinds and of only one, so the two groups must add back up to the whole list. HOW: set that mark from the row\'s own currency.',
   ).toEqual([SENDING_LEDGER_READS.filter((row) => row.rufiyaa).length, SENDING_LEDGER_READS.length])
 
-  // And the alternating tints, the footer and the read-only screen are as they were
+  // And the alternating tints and the read-only screen are as they were, under the split footer
   expect(
     reading.rows.map((row) => row.bed),
     'WHAT: the alternating row tints are gone. WHY: the tints are how the owner keeps their place across a row, and this value leaves them as they are. HOW: tint every second row and leave the others white.',
   ).toEqual([PLAIN_ROW, ZEBRA_TINT, PLAIN_ROW, ZEBRA_TINT, PLAIN_ROW, ZEBRA_TINT])
   expect(
     reading.foot,
-    "WHAT: the footer no longer reads 'Total sent' with the count and the two-decimal total of its own rows. WHY: the footer is the owner's check that the list and the card agree, and this value does not touch it. HOW: keep counting the sent rows and adding their stored dollars.",
+    "WHAT: the footer no longer reads its three lines — 'Sent in MVR' with the laari subtotal and the bracketed dollars, 'Sent in USD', and 'Total Sent' — each with its own count, while the block itself still carries the total's count and cents. WHY: the footer is the owner's check that the list and the card agree, and a split list is only checkable against a footer that splits the same way. HOW: draw all three lines at every ledger, count and sum each from the stored currency of the sends, and keep the block's own hooks reading the total line.",
   ).toEqual(expectedFoot(stored))
   expect(
     reading.writingControls,
@@ -1372,7 +1387,7 @@ test('the balance card above the list reads exactly as before', async ({ page })
   ).toEqual([USD_INK, PAID_BACK_INK, BALANCE_INK])
 })
 
-test('the paid-back list reads exactly as before', async ({ page }) => {
+test('the paid-back list reads its own three columns, its teal figures and its one-line footer', async ({ page }) => {
   // Given the owner is reading the Statement of a ledger with a repayment in it
   const stored = await readStoredLedger(stack, columns)
   await givenTheOwnerIsSignedIn(page, columns)
@@ -1381,20 +1396,17 @@ test('the paid-back list reads exactly as before', async ({ page }) => {
   // When the owner taps the paid-back list
   await whenTheOwnerTapsThePaidBackList(page)
 
-  // Then it reads its own four columns, its drawn number and its unsigned two-decimal figures
+  // Then it reads its own three columns and its marked figures, in the teal and footer it keeps
   const back = await readPlainList(page, 'back')
   const repayments = repaymentsOf(stored)
   expect(
     back.words,
-    'WHAT: the paid-back list no longer reads its own four column words. WHY: only the sending side gains currency columns here; changing both lists at once would leave the owner reading a screen nobody approved. HOW: leave the paid-back header as it is.',
-  ).toEqual(['No.', 'Date', 'Method', 'USD'])
+    'WHAT: the paid-back list no longer reads Date, Method and USD over its three columns. WHY: the owner reads one screen: a list still headed by a number column the rows no longer draw names the wrong cells. HOW: head this list with Date, Method and USD and nothing else.',
+  ).toEqual(['Date', 'Method', 'USD'])
   expect(
-    [back.places, back.figures],
-    'WHAT: the paid-back list no longer draws its number or its unsigned two-decimal figures. WHY: its own reading is a later value, so here it must read exactly as it does today. HOW: leave that list untouched.',
-  ).toEqual([
-    repayments.map((_row, index) => String(index + 1)),
-    repayments.map((row) => unsignedTwoDecimals(row.usd_cents)),
-  ])
+    back.figures,
+    'WHAT: a repayment does not read the dollars it stores with the dollar mark under the row rule. WHY: a figure with no mark reads as a bare number beside the marked figures of the other list, and the two lists report the same money. HOW: have the paid-back row read the marked whole reading of its stored dollars.',
+  ).toEqual(repayments.map((row) => usdFigure(row.usd_cents)))
   expect(
     back.figureInks,
     'WHAT: the paid-back figures are no longer teal. WHY: teal is how the owner tells money that came back from money that went out, and this value does not touch it. HOW: leave that colour as it is.',
