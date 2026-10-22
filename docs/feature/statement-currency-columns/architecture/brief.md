@@ -1805,11 +1805,16 @@ npm run build
   cents are the sum of the two lines' cents, every count reads as this app words
   a count, and the rufiyaa subtotal is the only footer figure without two
   decimals.
-- B-d-migration: This value migrates the sent footer's expected text in
-  tests/acceptance/statement-sent.spec.ts and in
-  tests/acceptance/statement-lists.spec.ts, and the footer text that
-  tests/acceptance/statement-motion.spec.ts reads while judging the rise; every
-  motion expectation and the paid-back footer's expectation stay as they are.
+- B-d-migration: This value migrates the sent footer's expected text in four
+  consumer specs, and the acceptance designer is the one who migrates each:
+  tests/acceptance/statement-sent.spec.ts,
+  tests/acceptance/statement-lists.spec.ts, the footer text
+  tests/acceptance/statement-motion.spec.ts reads while judging the rise, and
+  the footer expectation of the previous value's own oracle at
+  tests/acceptance/statement-sent-columns.spec.ts:1032, whose one-line
+  derivation at that spec's line 288 is migrated with it. Every motion
+  expectation, every row expectation and the paid-back footer's expectation stay
+  as they are.
 - B-d-prefactor: Before any footer behaviour changes, the footer is moved out of
   renderPanel into a renderer the panel is given, drawing byte for byte what it
   draws today for both lists; the move is measured on the existing sent spec
@@ -1846,6 +1851,11 @@ npm run build
   sending expectation changes while its paid-back expectation stays.
 - B-ag-motion-spec: This spec reads the sent footer's text while judging that
   the footer rises as one part, so only that text changes.
+- B-ag-columns-spec: The previous value's own oracle reads this footer as one
+  line, because that value left it as it was; the three-line block and the
+  one-line text are two readings of the same block and cannot both hold, so that
+  expectation is migrated here by the acceptance designer while everything else
+  it reads stays untouched.
 - B-at-obligation: The footer's figures stay decided in src/domain/statement.ts:
   src/ui/statement.ts names no currency mark, no Intl formatter and no
   arithmetic on an amount after the three lines are drawn, and the screen still
@@ -2195,6 +2205,7 @@ None
 | footSentSpec | Sent footer contract | consumer | `tests/acceptance/statement-sent.spec.ts:175` | MIGRATED | B-ag-sent-spec |
 | footListsSpec | Sent footer contract | consumer | `tests/acceptance/statement-lists.spec.ts:200` | MIGRATED | B-ag-lists-spec |
 | footMotionSpec | Sent footer contract | consumer | `tests/acceptance/statement-motion.spec.ts:482` | MIGRATED | B-ag-motion-spec |
+| footColumnsSpec | Sent footer contract | consumer | `tests/acceptance/statement-sent-columns.spec.ts:1032` | MIGRATED | B-ag-columns-spec |
 
 ### Reuse analysis (Value 2)
 
@@ -2256,6 +2267,14 @@ None
     {
       "kind": "test",
       "locator": "tests/acceptance/statement-motion.spec.ts:482",
+      "decision": "MIGRATED",
+      "reason": {
+        "ref": "B-ic-test"
+      }
+    },
+    {
+      "kind": "test",
+      "locator": "tests/acceptance/statement-sent-columns.spec.ts:1032",
       "decision": "MIGRATED",
       "reason": {
         "ref": "B-ic-test"
@@ -2780,12 +2799,15 @@ npm run build
   every repayment reads its own stored dollars with the mark under the row rule,
   the Method cell reads the stored token's word or nothing, and no figure is
   rounded away from the stored cents.
-- C-d-migration: This value migrates, in
-  tests/acceptance/statement-lists.spec.ts, the paid-back header words, the
+- C-d-migration: This value migrates two consumer specs, and the acceptance
+  designer is the one who migrates each: in
+  tests/acceptance/statement-lists.spec.ts the paid-back header words, the
   expected cell positions of a repayment row, the unsigned figure derivation for
-  that list and the generated law's own figure expectation; the footer
-  expectation, the teal colour reading and every motion expectation stay as they
-  are.
+  that list and the generated law's own figure expectation; and in the first
+  value's own oracle at tests/acceptance/statement-sent-columns.spec.ts:1375 the
+  four header words, the drawn places and the unsigned two-decimal figures of
+  that same list. The footer expectation, the teal of the figures and every
+  motion expectation stay as they are in both.
 - C-d-removal: Removing usdText and withoutCurrencySign is part of this value
   and not a later cleanup: once the paid-back row reads usdFigure, a second
   dollar reading on the row type would be a field no reader uses and a second
@@ -2814,6 +2836,15 @@ npm run build
   replaces.
 - C-ag-lists-empty: This spec also reads the paid-back header on an empty
   ledger, which must read the three new words there too.
+- C-ag-columns-spec: The first value's own oracle reads this list's four header
+  words, its drawn places and its unsigned two-decimal figures, because that
+  value left the list as it was; all three are replaced here, so that case is
+  migrated by the acceptance designer, while the teal it also reads and the
+  footer line it also reads stay exactly as they are.
+- C-ag-footer-spec: The second value's own oracle reads this list's footer as
+  one line on its teal bed with its own count and cents, and the teal of the
+  figures beside it; this value changes none of those, so that case keeps
+  reading what it reads today and needs no migration.
 - C-at-obligation: The paid-back figures stay decided in
   src/domain/statement.ts: src/ui/statement.ts names no currency mark, no Intl
   formatter and no arithmetic on an amount after this list reads its marked
@@ -2827,6 +2858,9 @@ npm run build
   and no other owner's contract.
 - C-ic-test: This spec asserts a paid-back reading this value replaces, so its
   cases are migrated with it.
+- C-ic-compatible: This spec reads only the paid-back footer, its bed, its ink
+  and the teal of the figures beside it, none of which this value changes, so it
+  keeps reading what it reads today.
 - C-b-driving: The driving port is the Statement screen of the built bundle: the
   paid-back panel is drawn by renderPanel at src/ui/statement.ts:240 from the
   statement the domain projected.
@@ -3143,6 +3177,8 @@ None
 | backProducer | Paid-back row contract | producer | `src/ui/statement.ts:208` | MIGRATED | C-ag-back-producer |
 | backListsSpec | Paid-back row contract | consumer | `tests/acceptance/statement-lists.spec.ts:823` | MIGRATED | C-ag-lists-spec |
 | backEmptySpec | Paid-back row contract | consumer | `tests/acceptance/statement-lists.spec.ts:1004` | MIGRATED | C-ag-lists-empty |
+| backColumnsSpec | Paid-back row contract | consumer | `tests/acceptance/statement-sent-columns.spec.ts:1375` | MIGRATED | C-ag-columns-spec |
+| backFooterSpec | Paid-back row contract | consumer | `tests/acceptance/statement-sent-footer.spec.ts:1056` | UNCHANGED_COMPATIBLE | C-ag-footer-spec |
 
 ### Reuse analysis (Value 3)
 
@@ -3198,6 +3234,22 @@ None
       "decision": "MIGRATED",
       "reason": {
         "ref": "C-ic-test"
+      }
+    },
+    {
+      "kind": "test",
+      "locator": "tests/acceptance/statement-sent-columns.spec.ts:1375",
+      "decision": "MIGRATED",
+      "reason": {
+        "ref": "C-ic-test"
+      }
+    },
+    {
+      "kind": "test",
+      "locator": "tests/acceptance/statement-sent-footer.spec.ts:1056",
+      "decision": "UNCHANGED_COMPATIBLE",
+      "reason": {
+        "ref": "C-ic-compatible"
       }
     }
   ],
