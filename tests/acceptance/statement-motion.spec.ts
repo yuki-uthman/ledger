@@ -856,12 +856,37 @@ const expectedTotals = (rows: readonly StoredLedgerRow[]): readonly string[] => 
   return [`sent: ${usd(sent)}`, `paid: ${usd(paid)}`, `balance: ${usd(sent - paid)}`]
 }
 
-/** What each footer says, counted and summed against the rows the ledger actually stores. */
+const grouped = new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+
+/** Stored laari as a rufiyaa figure reads it: grouped, with cents only when they are real. */
+const mvrFigure = (laari: number): string => {
+  const units = Math.abs(laari)
+  return `${units % 100 === 0 ? grouped.format(units / 100) : dollars.format(units / 100)}/-`
+}
+
+/**
+ * What each footer says, counted and summed against the rows the ledger actually stores.
+ * The sending list reads three lines in the order they are drawn - what went in rufiyaa
+ * with the dollars those sends store in brackets, what went in dollars, and the total of
+ * both - read here as the one block of text they stand in, which is what a motion must
+ * leave untouched. The paid-back list keeps its one line.
+ */
 const expectedFoot = (rows: readonly StoredLedgerRow[], which: Which): string => {
-  const kind = which === 'sent' ? 'send' : 'receive'
-  const count = countOfKind(rows, kind)
-  const words = which === 'sent' ? 'Total sent' : 'Total paid back'
-  return `${words} · ${countLabel(count)} ${usd(centsOfKind(rows, kind))}`
+  if (which === 'back') {
+    const count = countOfKind(rows, 'receive')
+    return `Total paid back · ${countLabel(count)} ${usd(centsOfKind(rows, 'receive'))}`
+  }
+  const sends = rows.filter((row) => row.kind === 'send')
+  const centsOf = (group: readonly StoredLedgerRow[]): number =>
+    group.reduce((sum, row) => sum + row.usd_cents, 0)
+  const inRufiyaa = sends.filter((row) => row.currency === 'MVR')
+  const inDollars = sends.filter((row) => row.currency === 'USD')
+  const laari = inRufiyaa.reduce((sum, row) => sum + row.amount_minor, 0)
+  return [
+    `Sent in MVR · ${countLabel(inRufiyaa.length)} ${mvrFigure(laari)} (${usd(centsOf(inRufiyaa))})`,
+    `Sent in USD · ${countLabel(inDollars.length)} ${usd(centsOf(inDollars))}`,
+    `Total Sent · ${countLabel(sends.length)} ${usd(centsOf(sends))}`,
+  ].join(' ')
 }
 
 // ===== The tap sequences this oracle generates =====
@@ -1598,7 +1623,7 @@ test('switching back and forth changes nothing the owner was reading', async ({ 
   ).toEqual(expectedTotals(storedNine))
   expect(
     [end.sentFoot, end.backFoot],
-    `WHAT: after the switches the two footers no longer count and add their own rows of the ${storedNine.length} stored ones. WHY: the footers are the owner's check that each list and the card agree, and a switch must not disturb either count. HOW: count and sum each list's stored rows, whatever motion just ran.`,
+    `WHAT: after the switches the two footers no longer count and add their own rows of the ${storedNine.length} stored ones: the sending list's three lines - rufiyaa, dollars and the total - or the paid-back list's one line. WHY: the footers are the owner's check that each list and the card agree, and a switch must not disturb a count or lose a currency line. HOW: count and sum each list's stored rows by their stored currency, whatever motion just ran.`,
   ).toEqual([expectedFoot(storedNine, 'sent'), expectedFoot(storedNine, 'back')])
   expect(
     end.rows.length,

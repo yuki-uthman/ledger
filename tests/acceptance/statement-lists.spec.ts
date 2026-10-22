@@ -44,8 +44,11 @@ import {
 //     its rufiyaa column and its dollar column, and its dollar figure carries its mark,
 //     bracketed where the send was made in rufiyaa. A repayment is untouched here: it
 //     keeps its number, its method, its unsigned two-decimal figure and its one-line
-//     footer until the value that reads that list. Both footers and the balance card
-//     keep their two decimals.
+//     footer until the value that reads that list. The sending list's footer now reads
+//     three lines in one block - what went in rufiyaa with its stored dollars in
+//     brackets, what went in dollars, and the total of both - read here as the one text
+//     they stand in. Every footer figure keeps its two decimals except the rufiyaa
+//     subtotal, which reads like a rufiyaa amount, and the balance card is untouched.
 
 const PASSWORD_FIELD = 'input[type="password"]'
 const VIEWPORT = { width: 360, height: 780 } as const
@@ -233,18 +236,45 @@ const methodWordOf = (row: StoredLedgerRow): string =>
 const expectedNumbers = (count: number): readonly string[] =>
   Array.from({ length: count }, (_unused, index) => String(index + 1))
 
-/** What a list's footer says, counts and sums, from its own rows alone. */
+/**
+ * What the sending list's footer says, counts and sums from its own rows alone: three
+ * lines in the order they are drawn, read as the one block of text they stand in. The
+ * rufiyaa line reads the laari the sends stored in MVR add up to with the dollars those
+ * same sends store in brackets, the dollar line reads the sends stored in USD, and the
+ * total line reads every send whatever its currency. All three stand at every ledger.
+ */
+const sentFootText = (sends: readonly StoredLedgerRow[]): string => {
+  const centsOf = (group: readonly StoredLedgerRow[]): number =>
+    group.reduce((sum, row) => sum + row.usd_cents, 0)
+  const inRufiyaa = sends.filter((row) => row.currency === 'MVR')
+  const inDollars = sends.filter((row) => row.currency === 'USD')
+  const laari = inRufiyaa.reduce((sum, row) => sum + row.amount_minor, 0)
+  return [
+    `Sent in MVR ${DOT} ${countLabel(inRufiyaa.length)} ${minorFigure(laari)}/- (${usdWithSign(centsOf(inRufiyaa))})`,
+    `Sent in USD ${DOT} ${countLabel(inDollars.length)} ${usdWithSign(centsOf(inDollars))}`,
+    `Total Sent ${DOT} ${countLabel(sends.length)} ${usdWithSign(centsOf(sends))}`,
+  ].join(' ')
+}
+
+/**
+ * What a list's footer says, counts and sums, from its own rows alone: the sending list
+ * splits its footer by the stored currency of each send, while the paid-back list keeps
+ * its one line until the value that reads that list. Either footer's own count and cents
+ * are those of the rows it sums, which for the sending list is its total line.
+ */
 const expectedFoot = (
   stored: readonly StoredLedgerRow[],
   which: Which,
 ): { count: string; cents: string; text: string } => {
   const rows = storedRowsOf(stored, which)
   const cents = rows.reduce((sum, row) => sum + row.usd_cents, 0)
-  const words = which === 'sent' ? 'Total sent' : 'Total paid back'
   return {
     count: String(rows.length),
     cents: String(cents),
-    text: `${words} ${DOT} ${countLabel(rows.length)} ${usdWithSign(cents)}`,
+    text:
+      which === 'sent'
+        ? sentFootText(rows)
+        : `Total paid back ${DOT} ${countLabel(rows.length)} ${usdWithSign(cents)}`,
   }
 }
 
@@ -1049,10 +1079,12 @@ test('an owner with nothing recorded reads both lists empty, and neither counts 
   ).toEqual([0, 0])
   expect(
     [reading.back.foot?.text, reading.sent.foot?.text],
-    `WHAT: the two footers of an empty ledger do not read 'Total paid back ${DOT} No entries $0.00' and 'Total sent ${DOT} No entries $0.00'. WHY: 'No entries' is how this app words a count of none, and both sides of an empty ledger are empty in the same way. HOW: word each count from the rows of its own list.`,
+    `WHAT: the two footers of an empty ledger do not read 'Total paid back ${DOT} No entries $0.00' and the sending list's three lines all at zero. WHY: 'No entries' is how this app words a count of none, both sides of an empty ledger are empty in the same way, and a currency line hidden at zero would read as a currency the owner cannot send in. HOW: word each count from the rows of its own list, and draw all three sent lines whatever the ledger holds.`,
   ).toEqual([
     `Total paid back ${DOT} No entries $0.00`,
-    `Total sent ${DOT} No entries $0.00`,
+    `Sent in MVR ${DOT} No entries 0/- ($0.00)` +
+      ` Sent in USD ${DOT} No entries $0.00` +
+      ` Total Sent ${DOT} No entries $0.00`,
   ])
   expect(
     [reading.back.foot?.count, reading.back.foot?.cents, reading.sent.foot?.count, reading.sent.foot?.cents],

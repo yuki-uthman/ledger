@@ -49,8 +49,11 @@ import {
 //     cell appends its figure and its rate with NO whitespace between them, so the
 //     cell's own text reads '10,000/-@20' while the owner sees the gap the board
 //     draws; a row read as one line of text therefore holds that one token.
-//     The balance card and the footer of this list are untouched here: they keep
-//     today's one line and their two decimals until the value that splits them.
+//   - The footer of this list now reads three lines in one block: what went in rufiyaa
+//     with its stored dollars in brackets, what went in dollars, and the total of both,
+//     each with its own count. Read as one text here, those lines stand in that order;
+//     each line's own hooks are read by the footer's own oracle. The balance card is
+//     untouched and keeps its two decimals.
 
 const PASSWORD_FIELD = 'input[type="password"]'
 const VIEWPORT = { width: 360, height: 780 } as const
@@ -225,14 +228,34 @@ const expectedFigures = (
   return { sent, paid, balance: Math.abs(sent - paid) }
 }
 
-/** The footer of the sent list: its words, its count and its total. */
+/** The bracketed reading of a footer subtotal in dollars, which keeps its two decimals. */
+const convertedTotal = (cents: number): string => `(${usdWithSign(cents)})`
+
+/**
+ * The footer of the sent list: three lines in the order they are drawn, read as the one
+ * block of text they stand in. The rufiyaa line reads the laari the sends stored in MVR
+ * add up to, with the dollars those same sends store in brackets; the dollar line reads
+ * the sends stored in USD; the total line reads every send, whatever its currency. Each
+ * count is worded as this app words a count, every figure keeps its two decimals except
+ * the rufiyaa subtotal, which reads like a rufiyaa amount, and the block's own count and
+ * cents are still the total line's, so a reader that knew only the old hooks still reads
+ * the total. All three lines stand at every ledger, the empty one included.
+ */
 const expectedFoot = (rows: readonly StoredLedgerRow[]): { count: string; cents: string; text: string } => {
   const sends = rows.filter((row) => row.kind === 'send')
-  const cents = sends.reduce((sum, row) => sum + row.usd_cents, 0)
+  const centsOf = (group: readonly StoredLedgerRow[]): number =>
+    group.reduce((sum, row) => sum + row.usd_cents, 0)
+  const inRufiyaa = sends.filter((row) => row.currency === 'MVR')
+  const inDollars = sends.filter((row) => row.currency === 'USD')
+  const laari = inRufiyaa.reduce((sum, row) => sum + row.amount_minor, 0)
   return {
     count: String(sends.length),
-    cents: String(cents),
-    text: `Total sent ${DOT} ${countLabel(sends.length)} ${usdWithSign(cents)}`,
+    cents: String(centsOf(sends)),
+    text: [
+      `Sent in MVR ${DOT} ${countLabel(inRufiyaa.length)} ${mvrFigure(laari)} ${convertedTotal(centsOf(inRufiyaa))}`,
+      `Sent in USD ${DOT} ${countLabel(inDollars.length)} ${usdWithSign(centsOf(inDollars))}`,
+      `Total Sent ${DOT} ${countLabel(sends.length)} ${usdWithSign(centsOf(sends))}`,
+    ].join(' '),
   }
 }
 
@@ -929,7 +952,7 @@ test('a tap on Statement starts at the balance card, reads the three figures and
 
   expect(
     reading.foot,
-    'WHAT: the footer does not read Total sent with the count and the total of its own rows. WHY: the footer is the owner\'s check that the list and the card agree. HOW: count the sent rows and add their stored dollars.',
+    'WHAT: the footer does not read its three lines - Sent in MVR with the rufiyaa subtotal and its bracketed dollars, Sent in USD with its dollar subtotal, and Total Sent with the total - each with the count of its own sends. WHY: the footer is the owner\'s check that the list and the card agree, and a single line would hide which half of the money went in which currency. HOW: split the sent footer by the stored currency of each send, draw all three lines, and keep the block\'s own count and cents reading the total line.',
   ).toEqual(expectedFoot(stored))
 
   expect(
@@ -1059,8 +1082,12 @@ test('an owner with nothing recorded still reads the whole statement, with no ro
   ).toEqual([])
   expect(
     reading.foot?.text,
-    `WHAT: the footer of an empty list does not read 'Total sent ${DOT} No entries $0.00'. WHY: 'No entries' is how this app words a count of none. HOW: word the count from the number of sent rows.`,
-  ).toBe(`Total sent ${DOT} No entries $0.00`)
+    `WHAT: the footer of an empty list does not read all three of its lines at zero: 'Sent in MVR ${DOT} No entries 0/- ($0.00)', 'Sent in USD ${DOT} No entries $0.00' and 'Total Sent ${DOT} No entries $0.00'. WHY: 'No entries' is how this app words a count of none, and a currency line hidden at zero would read as a currency the owner cannot send in. HOW: draw all three lines whatever the ledger holds, wording each count from the sends stored in that currency.`,
+  ).toBe(
+    `Sent in MVR ${DOT} No entries 0/- ($0.00)` +
+      ` Sent in USD ${DOT} No entries $0.00` +
+      ` Total Sent ${DOT} No entries $0.00`,
+  )
   expect(
     [reading.foot?.count, reading.foot?.cents],
     'WHAT: the empty footer does not carry a count of 0 and a total of 0. WHY: the footer\'s own numbers are what a reader checks the words against. HOW: carry the count and the cents of the rows the footer sums.',
@@ -1148,8 +1175,8 @@ test('a long ledger still scrolls only its rows, and its footer still counts eve
 
   const reading = await readStatement(page)
   expect(
-    [reading.foot?.count, reading.foot?.text.includes(`${LONG_LEDGER_ROWS} entries`)],
-    `WHAT: the footer does not count all ${LONG_LEDGER_ROWS} sends. WHY: a count that stops at what is drawn would understate what the owner sent. HOW: count the stored sends, not the rows in sight.`,
+    [reading.foot?.count, reading.foot?.text.includes(`Total Sent ${DOT} ${LONG_LEDGER_ROWS} entries`)],
+    `WHAT: the footer's total line does not count all ${LONG_LEDGER_ROWS} sends. WHY: a count that stops at what is drawn would understate what the owner sent, at any length. HOW: count the stored sends on the total line, not the rows in sight.`,
   ).toEqual([String(LONG_LEDGER_ROWS), true])
 })
 
