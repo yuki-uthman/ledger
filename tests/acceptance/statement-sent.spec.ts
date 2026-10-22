@@ -31,7 +31,7 @@ import {
 // derived in this file from what the ledger actually stores, so the oracle cannot
 // echo back whatever the screen happens to draw.
 //
-// Two notes on where the expected figures come from.
+// Three notes on where the expected figures come from.
 //   - The brief's own figures-law says the three card figures are the sum of the
 //     sends, the sum of the repayments and the unsigned difference. Applied to the
 //     brief's own seven seeded rows that is 459,635, 1,100,000 and 640,365 cents; the
@@ -42,12 +42,23 @@ import {
 //     that row alone cannot catch a screen that converts a second time. The generated
 //     ledgers store dollars unrelated to their rate, which is what makes the
 //     'read the stored dollars' law falsifiable.
+//   - A sent row now reads its own currency columns: the MVR column holds a rufiyaa
+//     send's marked figure with its rate appended to it, and nothing but the em dash
+//     where the send was made in dollars, while the USD column holds the dollars the
+//     entry stores, marked, and bracketed where the send was made in rufiyaa. The MVR
+//     cell appends its figure and its rate with NO whitespace between them, so the
+//     cell's own text reads '10,000/-@20' while the owner sees the gap the board
+//     draws; a row read as one line of text therefore holds that one token.
+//     The balance card and the footer of this list are untouched here: they keep
+//     today's one line and their two decimals until the value that splits them.
 
 const PASSWORD_FIELD = 'input[type="password"]'
 const VIEWPORT = { width: 360, height: 780 } as const
 
 /** The separator the board draws between the parts of a line. */
 const DOT = '·'
+/** The mark that stands where a rufiyaa figure is absent: an em dash, not a hyphen. */
+const EM_DASH = '—'
 
 /** The bar's own height, which is what the panes end above. */
 const BAR_HEIGHT = 84
@@ -69,12 +80,20 @@ const METHOD_WORDS: Record<Method, string> = {
   transfer: 'Transfer',
 }
 
-/** One row of the Sent for Abbaas list, as the owner reads it across the row. */
+/**
+ * One row of the Sent for Abbaas list, as the owner reads it across the row: its place,
+ * which the row carries as a hook and draws nowhere, its date, the person paid with the
+ * line under them, and its two currency columns.
+ */
 type SentRowReading = {
   readonly no: string
   readonly date: string
   readonly party: string
   readonly sub: string | null
+  /** The marked rufiyaa figure, or null where the send was made in dollars. */
+  readonly mvr: string | null
+  /** The inline rate behind its mark, or null where there is no rate to read. */
+  readonly rate: string | null
   readonly usd: string
 }
 
@@ -97,8 +116,7 @@ type StatementReading = {
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const
 
 const dollars = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-const wholeRufiyaa = new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
-const partRufiyaa = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const grouped = new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 
 /** The day and short month a date reads as, with no leading zero: '2026-09-14' is '14 Sep'. */
 const shortDate = (date: string): string => {
@@ -108,19 +126,33 @@ const shortDate = (date: string): string => {
 /** The same label without its year, which is how a date inside one year reads. */
 const shortDateNoYear = (date: string): string => shortDate(date).split(' ').slice(0, 2).join(' ')
 
-/** A USD figure as the card and the footer read it, and as a row cell reads it unsigned. */
+/** A USD figure as the card and the footer read it: always to two decimals. */
 const usdWithSign = (cents: number): string => `$${dollars.format(Math.abs(cents) / 100)}`
-const usdNoSign = (cents: number): string => dollars.format(Math.abs(cents) / 100)
 
-/** Laari as rufiyaa: grouped, without decimals when whole. */
-const rufiyaa = (laari: number): string =>
-  laari % 100 === 0 ? wholeRufiyaa.format(laari / 100) : partRufiyaa.format(laari / 100)
+/**
+ * Whole minor units as the owner reads the amount in a row: grouped with commas, with no
+ * decimals when the amount is whole and with two when it is not. Nothing is rounded.
+ */
+const minorFigure = (minor: number): string => {
+  const units = Math.abs(minor)
+  return units % 100 === 0 ? grouped.format(units / 100) : dollars.format(units / 100)
+}
 
-/** A stored rate as the sub-line words it: no trailing zeros, at most four decimals. */
+/** The marked whole reading of the dollars a row stores: '$1,500', '$1,500.50'. */
+const usdFigure = (cents: number): string => `$${minorFigure(cents)}`
+/** The bracketed reading of the dollars a rufiyaa send stores: '($500)', '($649.35)'. */
+const convertedFigure = (cents: number): string => `(${usdFigure(cents)})`
+/** The marked reading of stored laari: '10,000/-', '10,000.50/-'. */
+const mvrFigure = (laari: number): string => `${minorFigure(laari)}/-`
+
+/** A stored rate as the owner reads it beside a figure: no trailing zeros, at most four decimals. */
 const plainRate = (stored: string): string => {
   if (!stored.includes('.')) return stored
   return stored.replace(/0+$/, '').replace(/\.$/, '')
 }
+
+/** The rate as it stands inline in the MVR cell, behind its mark and against the figure. */
+const inlineRate = (stored: string): string => `@${plainRate(stored)}`
 
 /** What the Entries count and the footer call a number of entries. */
 const countLabel = (count: number): string => {
@@ -129,15 +161,14 @@ const countLabel = (count: number): string => {
   return `${count} entries`
 }
 
-/** A send's sub-line: the stored method first, then an MVR entry's rufiyaa figure and rate. */
+/**
+ * A send's sub-line: the stored method's word alone. The rufiyaa figure and its rate are
+ * read in the MVR column of the row itself, so nothing of them is worded here; a row with
+ * nothing nameable stored has no sub-line at all.
+ */
 const sublineOf = (row: StoredLedgerRow): string | null => {
-  const word = row.method === null ? null : (METHOD_WORDS[row.method as Method] ?? null)
-  const mvr =
-    row.currency === 'MVR' && row.rate !== null
-      ? `MVR ${rufiyaa(row.amount_minor)} @ ${plainRate(row.rate)}`
-      : null
-  const parts = [word, mvr].filter((part): part is string => part !== null)
-  return parts.length === 0 ? null : parts.join(` ${DOT} `)
+  if (row.method === null) return null
+  return METHOD_WORDS[row.method as Method] ?? null
 }
 
 /** Oldest first: by entry date, then by the instant it was saved, then by its id. */
@@ -149,19 +180,41 @@ const oldestFirst = (rows: readonly StoredLedgerRow[]): readonly StoredLedgerRow
       left.id.localeCompare(right.id),
   )
 
-/** The numbered sent rows the stored ledger means, in the order the owner reads them. */
+/**
+ * The sent rows the stored ledger means, in the order the owner reads them: each one's
+ * place, its date, its person and sub-line, and its two currency columns, all derived from
+ * the stored currency, minor units, rate and dollars of that row alone.
+ */
 const expectedSentRows = (rows: readonly StoredLedgerRow[]): readonly SentRowReading[] =>
-  oldestFirst(rows.filter((row) => row.kind === 'send')).map((row, index) => ({
-    no: String(index + 1),
-    date: shortDateNoYear(row.entry_date),
-    party: row.person_name ?? '',
-    sub: sublineOf(row),
-    usd: usdNoSign(row.usd_cents),
-  }))
+  oldestFirst(rows.filter((row) => row.kind === 'send')).map((row, index) => {
+    const inRufiyaa = row.currency === 'MVR'
+    return {
+      no: String(index + 1),
+      date: shortDateNoYear(row.entry_date),
+      party: row.person_name ?? '',
+      sub: sublineOf(row),
+      mvr: inRufiyaa ? mvrFigure(row.amount_minor) : null,
+      rate: inRufiyaa && row.rate !== null ? inlineRate(row.rate) : null,
+      usd: inRufiyaa ? convertedFigure(row.usd_cents) : usdFigure(row.usd_cents),
+    }
+  })
 
-/** The whole row as one line of text, in the order the cells stand. */
+/**
+ * The whole row as one line of text, in the order the cells stand: the date, the person
+ * with their sub-line, the MVR cell and the USD cell. No place is drawn in the row at all.
+ * The MVR cell's own figure and rate carry no whitespace between them, so they stand here
+ * as one token, and a dollar send reads the em dash that stands for the figure it has not.
+ */
 const asRowText = (row: SentRowReading): string =>
-  [row.no, row.date, row.party, row.sub, row.usd].filter((cell) => cell !== null && cell !== '').join(' ')
+  [
+    row.date,
+    row.party,
+    row.sub,
+    row.mvr === null ? EM_DASH : `${row.mvr}${row.rate ?? ''}`,
+    row.usd,
+  ]
+    .filter((cell) => cell !== null && cell !== '')
+    .join(' ')
 
 /** The three figures of the balance card, in cents. */
 const expectedFigures = (
@@ -854,24 +907,24 @@ test('a tap on Statement starts at the balance card, reads the three figures and
   ).toHaveAccessibleName('Sent for Abbaas')
   expect(
     reading.head,
-    'WHAT: the column header does not read No., Date, Paid to and USD. WHY: those four words are what make the four cells of a row readable. HOW: draw the header the board draws.',
-  ).toEqual(['No.', 'Date', 'Paid to', 'USD'])
+    'WHAT: the column header does not read Date, Paid to, MVR and USD. WHY: those four words are what make the four cells of a row readable, and the two currency words are how the owner knows which column holds rufiyaa and which holds dollars. HOW: draw the header the board draws, with no number column at all.',
+  ).toEqual(['Date', 'Paid to', 'MVR', 'USD'])
 
   expect(
     reading.rows.map((row) => row.no),
-    'WHAT: the rows are not numbered 1 upward in document order. WHY: the numbering is the owner\'s way of counting the sends they made. HOW: number the sends 1 upward in the oldest-first order.',
+    'WHAT: the rows do not carry their place, 1 upward in document order. WHY: the number is no longer drawn, but each row still knows where it stands in the oldest-first order, which is what a reader of this list checks the order by. HOW: carry each send\'s own place on its row, 1 upward in the oldest-first order, and draw no number in the row.',
   ).toEqual(rows.map((row) => row.no))
   expect(
     reading.rowTexts,
-    'WHAT: the sent rows do not read, oldest first, their number, their date, the person paid with the sub-line, and the dollars. WHY: this list IS the statement: a wrong order, a wrong date, a wrong sub-line or a wrong figure misstates what the owner sent. HOW: build each row from its own stored entry, oldest first by date, then by the instant it was saved, then by its id.',
+    'WHAT: the sent rows do not read, oldest first, their date, the person paid with the sub-line, their rufiyaa column and their dollar column, with no number drawn anywhere. WHY: this list IS the statement: a drawn number, a wrong order, a wrong date, a wrong sub-line or a wrong figure in either currency misstates what the owner sent. HOW: build each row from its own stored entry, oldest first by date, then by the instant it was saved, then by its id, with the rufiyaa figure and its rate in the MVR cell and the stored dollars in the USD cell.',
   ).toEqual(rows.map(asRowText))
   expect(
     reading.rows.map((row) => row.sub),
-    'WHAT: a row\'s sub-line is not the stored method and, for a rufiyaa send, its figure and unpadded rate. WHY: a sub-line that pads the rate, invents a method or drops one misstates what was stored. HOW: word the method first, then the rufiyaa figure and the rate with no trailing zeros, and draw no sub-line at all for a dollar send with no stored method.',
+    'WHAT: a row\'s sub-line is not the stored method\'s word alone. WHY: the rufiyaa figure and its rate are read in the MVR column now, so anything else under the person either repeats a column or invents what was stored. HOW: word the stored method and nothing else, and draw no sub-line at all for a send with no nameable stored method.',
   ).toEqual(rows.map((row) => row.sub))
   expect(
-    reading.rowTexts.filter((text) => text.includes('$')),
-    'WHAT: a row prints a currency sign. WHY: the column is headed USD and every figure on this screen is in US dollars. HOW: draw each row\'s figure unsigned.',
+    reading.rowTexts.filter((text) => !text.includes('$')),
+    'WHAT: a sent row reads a figure with no mark on it. WHY: a row carries two currencies at once, so an unmarked figure leaves the owner unable to tell rufiyaa from dollars: every row reads its stored dollars marked, in brackets where the send was made in rufiyaa. HOW: word each row figure with its own mark rather than through the unmarked two-decimal formatter.',
   ).toEqual([])
 
   expect(
@@ -998,8 +1051,8 @@ test('an owner with nothing recorded still reads the whole statement, with no ro
   ])
   expect(
     reading.head,
-    'WHAT: the column header is missing on an empty statement. WHY: the owner must see what the list would hold. HOW: draw the header whether or not there is a row.',
-  ).toEqual(['No.', 'Date', 'Paid to', 'USD'])
+    'WHAT: the column header is missing on an empty statement. WHY: the owner must see what the list would hold, both currency columns included. HOW: draw the header whether or not there is a row.',
+  ).toEqual(['Date', 'Paid to', 'MVR', 'USD'])
   expect(
     reading.rows,
     'WHAT: an empty ledger shows rows. WHY: a row the owner never recorded is a lie about their money. HOW: list a row for each stored send and no other.',
@@ -1305,12 +1358,16 @@ test('a stored MVR row and a row with no method read as recorded', async ({ page
   ).toHaveCount(1)
   await expect(
     mvrRow.locator('[data-statement-sub]'),
-    `WHAT: the rufiyaa row's sub-line does not read 'Transfer ${DOT} MVR 17,000 @ 20'. WHY: it is read from the stored method, amount and rate: a padded rate would read '@ 20.00' and a converted figure would restate the owner's money. HOW: word the stored method, then the stored rufiyaa figure, then the stored rate with no trailing zeros.`,
+    "WHAT: the rufiyaa row's sub-line does not read 'Transfer' alone. WHY: it is the stored method and nothing else now: the rufiyaa figure and the rate are read in the MVR column, so repeating them here would state the same money twice. HOW: word the stored method alone under the person.",
   ).toHaveText(sublineOf(mvr!) ?? '')
   await expect(
     mvrRow,
-    'WHAT: the rufiyaa row\'s dollars are not the dollars it stores. WHY: converting the rufiyaa figure a second time moves the owner\'s money by the rounding. HOW: draw the stored dollars, unsigned.',
-  ).toContainText(usdNoSign(mvr!.usd_cents))
+    `WHAT: the rufiyaa row does not read '${mvrFigure(1700000)}${inlineRate('20.0000')}' in its MVR column. WHY: it is read from the stored laari and the stored rate: a padded rate would read '@20.00' and a rounded figure would state an amount the ledger does not hold. HOW: mark the stored rufiyaa figure with '/-' and append the stored rate behind '@', with no trailing zeros.`,
+  ).toContainText(`${mvrFigure(mvr!.amount_minor)}${inlineRate(mvr!.rate ?? '')}`)
+  await expect(
+    mvrRow,
+    'WHAT: the rufiyaa row\'s dollars are not the bracketed reading of the dollars it stores. WHY: converting the rufiyaa figure a second time moves the owner\'s money by the rounding, and the brackets are what tell the owner this dollar figure stands behind a rufiyaa send. HOW: draw the stored dollars, marked and in brackets.',
+  ).toContainText(convertedFigure(mvr!.usd_cents))
 
   const noMethodRow = statement(page).locator(`[data-statement-list="sent"] [data-statement-row="${noMethod!.id}"]`)
   await expect(

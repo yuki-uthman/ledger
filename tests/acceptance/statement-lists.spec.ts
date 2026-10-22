@@ -40,6 +40,12 @@ import {
 //   - The colours, the words and the pill's measurements are the design board's own.
 //   - The empty ledger is read once, in its own scenario; the generated ledgers run from
 //     one entry up to twelve, so no case is observed twice with the same assertion.
+//   - The two lists no longer read the same row. A send reads its date, the person paid,
+//     its rufiyaa column and its dollar column, and its dollar figure carries its mark,
+//     bracketed where the send was made in rufiyaa. A repayment is untouched here: it
+//     keeps its number, its method, its unsigned two-decimal figure and its one-line
+//     footer until the value that reads that list. Both footers and the balance card
+//     keep their two decimals.
 
 const PASSWORD_FIELD = 'input[type="password"]'
 const VIEWPORT = { width: 360, height: 780 } as const
@@ -93,13 +99,22 @@ const THUMB_INSET = 6
 /** Where a panel lies against the phone's own width. */
 type Place = 'absent' | 'inside' | 'outside' | 'partly'
 
-/** One row of either list, as the owner reads it across the row. */
+/**
+ * One row of either list, as the owner reads it across the row. The two lists no longer
+ * stand on the same cells: a send reads its date, the person paid, its rufiyaa column and
+ * its dollar column, while a repayment still reads its number, its date, its method and
+ * its dollars. So the cells are read as they stand, the dollar cell is taken as the last
+ * one of either row, and the rufiyaa cell is found by its own hook rather than by a
+ * position the other list does not share.
+ */
 type RowReading = {
   readonly id: string
   readonly no: string
   readonly cells: readonly string[]
   readonly usd: string
   readonly usdInk: string
+  /** What the row's own rufiyaa cell reads, or null where the row has no such cell. */
+  readonly mvr: string | null
   readonly hasPerson: boolean
   readonly hasSub: boolean
   readonly subText: string | null
@@ -150,6 +165,7 @@ type ScreenReading = {
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const
 
 const dollars = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const grouped = new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 
 /** The day and short month a date reads as, with no leading zero: '2026-09-17' is '17 Sep'. */
 const shortDateNoYear = (date: string): string => {
@@ -158,11 +174,31 @@ const shortDateNoYear = (date: string): string => {
   return `${Number(parts[2])} ${month}`.trim()
 }
 
-/** A USD figure as a footer and the card read it, and as a row cell reads it unsigned. */
+/** A USD figure as a footer and the card read it: always to two decimals. */
 const usdWithSign = (cents: number): string => `$${dollars.format(Math.abs(cents) / 100)}`
+/** The same reading without its mark, which is how a paid-back row still reads its dollars. */
 const usdNoSign = (cents: number): string => dollars.format(Math.abs(cents) / 100)
 
-/** A stored rate as a sub-line words it: no trailing zeros, at most four decimals. */
+/**
+ * Whole minor units as a row of the sending list reads them: grouped with commas, with no
+ * decimals when the amount is whole and with two when it is not. Nothing is rounded.
+ */
+const minorFigure = (minor: number): string => {
+  const units = Math.abs(minor)
+  return units % 100 === 0 ? grouped.format(units / 100) : dollars.format(units / 100)
+}
+
+/**
+ * What one stored send reads in the USD column of the sending list: the marked whole
+ * reading of the dollars it stores, bracketed where the send was made in rufiyaa. The
+ * paid-back list is not this list, and keeps its own unsigned two-decimal reading.
+ */
+const sentFigureOf = (row: StoredLedgerRow): string => {
+  const figure = `$${minorFigure(row.usd_cents)}`
+  return row.currency === 'MVR' ? `(${figure})` : figure
+}
+
+/** A stored rate as the owner reads it beside a figure: no trailing zeros, at most four decimals. */
 const plainRate = (stored: string): string =>
   stored.includes('.') ? stored.replace(/0+$/, '').replace(/\.$/, '') : stored
 
@@ -580,12 +616,16 @@ const readScreen = (page: Page): Promise<ScreenReading> =>
         const cells = Array.from(row.children)
         const last = cells[cells.length - 1] ?? row
         const sub = row.querySelector('[data-statement-sub]')
+        const mvrCell = row.querySelector('[data-statement-mvr]')
         return {
           id: row.getAttribute('data-statement-row') ?? '',
           no: row.getAttribute('data-no') ?? '',
           cells: cells.map((cell) => squash(cell.textContent)),
           usd: squash(last.textContent),
           usdInk: window.getComputedStyle(last).color,
+          // Not squashed: a rufiyaa cell appends its figure and its rate with no
+          // whitespace between them, and that is itself part of what it reads.
+          mvr: mvrCell === null ? null : (mvrCell.textContent ?? '').trim(),
           hasPerson: row.querySelector('[data-person]') !== null,
           hasSub: sub !== null,
           subText: sub === null ? null : squash(sub.textContent),
@@ -910,17 +950,16 @@ for (const settled of [
       'WHAT: the sent list does not read exactly as it did before the round trip. WHY: looking at what came back and returning changes nothing the owner can see about what they sent. HOW: switch the shown panel rather than rebuilding either list.',
     ).toEqual([before.sent.head, before.sent.rows.map((row) => row.text), before.sent.foot])
     expect(
-      after.sent.rows.map((row) => [row.id, row.no, row.subText]),
-      'WHAT: a sent row lost its number, its place or its sub-line in the round trip. WHY: the sub-line is the stored method and, for a rufiyaa send, its figure and rate: losing it in a switch misstates the entry. HOW: keep the rows mounted and move the panel.',
-    ).toEqual(before.sent.rows.map((row) => [row.id, row.no, row.subText]))
+      after.sent.rows.map((row) => [row.id, row.no, row.subText, row.mvr]),
+      'WHAT: a sent row lost its place, its sub-line or its rufiyaa cell in the round trip. WHY: the sub-line is the stored method and the rufiyaa cell is a rufiyaa send\'s own figure and rate: losing either in a switch misstates the entry. HOW: keep the rows mounted and move the panel.',
+    ).toEqual(before.sent.rows.map((row) => [row.id, row.no, row.subText, row.mvr]))
     const ratedRows = storedRowsOf(stored, 'sent').filter((row) => row.rate !== null)
     expect(
       ratedRows.map(
         (row) =>
-          after.sent.rows.find((seen) => seen.id === row.id)?.subText?.includes(`@ ${plainRate(row.rate ?? '')}`) ??
-          false,
+          after.sent.rows.find((seen) => seen.id === row.id)?.mvr?.includes(`@${plainRate(row.rate ?? '')}`) ?? false,
       ),
-      'WHAT: a rufiyaa send\'s sub-line does not name its stored rate with no trailing zeros after the round trip. WHY: a padded rate reads \'@ 20.00\' where the owner gave 20, which states a rate they never gave. HOW: word the rate with no trailing zeros, and keep the row through a switch.',
+      'WHAT: a rufiyaa send\'s rufiyaa cell does not name its stored rate with no trailing zeros after the round trip. WHY: the rate stands inline beside the rufiyaa figure now, and a padded rate reads \'@20.00\' where the owner gave 20, which states a rate they never gave. HOW: word the rate with no trailing zeros behind its mark in the MVR cell, and keep the row through a switch.',
     ).toEqual(ratedRows.map(() => true))
     for (const part of ['card', 'pill'] as const) {
       expect(
@@ -1488,9 +1527,14 @@ const readBothListsAndJudge = async (
     if (JSON.stringify(seenFoot) !== JSON.stringify([foot.count, foot.cents, foot.text])) {
       reasons.push(`the ${which} footer reads ${JSON.stringify(seenFoot)} not ${JSON.stringify(foot)}`)
     }
-    if (seen.rows.map((row) => row.usd).join(',') !== expectedRows.map((row) => usdNoSign(row.usd_cents)).join(',')) {
+    // Each list words its own figure: a send reads its stored dollars marked, and
+    // bracketed where it was sent in rufiyaa, while a repayment still reads the
+    // unsigned two decimals that list keeps until its own value.
+    const figureOf = (row: StoredLedgerRow): string =>
+      which === 'sent' ? sentFigureOf(row) : usdNoSign(row.usd_cents)
+    if (seen.rows.map((row) => row.usd).join(',') !== expectedRows.map(figureOf).join(',')) {
       reasons.push(
-        `the ${which} figures read ${seen.rows.map((row) => row.usd).join(',')} not ${expectedRows.map((row) => usdNoSign(row.usd_cents)).join(',')}`,
+        `the ${which} figures read ${seen.rows.map((row) => row.usd).join(',')} not ${expectedRows.map(figureOf).join(',')}`,
       )
     }
   }
