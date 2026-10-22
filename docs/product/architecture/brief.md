@@ -2532,12 +2532,15 @@ Verification command: `npm run test:acceptance -- tests/acceptance/entry-method.
   most the four decimals it is stored to, so 20 reads '@ 20', 15.4 reads '@
   15.4' and 15.425 reads '@ 15.425'; the entry sheet keeps its own padded '20.00
   MVR per $1'.
+  Superseded by the statement-currency-columns feature (docs/feature/statement-currency-columns/architecture/brief.md): the rate now sits inline after the rufiyaa figure in the MVR column, written '@20' with no space.
 - F-c-order: Statement rows run oldest first, by entry_date ascending, then
   saved_at ascending, then id, and are numbered 1 upward in that order; Home
   keeps its newest-first order.
+  Superseded by the statement-currency-columns feature (docs/feature/statement-currency-columns/architecture/brief.md): the oldest-first order and each row's 1-upward place (data-no) stay, but no row number is drawn.
 - F-c-usd-column: The USD column shows its figure with no currency sign, because
   the column is headed USD and every figure on this screen is in US dollars; the
   balance card keeps its '$' and shows every figure unsigned.
+  Superseded by the statement-currency-columns feature (docs/feature/statement-currency-columns/architecture/brief.md): every row figure now carries its mark ('$1,500', '10,000/-', '($500)') and drops a trailing '.00'; totals keep two decimals.
 - F-c-no-top: The Statement pane draws nothing above the balance card: no
   heading and no period line, at any ledger length, the empty one included. The
   pane keeps the accessible name Statement, so a screen reader still names the
@@ -2965,6 +2968,7 @@ Verification command: `npm run test:acceptance -- tests/acceptance/entry-method.
 - F-ob-rows: The shown list's rows, read in document order as the tuple of
   data-no, the date cell, the party or method cell, the sub-line and the USD
   cell.
+  Superseded by the statement-currency-columns feature (docs/feature/statement-currency-columns/architecture/brief.md): a sent row now reads its date, party, sub-line, MVR cell and USD cell, and a paid-back row its date, method and USD cell; data-no still names its place.
 - F-ob-rows-blind: It cannot tell the alternating row tints apart and says
   nothing about fonts or row heights.
 - F-ob-foot: A footer's count and total, read as its text, its data-count and
@@ -5328,20 +5332,24 @@ npm run build
   px column gap, rows alternating #ffffff and #fafcfb starting white at row 1,
   each USD figure in #24508a, and the footer reading 'Total sent' with its count
   and its total on #e7eef7 in #1b3f6e.
+  Superseded by the statement-currency-columns feature (docs/feature/statement-currency-columns/architecture/brief.md): the sent header reads Date, Paid to, MVR and USD on the grid 40px minmax(0, 1fr) 84px 54px with a 6 px gap, and the footer reads three lines (Sent in MVR, Sent in USD, Total Sent).
 - V1-c-row-cells: A row's cells are its number, its date as day and short month
   with no leading zero, the person paid with the sub-line under the name, and
   its USD figure with no currency sign.
+  Superseded by the statement-currency-columns feature (docs/feature/statement-currency-columns/architecture/brief.md): a sent row's cells are its date, the person with the method sub-line, its MVR cell and its marked USD cell; no number is drawn.
 - V1-d-sent-row: A sent row is built by src/domain/statement.ts from one entry:
   its number from its place in the oldest-first order, its date label from
   entry_date, its party from person_name, its sub-line text, and its usdCents.
   The person's own id stays on the element naming the person, as Home already
   carries it.
+  Superseded by the statement-currency-columns feature (docs/feature/statement-currency-columns/architecture/brief.md): a sent row also carries its MVR cell (marked figure, inline rate, bracketed stored dollars) and its marked USD figure.
 - V1-d-subline: A send's sub-line names the stored method first and then, for an
   MVR entry, the rufiyaa figure and the rate: 'Transfer - MVR 17,000 @ 20' for
   an MVR entry with a method, 'Transfer' for a USD one, 'MVR 10,000 @ 15.4' for
   an MVR entry with no stored method, and nothing at all for a USD entry with no
   stored method, whose row then carries no data-statement-sub and is a single
   line.
+  Superseded by the statement-currency-columns feature (docs/feature/statement-currency-columns/architecture/brief.md): the sub-line reads the stored method alone ('Transfer'); the rufiyaa figure and rate moved to the MVR column.
 - V1-d-empty: On an empty ledger the Statement still shows its balance card
   reading $0.00 three times, and the sent panel with its column header, no row
   and the footer 'Total sent - No entries' with $0.00.
@@ -6385,6 +6393,7 @@ npm run build
   as the sent one, headed No., Date, Method and USD, with each USD figure in
   #0f6f68 and the footer reading 'Total paid back' with its count and total on
   #e0f0ed in #0b5750.
+  Superseded by the statement-currency-columns feature (docs/feature/statement-currency-columns/architecture/brief.md): the paid-back header reads Date, Method and USD (USD centred) on the grid 40px minmax(0, 1fr) 70px with a 6 px gap.
 - V2-c-both-mounted: Both panels are in the document at once, each absolutely
   placed in one relative area that is flex 1 with min-height 0 and overflow
   hidden, so a switch moves no pinned part and the value that adds motion has
@@ -6402,6 +6411,7 @@ npm run build
   its date label, its stored method's word or nothing at all, and its usdCents.
   A repayment names nobody, so no row carries a person and none reads a
   sub-line.
+  Superseded by the statement-currency-columns feature (docs/feature/statement-currency-columns/architecture/brief.md): a paid-back row draws no number and reads its figure with the '$' mark under the row rule ('$3,000', '$3,000.25').
 - V2-d-back-empty: On an empty ledger the paid-back panel shows its column
   header, no row and the footer 'Total paid back - No entries' with $0.00,
   exactly as the sent panel does.
@@ -6432,6 +6442,7 @@ npm run build
   list again. The balance card and the pill stay in place through both switches,
   each list's column header and footer stay in place, and only the rows of the
   shown list scroll.
+  Superseded by the statement-currency-columns feature (docs/feature/statement-currency-columns/architecture/brief.md): the paid-back list now reads Date, Method and USD with no number column and '$'-marked figures.
 - V2-po-stimulus: The acceptance support starts the stack, resets it, waits for
   the auth service, builds and serves the bundle, creates one account and seeds,
   with explicit saved_at times, one person and nine entries: five sends as value
