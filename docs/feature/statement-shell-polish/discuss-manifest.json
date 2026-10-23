@@ -1,0 +1,334 @@
+{
+  "schema_version": 2,
+  "request": "Polish the Statement screen, the bottom navigation bar and the Entries screen. The owner tuned 21 tweaks live on their phone against an uncommitted prototype and approved them as final (\"yes\" to: the 21 tweaks as they look on the phone now are the approved, final batch).",
+  "outcomes": [
+    "The owner reads, on a rufiyaa send's row of the Statement, the rufiyaa that went out and then the rate it went out at with the dollars that same send stores, and reads nothing in that row's USD column.",
+    "The owner reads, on a dollar send's row, nothing at all in the MVR column, and its dollars in the USD column as before.",
+    "The owner reads the sent footer's rufiyaa subtotal and, on the line under it, an arrow with the converted dollar total.",
+    "The owner reads the Paid Back figure of the balance card with no minus before it.",
+    "The owner sees each view in the bottom bar as an icon above its word, and sees only that icon and that word dim under a press.",
+    "The owner moves between Entries and Statement with a sideways swipe that carries both screens with the finger, settles on one of the two views, and releases no tap on whatever was under the finger.",
+    "The owner scrolls the entries list on Entries while the You/Abbaas card and the Entries heading stay where they are.",
+    "The owner judges the whole batch on their own phone, against the look they approved, before anything is landed."
+  ],
+  "scope": {
+    "in_scope": [
+      "What a sent row's MVR column and USD column read, for a send made in rufiyaa and for a send made in dollars.",
+      "What the sent list's footer reads on its rufiyaa line: the subtotal, and the converted dollar total under it with an arrow.",
+      "What the balance card's Paid Back row reads: the figure with no sign before it.",
+      "The bottom bar: an icon above each word, the pill around the icon of the view being read, a press that dims only the icon and the word, and the tab marked as the current view.",
+      "The sideways swipe between Entries and Statement: the screens, the pill, the dimming and the tab colours following the finger; a flick or a drag past 30% of the width switching; a shorter drag springing back; a vertical move still scrolling; a lift after a swipe tapping nothing; and the arriving Statement rising as it does on a tap.",
+      "Entries: the You/Abbaas card and the Entries heading staying where they are while only the entries list scrolls.",
+      "The approved design values of this batch - the gaps, the sizes, the column track, the bar padding and the look of the pill - carried as source changes, judged on the owner's phone and asserted in no spec.",
+      "Removing the now-unused NO_RUFIYAA and MINUS constants from the Statement screen.",
+      "Layout invariants worded without any exact px: no horizontal page scroll, no figure cut off or overlapped, the last entry reachable clear of the Send and Receive buttons, a motion ending in its resting state, and reduced motion showing the end state."
+    ],
+    "out_of_scope": {
+      "applicability": "applicable",
+      "reason": "The owner named these exclusions. This batch changes what three screens read and how the owner moves between two of them, and nothing else.",
+      "items": [
+        "Any change to money arithmetic, rounding or stored data.",
+        "Supabase, sign-in, the entry sheets, and the send and receive forms.",
+        "The design-value spec clean-up itself, which is issue #A and lands before this Request.",
+        "A swipe between the Sent and the Paid back lists inside the Statement.",
+        "Asserting, in any spec, an exact colour, font size, weight, letter-spacing or case, an exact px width, height, gap, padding, radius or track, or a motion duration, delay, curve or stagger."
+      ]
+    }
+  },
+  "decisions": [
+    "Owner's words: \"ok\" to the host-led DES steps for the behaviour changes, and to running DISCUSS now before the Request is parked.",
+    "Owner's words: \"yes\" to the 21 tweaks as they look on the phone now being the approved, final batch.",
+    "Owner's decision: specs stop asserting design values - exact colours, font size, weight, letter-spacing and case, exact px widths, heights, gaps, paddings, radii and tracks, and motion durations, delays, curves and stagger - and keep content and behaviour checks plus layout invariants worded without exact px.",
+    "Owner's decision: that spec clean-up is a SEPARATE issue (#A) which lands BEFORE this Request; this Request is blocked by it.",
+    "Owner's decision: the design values in this batch (tweaks 3, 4, 5, 8, the look of 10, and 14 to 19 and 21) are judged on the phone and are NOT asserted; they travel in this Request as source changes because they share files with the behaviour changes.",
+    "Owner's decision: the crafter starts from the owner's prototype patch, committed as docs/feature/statement-shell-polish/prototype.patch and applied as uncommitted src/ changes, and finishes from it - the now-unused NO_RUFIYAA and MINUS constants go, and the new specs pass. The approved phone look is the reference.",
+    "Owner's decision: the Request stops for the owner's phone check before des integrate, and main is pushed only after the owner says \"approved\".",
+    "Owner's decision: the Request runs unattended up to the phone stop.",
+    "Owner's words on the swipe: \"a flick or a drag past 30% switches, a shorter drag springs back; a vertical move still scrolls; lifting after a swipe taps nothing\". These are the interaction's own rules and are asserted; the slide's duration, curve and ink are design and are not.",
+    "Fact of the stored ledger, read in supabase/migrations/0001_account_scoped_ledger.sql: the constraint entries_rate_matches_currency requires every MVR entry to store a rate that is not null and greater than zero, so a rufiyaa send with no rate is unreachable. No spec states that case, and the existing null guard in the domain's MVR cell stays exactly as it is.",
+    "Owner's decision: the tab colours arriving in sync with the pill is design, judged on the phone. Only the tab marked as the current view is asserted.",
+    "Owner's decision (\"yes\"): a sideways swipe switches only between Entries and Statement. A swipe between the Sent and the Paid back lists inside the Statement is out of scope.",
+    "Owner's decision (\"yes\"): a swipe to the Statement plays the same arrival as a tap on the Statement tab - the Statement's rows rise as they do on a tap, and a swipe and a tap show the same Statement. The duration and the curve of that rise are design and are not asserted.",
+    "Owner's decision (\"yes\"): with Reduce Motion asked for, the screens still follow the finger during a drag, because that movement is the owner's own and not an animation; on release the result shows at once, with no slide and no spring back.",
+    "Decision of the PO: a value of this Request is one thing the owner can see on their phone. The content changes and the swipe are behaviour and are stated by the oracle; the pure spacing and size tweaks travel with the value whose files they share and are never asserted."
+  ],
+  "values": [
+    {
+      "observation": "On the Statement's sent list, a rufiyaa send's row reads its rufiyaa figure and then its rate with the dollars that send stores, its USD column reads nothing, and a dollar send's row reads nothing in the MVR column.",
+      "dependencies": [],
+      "change": {
+        "type": "feat",
+        "description": "Read a rufiyaa send's rate and dollars in the MVR column"
+      }
+    },
+    {
+      "observation": "The sent list's footer reads the rufiyaa subtotal and then, on the line under it, an arrow with the converted dollar total.",
+      "dependencies": [
+        "On the Statement's sent list, a rufiyaa send's row reads its rufiyaa figure and then its rate with the dollars that send stores, its USD column reads nothing, and a dollar send's row reads nothing in the MVR column."
+      ],
+      "change": {
+        "type": "feat",
+        "description": "Read the converted sent total under the rufiyaa subtotal"
+      }
+    },
+    {
+      "observation": "The Statement's balance card reads the Paid Back figure with no minus before it.",
+      "dependencies": [],
+      "change": {
+        "type": "fix",
+        "description": "Read the Paid Back figure with no minus sign"
+      }
+    },
+    {
+      "observation": "The bottom bar offers each view as an icon above its word, with the pill around the icon of the view being read, and a press dims only that icon and that word.",
+      "dependencies": [],
+      "change": {
+        "type": "feat",
+        "description": "Offer each view as an icon above its word in the bottom bar"
+      }
+    },
+    {
+      "observation": "A sideways swipe anywhere on the screen carries Entries and Statement with the finger, settles on one of the two views, and releases no tap on what was under the finger.",
+      "dependencies": [
+        "The bottom bar offers each view as an icon above its word, with the pill around the icon of the view being read, and a press dims only that icon and that word."
+      ],
+      "change": {
+        "type": "feat",
+        "description": "Switch views with a sideways swipe that follows the finger"
+      }
+    },
+    {
+      "observation": "On Entries, the You/Abbaas card and the Entries heading stay where they are while only the entries list scrolls.",
+      "dependencies": [],
+      "change": {
+        "type": "feat",
+        "description": "Keep the boxes and the Entries heading pinned while scrolling"
+      }
+    }
+  ],
+  "jtbd": {
+    "status": "provided",
+    "human": [
+      {
+        "job": "When I have tuned the Statement, the bottom bar and the Entries screen on my own phone, I want what I approved there to be what ships, so I can judge my app on the phone and not in a spec.",
+        "status": "proposed"
+      }
+    ],
+    "llm": [
+      {
+        "job": "When I read a send on the Statement, I want its row to say which currency it went out in, so I can read the rufiyaa and the dollars of that one send without reading the same money twice.",
+        "status": "proposed"
+      },
+      {
+        "job": "When I read the sent totals, I want the rufiyaa subtotal and what those rufiyaa were worth to stand apart from the dollar total, so I can tell the two currencies apart at a glance.",
+        "status": "proposed"
+      },
+      {
+        "job": "When I move between my entries and my statement on a phone, I want to change screen with my thumb, so I can go back and forth without reaching for the bar.",
+        "status": "proposed"
+      },
+      {
+        "job": "When I scroll a long list of entries, I want the balance boxes and the heading to stay in sight, so I never lose track of what I am reading.",
+        "status": "proposed"
+      }
+    ]
+  },
+  "journey": {
+    "status": "provided",
+    "steps": [
+      {
+        "step": "The owner opens the app on their phone and arrives on Entries, with the You/Abbaas card and the Entries heading at the top.",
+        "status": "confirmed"
+      },
+      {
+        "step": "They scroll the entries list; the card and the heading stay where they are, and the last entry can be read clear of the Send and Receive buttons.",
+        "status": "confirmed"
+      },
+      {
+        "step": "They drag sideways; both screens, the pill, the dimming and the tab colours follow the finger.",
+        "status": "confirmed"
+      },
+      {
+        "step": "They flick, or lift past 30% of the width, and the Statement settles as the view shown with its tab marked as the current one; a shorter slow drag would have sprung back to Entries.",
+        "status": "confirmed"
+      },
+      {
+        "step": "The Statement arrives as it does on a tap: its rows rise, and what they read is the same Statement either way.",
+        "status": "confirmed"
+      },
+      {
+        "step": "They read the balance card: Total Sent, Paid Back with no minus, and the Balance under the line.",
+        "status": "confirmed"
+      },
+      {
+        "step": "They read the sent list, where a rufiyaa send reads its rufiyaa and then its rate with the dollars it stores, and a dollar send reads its dollars alone.",
+        "status": "confirmed"
+      },
+      {
+        "step": "They read the footer: what went out in rufiyaa with the converted dollars under it, what went out in dollars, and the total sent.",
+        "status": "confirmed"
+      },
+      {
+        "step": "They swipe back, or tap the Entries tab, and the bar's pill and colours arrive with the screen.",
+        "status": "confirmed"
+      },
+      {
+        "step": "With Reduce Motion asked for, the screens still follow their finger through the drag, and the view they release to shows at once.",
+        "status": "confirmed"
+      },
+      {
+        "step": "They judge the batch against the look they approved on their own phone, and say \"approved\" before anything is landed or pushed.",
+        "status": "confirmed"
+      }
+    ]
+  },
+  "gherkin": {
+    "status": "provided",
+    "scenarios": [
+      {
+        "scenario": "A rufiyaa send reads its rate and the dollars it stores",
+        "steps": [
+          "Given the ledger holds one send of MVR10,000 at the rate 20, stored as $500",
+          "When the owner reads the sent list of the Statement",
+          "Then that row's MVR column reads 'MVR10,000' and then '@20 → $500'",
+          "And that row's USD column reads nothing"
+        ],
+        "status": "confirmed"
+      },
+      {
+        "scenario": "A dollar send reads its dollars in the USD column alone",
+        "steps": [
+          "Given the ledger holds one send of $750 made in dollars",
+          "When the owner reads the sent list of the Statement",
+          "Then that row's MVR column reads nothing",
+          "And that row's USD column reads '$750'"
+        ],
+        "status": "confirmed"
+      },
+      {
+        "scenario": "The sent footer reads the rufiyaa that went out and what it was worth",
+        "steps": [
+          "Given the ledger holds a send of MVR10,000 at the rate 20 stored as $500 and a send of MVR4,000 at the rate 20 stored as $200",
+          "When the owner reads the footer of the sent list",
+          "Then its rufiyaa line reads 'MVR14,000' and then '→ $700.00'",
+          "And its dollar line and its total line each still read their own figure"
+        ],
+        "status": "confirmed"
+      },
+      {
+        "scenario": "The balance card reads the paid-back figure with no minus",
+        "steps": [
+          "Given the ledger holds sends of $1,000 and one repayment of $300",
+          "When the owner reads the balance card of the Statement",
+          "Then its Paid Back row reads '$300.00' with no minus before it",
+          "And its Balance row reads '$700.00'"
+        ],
+        "status": "confirmed"
+      },
+      {
+        "scenario": "A sideways swipe switches the view",
+        "steps": [
+          "Given the owner is reading Entries",
+          "When they drag sideways across the screen past 30% of the width and lift",
+          "Then the Statement is the view shown",
+          "And the Statement tab is marked as the current view"
+        ],
+        "status": "confirmed"
+      },
+      {
+        "scenario": "A flick switches the view in the direction of the finger",
+        "steps": [
+          "Given the owner is reading the Statement",
+          "When they flick sideways towards the Entries",
+          "Then Entries is the view shown",
+          "And the Entries tab is marked as the current view"
+        ],
+        "status": "confirmed"
+      },
+      {
+        "scenario": "A short slow drag stays on the same view",
+        "steps": [
+          "Given the owner is reading Entries",
+          "When they drag slowly a short way sideways, well short of 30% of the width, and lift",
+          "Then Entries is still the view shown",
+          "And the Entries tab is still marked as the current view"
+        ],
+        "status": "confirmed"
+      },
+      {
+        "scenario": "Scrolling the list does not switch the view",
+        "steps": [
+          "Given the owner is reading Entries with more entries than fit the phone",
+          "When they drag up and down the entries list",
+          "Then the list scrolls",
+          "And Entries is still the view shown"
+        ],
+        "status": "confirmed"
+      },
+      {
+        "scenario": "A swipe releases no tap on what was under the finger",
+        "steps": [
+          "Given the owner is reading Entries with an entry card under their finger",
+          "When they swipe sideways from that card to the Statement and lift",
+          "Then the Statement is the view shown",
+          "And no entry sheet is open"
+        ],
+        "status": "confirmed"
+      },
+      {
+        "scenario": "A swipe to the Statement arrives as a tap does",
+        "steps": [
+          "Given the owner is reading Entries",
+          "When they swipe sideways to the Statement",
+          "Then the Statement's rows rise as they do when the Statement tab is tapped",
+          "And the Statement reached by a swipe reads the same as the Statement reached by a tap"
+        ],
+        "status": "confirmed"
+      },
+      {
+        "scenario": "With Reduce Motion the result shows at once on release",
+        "steps": [
+          "Given the owner has asked for reduced motion and is reading Entries",
+          "When they drag sideways across the screen, the two screens follow their finger",
+          "And they lift past 30% of the width",
+          "Then the Statement is the view shown at once, with no slide",
+          "And a drag released short of 30% of the width leaves Entries shown at once, with no spring back"
+        ],
+        "status": "confirmed"
+      },
+      {
+        "scenario": "Tapping a tab switches to its view",
+        "steps": [
+          "Given the owner is reading Entries",
+          "When they tap the Statement tab",
+          "Then the Statement is the view shown",
+          "And the Statement tab is marked as the current view"
+        ],
+        "status": "confirmed"
+      },
+      {
+        "scenario": "Each tab offers an icon beside its own name",
+        "steps": [
+          "Given the owner is reading Entries",
+          "When the bottom bar is read",
+          "Then each tab reads its own name, Entries or Statement",
+          "And each tab carries an icon that anything reading the page aloud skips"
+        ],
+        "status": "confirmed"
+      },
+      {
+        "scenario": "The Entries card and heading stay put while the list scrolls",
+        "steps": [
+          "Given the owner is reading Entries with more entries than fit the phone",
+          "When they scroll the entries list to its end",
+          "Then the You/Abbaas card and the Entries heading stay where they are",
+          "And the last entry can be read clear of the Send and Receive buttons"
+        ],
+        "status": "confirmed"
+      }
+    ]
+  },
+  "quint_scenarios": {
+    "status": "not_run"
+  }
+}
