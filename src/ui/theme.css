@@ -29,6 +29,17 @@
   --abbaas-card: rgba(15, 111, 104, 0.11);
   --hairline: #cfd9d6;
 
+  /* The inks of the two currency columns of the sending list: the rufiyaa a send
+     was made in, the lighter blue what that send was WORTH is read in, and the
+     mark that stands where a row has no rufiyaa figure at all. */
+  --mvr: #9c4f10;
+  --you-soft: #4f6f9c;
+  --absent: #5f706c;
+
+  /* The hairline the sent footer parts its total from its two currency lines
+     by: paler than the grey hairline above, so it reads inside the blue bed. */
+  --you-rule: #cfdbea;
+
   --side: 16px;
   --bottom-gap: 20px;
   --button-height: 60px;
@@ -2552,12 +2563,19 @@ body {
   font-size: 13px;
 }
 
-/* Alternating tints, starting white at the first row. */
+/* Alternating tints, starting white at the first row.
+
+   The plain row states its own white rather than leaving the panel's bed to
+   show through: the tint on every second row is what the owner keeps their
+   place by, and a row with no bed of its own reads as no bed at all. */
+.statement-rows > .statement-row:nth-child(odd) {
+  background: #ffffff;
+}
+
 .statement-rows > .statement-row:nth-child(even) {
   background: #fafcfb;
 }
 
-.statement-no,
 .statement-date {
   color: var(--muted);
   font-variant-numeric: tabular-nums;
@@ -2599,6 +2617,162 @@ body {
 .statement-foot-total {
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+
+/* --- The sending list's footer, on its three lines (src/ui/statement.ts). ---
+
+   The board's own block for THIS footer: a column of three lines on the one
+   pale ground and in the one deep ink the footer already reads in, each line
+   spread between its word at the left and its figures at the right on a shared
+   baseline. The paid-back list keeps the single grid above, which is why these
+   rules hang on the sending list's own footer and not on the shared one. */
+.statement-foot[data-statement-foot='sent'] {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 14px 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.statement-foot-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+/* The hairline that tells the owner the last line is the total of the two above
+   it and not a third currency, which is why it stands above THAT line alone. */
+.statement-foot-line[data-statement-foot-line='total'] {
+  padding-top: 6px;
+  border-top: 1px solid var(--you-rule);
+}
+
+/* What a figure is a reading OF decides its ink: the rufiyaa that went out,
+   what those same rufiyaa were worth, and the dollars that went out. The total
+   of both is money in no single currency, so it keeps the block's own ink. */
+.statement-foot-figure[data-reads='mvr'] {
+  color: var(--mvr);
+}
+
+.statement-foot-figure[data-reads='converted'] {
+  color: var(--you-soft);
+}
+
+.statement-foot-figure[data-reads='usd'] {
+  color: var(--you);
+}
+
+/* --- The sending list in its own four columns (src/ui/statement.ts). ---
+
+   The board's grid for THIS list alone - a fixed date, the party column taking
+   what is left, and the two currency columns at the widths that hold a figure
+   with its inline rate - over the one grid both lists stand on above. The
+   rufiyaa column stands 6px wider than the board's 84px, and the party column
+   6px narrower, because a rufiyaa figure now carries the mark 'MVR' before it
+   and must still hold the widest reading this ledger can take with its rate on
+   the same line. The paid-back list declares its own three columns further
+   down, where the rest of that list is drawn. */
+.statement-panel[data-statement-list='sent'] .statement-head-row,
+.statement-panel[data-statement-list='sent'] .statement-row {
+  grid-template-columns: 40px minmax(0, 1fr) 90px 54px;
+  column-gap: 6px;
+}
+
+.statement-panel[data-statement-list='sent'] .statement-head-row {
+  padding: 10px 14px 8px;
+  border-bottom-color: var(--hairline);
+}
+
+.statement-panel[data-statement-list='sent'] .statement-row {
+  padding: 8px 14px;
+  border-bottom: 1px solid #eef2f1;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A column word is a label above money, not a reading of its own. */
+.statement-head-cell {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* Each currency word stands centred over its own column, in the colour of the
+   figures under it, while the two left-hand words stay at the left of their
+   cells: a centred word is how the owner tells a currency column from a reading
+   column at a glance. */
+.statement-head-cell[data-statement-column='mvr'],
+.statement-head-cell[data-statement-column='usd'] {
+  text-align: center;
+}
+
+.statement-head-cell[data-statement-column='mvr'] {
+  color: var(--mvr);
+}
+
+/* Only the SENDING list has two currency columns to tell apart, so only there
+   does the dollar word take the ink of the figures under it. The paid-back list
+   holds one currency: its own word keeps the header's ink, because a blue or a
+   teal word there would promise a second column that does not exist. */
+.statement-panel[data-statement-list='sent'] .statement-head-cell[data-statement-column='usd'] {
+  color: var(--you);
+}
+
+/* The name is the one reading that may give way: it is clipped where the party
+   column ends, so no figure is pushed off its own column however long a name is. */
+.statement-party > .statement-person {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Both figure cells are read from their right edge, so the amounts read down
+   their columns, and neither ever wraps: a rate carried under its own figure
+   would read as a second amount.
+
+   Gathered to the end of the cell rather than aligned as text, because these two
+   readings may be wider than the column that holds them: a figure and a
+   four-decimal rate together are the widest reading this cell must hold, and
+   text aligned to the right gives its right edge up as soon as it overflows,
+   which would leave the last digit short of the column it is read down. Gathered
+   this way the overflow falls on the side of the name, which is the one reading
+   that may give way. */
+.statement-mvr,
+.statement-sent-usd {
+  display: flex;
+  justify-content: flex-end;
+  align-items: baseline;
+  white-space: nowrap;
+}
+
+.statement-mvr-figure {
+  font-weight: 700;
+  color: var(--mvr);
+}
+
+/* The rate tells the owner how the rufiyaa became dollars; it is not money
+   itself, so it is smaller and greyer than the figure it stands beside and is
+   held off it by the gap the board draws rather than by a typed space. */
+.statement-mvr-rate {
+  margin-left: 3px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.statement-mvr-absent {
+  color: var(--absent);
+}
+
+/* Money that left, and what a send made in rufiyaa was worth: told apart by
+   weight and ink from the cell's own reading of which of the two it is. */
+.statement-sent-usd[data-converted='false'] {
+  font-weight: 700;
+  color: var(--you);
+}
+
+.statement-sent-usd[data-converted='true'] {
+  font-weight: 600;
+  color: var(--you-soft);
 }
 
 /* --- The pill that switches the two lists (src/ui/statement.ts). ---
@@ -2697,6 +2871,17 @@ body {
 
 /* --- The Paid back by Abbaas panel: the same panel, in the colours of money
    that came back, with a way where the sent list names a person. --- */
+
+/* This list's own three columns - a day, the way the money came back taking what
+   is left, and the figure - on the gap the sending list reads by, so the two
+   lists are read the same way across. The authority draws no grid for this list,
+   so its day column and its gap follow the sending list while its figure column
+   keeps the 70 px it has today, which a two-decimal total needs whole. */
+.statement-panel[data-statement-list='back'] .statement-head-row,
+.statement-panel[data-statement-list='back'] .statement-row {
+  grid-template-columns: 40px minmax(0, 1fr) 70px;
+  column-gap: 6px;
+}
 
 .statement-method {
   color: var(--ink);

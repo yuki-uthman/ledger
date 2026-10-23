@@ -115,3 +115,27 @@ const plainRate = new Intl.NumberFormat('en-US', {
  * names it mid-sentence, where a padded zero reads as a precision nobody typed.
  */
 export const formatRatePlain = (rate: number): string => plainRate.format(rate)
+
+// ----- The marks a row of the statement reads its figures by -----
+//
+// A total, a card figure and a subtotal are read as money in a column and keep
+// their two decimals; a row figure is read as the owner says the amount. The
+// two functions below are therefore DERIVED from the two formatters above
+// rather than formatting anything themselves, so one grouping and one rounding
+// serve the whole app: a row, a footer and the card can never state the same
+// stored minor units differently.
+
+/**
+ * Stored cents as a row reads them: the one dollar formatter's own grouping with
+ * a trailing '.00' taken off, so $1,500.00 reads '$1,500' while real cents stay
+ * ('$1,500.50'). Nothing is rounded - two zeros are dropped, never a value.
+ */
+export const formatUsdWhole = (cents: number): string => formatUsdCents(cents).replace(/\.00$/, '')
+
+/**
+ * Stored laari as the statement reads them, behind the mark rufiyaa are written
+ * by: 'MVR10,000', 'MVR10,000.50'. The mark is a PREFIX with no space after it,
+ * so the figure and its mark read as one word and an inline rate can stand
+ * directly behind them.
+ */
+export const formatMvrAmount = (laari: number): string => `MVR${formatMvrLaari(laari)}`

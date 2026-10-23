@@ -24,10 +24,25 @@
 //     data-statement-head, its scrolling rows data-statement-rows and its
 //     footer data-statement-foot with data-count and data-cents, each named by
 //     the list it belongs to
+//   - each line of the sending list's footer carries
+//     data-statement-foot-line="mvr|usd|total" with its own data-count and
+//     data-cents, and each of its figures says on data-reads what it is a
+//     reading of; the block's own count and cents still read the total line, so
+//     a reader that knew only the old hooks reads the same total as before
 //   - each row carries data-statement-row="<entry id>" and data-no="<number>";
 //     a send names its person on data-person and its sub-line on
 //     data-statement-sub, and a repayment names its stored method token on
 //     data-statement-method when one is stored
+//   - a header cell of either list names its own column on
+//     data-statement-column="date|party|method|mvr|usd", and a sent row carries
+//     data-statement-mvr on its rufiyaa cell - with data-statement-rate on the
+//     rate inside it and data-statement-placeholder on the mark that stands
+//     where there is no rufiyaa figure - and data-statement-usd on its dollar
+//     cell, with data-converted saying whether that cell reads a converted figure
+//
+// The place of a row of either list is still carried on data-no, and no number is
+// drawn in the row: the order the owner reads is kept, and only its drawn number
+// is gone.
 //
 // They are prefixed data-statement- because both panes stand in the one page at
 // once: a bare data-total would answer for Home's totals as well.
@@ -35,9 +50,13 @@
 import {
   SEPARATOR,
   statementOf,
+  type SentFoot,
+  type SentFootFigure,
+  type SentFootLine,
   type StatementFigure,
   type StatementFigureName,
   type StatementList,
+  type StatementMvrCell,
   type StatementRow,
 } from '../domain/statement.js'
 import type { ReadEntriesOutcome } from '../ports/ledger-store.js'
@@ -60,11 +79,45 @@ const FIGURE_SIGNS: Readonly<Record<StatementFigureName, string>> = {
   balance: '',
 }
 
-/** The four words that make the four cells of a sent row readable. */
-const SENT_COLUMNS = ['No.', 'Date', 'Paid to', 'USD'] as const
+/** The mark that stands where a row has no rufiyaa figure: an em dash, not a hyphen. */
+const NO_RUFIYAA = '—'
 
-/** The same four cells of a repayment, which names a way and not a person. */
-const BACK_COLUMNS = ['No.', 'Date', 'Method', 'USD'] as const
+/**
+ * One cell of a column header: the word the owner reads, and the name of the
+ * column it heads.
+ *
+ * The two are one value, and the name is not optional, because a word with no
+ * column named under it is a header a reading cannot find its cells by: every
+ * header cell of both lists names the column it stands over.
+ */
+type HeadColumn = {
+  readonly word: string
+  readonly name: string
+}
+
+const named = (word: string, name: string): HeadColumn => ({ word, name })
+
+/**
+ * The four words that make the four cells of a sent row readable, each naming its
+ * own column: no number is drawn in a sent row, so no word promises one.
+ */
+const SENT_COLUMNS: readonly HeadColumn[] = [
+  named('Date', 'date'),
+  named('Paid to', 'party'),
+  named('MVR', 'mvr'),
+  named('USD', 'usd'),
+]
+
+/**
+ * The three words that make the three cells of a repayment readable: a repayment
+ * names a way the money came back and not a person, and this list holds one
+ * currency, so its own currency word stands over the only figure column there is.
+ */
+const BACK_COLUMNS: readonly HeadColumn[] = [
+  named('Date', 'date'),
+  named('Method', 'method'),
+  named('USD', 'usd'),
+]
 
 /** Which of the two lists this is; the one piece of state the pill switches. */
 type ShownList = 'sent' | 'back'
@@ -85,23 +138,34 @@ const LIST_NAMES: Readonly<Record<ShownList, string>> = {
  */
 const panelId = (which: ShownList): string => `statement-list-${which}`
 
-/** What each list's footer calls its own total. */
-const TOTAL_LABELS: Readonly<Record<ShownList, string>> = {
-  sent: 'Total sent',
-  back: 'Total paid back',
-}
+/** What the paid-back list's footer calls its own total; the sending list's words are its own. */
+const BACK_TOTAL_LABEL = 'Total paid back'
+
+/**
+ * How one list's footer reads what that list adds up to: a function from that
+ * footer's own reading to the one part the panel places under its rows. It is
+ * the list's own, as its row renderer is, so what a footer reads is never
+ * decided inside the panel the two lists share - and the two lists do not read
+ * the same thing, the sending list's footer standing on three lines of its own
+ * while the paid-back list's stands on its list alone.
+ */
+type FootRenderer<Reading> = (reading: Reading) => HTMLElement
 
 /**
  * One panel of this screen, which is all a panel needs to be drawn: the two
- * panels differ in their name, their column words, their total's word and the
- * rows handed to them, and in nothing else.
+ * panels differ in their name, their column words, and the rows and the footer
+ * handed to them, and in nothing else.
  */
-type Panel = {
+type Panel<Reading> = {
   readonly which: ShownList
-  readonly columns: readonly string[]
+  readonly columns: readonly HeadColumn[]
   readonly list: StatementList
   /** How one of its rows is read across: a send names a person, a repayment a way. */
   readonly row: (row: StatementRow) => HTMLElement
+  /** How its own footer reads what it adds up to. */
+  readonly foot: FootRenderer<Reading>
+  /** What that footer reads, which the panel places and never looks into. */
+  readonly footReading: Reading
 }
 
 const element = <K extends keyof HTMLElementTagNameMap>(
@@ -161,6 +225,16 @@ const renderCard = (figures: readonly StatementFigure[]): HTMLElement => {
   return card
 }
 
+/**
+ * One cell of a column header: its word, and the name of the column it heads, so
+ * a reader finds a column without reading any styling.
+ */
+const renderHeadCell = (column: HeadColumn): HTMLElement => {
+  const made = cell('statement-head-cell', column.word)
+  made.dataset.statementColumn = column.name
+  return made
+}
+
 /** The cells every row of either list opens with: its place and its day. */
 const renderLine = (row: StatementRow): HTMLElement => {
   const line = element('li', 'statement-row')
@@ -169,13 +243,11 @@ const renderLine = (row: StatementRow): HTMLElement => {
   return line
 }
 
-/** One sent row: its number, its date, the person paid with the sub-line, its dollars. */
-const renderSentRow = (row: StatementRow): HTMLElement => {
-  const line = renderLine(row)
-
+/** The person paid, with the stored method under their name where one is stored. */
+const renderParty = (row: StatementRow): HTMLElement => {
   const party = element('div', 'statement-party')
   const person = cell('statement-person', row.personName)
-  // The person's own id stays on the element naming the person, as Home carries it.
+  // The person's own id stays on the part naming the person, as Home carries it.
   person.dataset.person = row.personId ?? ''
   const partyCells: Node[] = [person]
   if (row.subline !== null) {
@@ -184,20 +256,82 @@ const renderSentRow = (row: StatementRow): HTMLElement => {
     partyCells.push(sub)
   }
   appendCells(party, partyCells)
+  return party
+}
 
+/**
+ * The rufiyaa cell of one sent row: a rufiyaa send's own figure with the rate it
+ * was sent at beside it, or the mark that stands where there is no rufiyaa figure
+ * to read.
+ *
+ * Its two readings are appended TIGHT against each other, unlike every other
+ * pair of cells on this screen: the gap the owner sees is the rate's own margin,
+ * so anything that reads this cell as text reads one figure and its rate rather
+ * than two readings with a typed space between them.
+ */
+const renderMvrCell = (reading: StatementMvrCell): HTMLElement => {
+  const mvr = element('span', 'statement-mvr')
+  mvr.dataset.statementMvr = ''
+  if (reading.currency === 'USD') {
+    const absent = cell('statement-mvr-absent', NO_RUFIYAA)
+    absent.dataset.statementPlaceholder = ''
+    mvr.append(absent)
+    return mvr
+  }
+  mvr.append(cell('statement-mvr-figure', reading.figure))
+  if (reading.rateText !== null) {
+    const rate = cell('statement-mvr-rate', reading.rateText)
+    rate.dataset.statementRate = ''
+    mvr.append(rate)
+  }
+  return mvr
+}
+
+/**
+ * What a sent row's dollar cell reads, and which of the two kinds of reading that
+ * is: the dollars a dollar send moved, or the reading of the dollars a
+ * rufiyaa send stores. Both are worded by the module that owns what a row says;
+ * this only says which of the two this row stands for.
+ */
+const usdReadingOf = (row: StatementRow): { readonly text: string; readonly converted: boolean } =>
+  row.mvrCell.currency === 'MVR'
+    ? { text: row.mvrCell.convertedText, converted: true }
+    : { text: row.usdFigure, converted: false }
+
+/**
+ * The dollar cell of one sent row. It says on itself whether it reads a converted
+ * figure, so a reader tells money that left from what a rufiyaa send was worth
+ * without parsing the figure, and the board inks and weights the two from that
+ * same reading.
+ */
+const renderUsdCell = (row: StatementRow): HTMLElement => {
+  const reading = usdReadingOf(row)
+  const usd = cell('statement-sent-usd', reading.text)
+  usd.dataset.statementUsd = ''
+  usd.dataset.converted = String(reading.converted)
+  return usd
+}
+
+/** One sent row: its date, the person paid with the sub-line, and its two currency cells. */
+const renderSentRow = (row: StatementRow): HTMLElement => {
+  const line = renderLine(row)
   appendCells(line, [
-    cell('statement-no', String(row.no)),
     cell('statement-date', row.dateLabel),
-    party,
-    cell('statement-usd', row.usdText),
+    renderParty(row),
+    renderMvrCell(row.mvrCell),
+    renderUsdCell(row),
   ])
   return line
 }
 
 /**
- * One paid-back row: its number, its date, the way the money came back, its
- * dollars. A repayment names nobody, so it carries no person and no sub-line:
- * there is nothing stored on it to word there.
+ * One paid-back row across its three cells: its date, the way the money came
+ * back, and the marked dollars that came back. A repayment names nobody, so it
+ * carries no person and no sub-line: there is nothing stored on it to word there.
+ *
+ * Its figure is the same marked reading the sending list reads, worded by the
+ * module that owns what a row says: the owner reads one screen, so a bare number
+ * here beside a marked figure there would leave this list's currency unstated.
  *
  * The Method cell reads the word of the stored token and carries the token
  * itself, so a reader can check the word against the column it came from. A
@@ -210,12 +344,87 @@ const renderBackRow = (row: StatementRow): HTMLElement => {
   const method = cell('statement-method', row.method?.word ?? '')
   if (row.method !== null) method.dataset.statementMethod = row.method.token
   appendCells(line, [
-    cell('statement-no', String(row.no)),
     cell('statement-date', row.dateLabel),
     method,
-    cell('statement-usd', row.usdText),
+    cell('statement-usd', row.usdFigure),
   ])
   return line
+}
+
+/**
+ * The block a list's footer stands in: named by the list it belongs to and
+ * carrying what that list adds up to, so a reader reads the sum of a list
+ * without reading its rows. Both footers stand in one of these, however many
+ * lines they read inside it.
+ */
+const footBlock = (which: ShownList, count: number, cents: number): HTMLElement => {
+  const foot = element('div', 'statement-foot')
+  foot.dataset.statementFoot = which
+  foot.dataset.count = String(count)
+  foot.dataset.cents = String(cents)
+  return foot
+}
+
+/** What stands at the left of a footer line: its own word, with its count beside it. */
+const footLabel = (label: string, countLabel: string): string =>
+  `${label} ${SEPARATOR} ${countLabel}`
+
+/**
+ * One figure of a sent footer line. It says on itself what it is a reading of -
+ * the rufiyaa that went out, what those rufiyaa were worth, the dollars that
+ * went out, the total of both - and the board inks it from that, so no ink here
+ * is chosen by looking at a figure's text.
+ */
+const renderFootFigure = (figure: SentFootFigure): HTMLElement => {
+  const drawn = cell('statement-foot-figure', figure.text)
+  drawn.dataset.reads = figure.reads
+  return drawn
+}
+
+/**
+ * One line of the sent footer: its word with its count at the left, and the
+ * figures of its own currency at the right. The line names which of the three it
+ * is and carries the count and the cents of the sends it holds, so that line is
+ * read without reading any styling and never through its neighbours.
+ */
+const renderFootLine = (line: SentFootLine): HTMLElement => {
+  const drawn = element('div', 'statement-foot-line')
+  drawn.dataset.statementFootLine = line.which
+  drawn.dataset.count = String(line.count)
+  drawn.dataset.cents = String(line.cents)
+  const figures = element('span', 'statement-foot-figures')
+  appendCells(figures, line.figures.map(renderFootFigure))
+  appendCells(drawn, [cell('statement-foot-label', footLabel(line.label, line.countLabel)), figures])
+  return drawn
+}
+
+/**
+ * The sending list's own footer: its three lines in one block, the total last.
+ *
+ * All three are drawn at every ledger because the footer is handed three, and
+ * the block itself still reads the total line's count and cents: a reader that
+ * knew only the one line this footer used to be is still told how many sends
+ * there were and how much they were worth.
+ */
+const renderSentFoot: FootRenderer<SentFoot> = (lines) => {
+  const [, , totalLine] = lines
+  const foot = footBlock('sent', totalLine.count, totalLine.cents)
+  appendCells(foot, lines.map(renderFootLine))
+  return foot
+}
+
+/**
+ * The paid-back list's own footer: its one line on its own tinted bed, its word
+ * for its total with its count beside it, and then the total. Only the sending
+ * side reads a currency split, so this footer stands as it always has.
+ */
+const renderBackFoot: FootRenderer<StatementList> = (list) => {
+  const foot = footBlock('back', list.count, list.totalCents)
+  appendCells(foot, [
+    cell('statement-foot-label', footLabel(BACK_TOTAL_LABEL, list.countLabel)),
+    cell('statement-foot-total', list.totalText),
+  ])
+  return foot
 }
 
 /**
@@ -235,9 +444,17 @@ type PanelParts = {
  *
  * The list it draws is taken as an argument because the two panels of this
  * screen differ in nothing but which list they are, the words of their header
- * and the shape of the rows handed to them.
+ * and the shape of the rows and the footer handed to them. The panel places a
+ * footer and reads none of it: what a footer says is its own list's.
  */
-const renderPanel = ({ which, columns, list, row: renderOneRow }: Panel): PanelParts => {
+const renderPanel = <Reading,>({
+  which,
+  columns,
+  list,
+  row: renderOneRow,
+  foot: renderOwnFoot,
+  footReading,
+}: Panel<Reading>): PanelParts => {
   const panel = element('section', 'statement-panel')
   panel.dataset.statementList = which
   panel.id = panelId(which)
@@ -248,24 +465,14 @@ const renderPanel = ({ which, columns, list, row: renderOneRow }: Panel): PanelP
 
   const head = element('div', 'statement-head-row')
   head.dataset.statementHead = which
-  appendCells(
-    head,
-    columns.map((word) => cell('statement-head-cell', word)),
-  )
+  appendCells(head, columns.map(renderHeadCell))
 
   const rows = element('ul', 'statement-rows')
   rows.dataset.statementRows = which
   const lines = list.rows.map((row) => renderOneRow(row))
   rows.append(...lines)
 
-  const foot = element('div', 'statement-foot')
-  foot.dataset.statementFoot = which
-  foot.dataset.count = String(list.count)
-  foot.dataset.cents = String(list.totalCents)
-  appendCells(foot, [
-    cell('statement-foot-label', `${TOTAL_LABELS[which]} ${SEPARATOR} ${list.countLabel}`),
-    cell('statement-foot-total', list.totalText),
-  ])
+  const foot = renderOwnFoot(footReading)
 
   panel.append(head, rows, foot)
   return { panel, rows: lines, foot }
@@ -384,8 +591,22 @@ export const renderStatement = (ledger: ReadEntriesOutcome): HTMLElement => {
   // Both panels stand in one area, each filling it, so a switch moves no pinned
   // part of the screen and the list not being read waits off the phone.
   const panels: Readonly<Record<ShownList, PanelParts>> = {
-    sent: renderPanel({ which: 'sent', columns: SENT_COLUMNS, list: statement.sent, row: renderSentRow }),
-    back: renderPanel({ which: 'back', columns: BACK_COLUMNS, list: statement.back, row: renderBackRow }),
+    sent: renderPanel({
+      which: 'sent',
+      columns: SENT_COLUMNS,
+      list: statement.sent,
+      row: renderSentRow,
+      foot: renderSentFoot,
+      footReading: statement.sentFoot,
+    }),
+    back: renderPanel({
+      which: 'back',
+      columns: BACK_COLUMNS,
+      list: statement.back,
+      row: renderBackRow,
+      foot: renderBackFoot,
+      footReading: statement.back,
+    }),
   }
   const area = element('div', 'statement-lists')
   area.append(panels.sent.panel, panels.back.panel)
