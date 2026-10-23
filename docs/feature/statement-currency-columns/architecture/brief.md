@@ -18,8 +18,9 @@
   rule must hold at any magnitude and any length the stored types allow.
 - S-c-row-figure-rule: A row figure always carries its mark, keeps its thousands
   separators, drops a trailing '.00' and keeps real cents, and nothing is
-  rounded: '$1,500', '10,000/-', '($500)', '$1,500.50', '10,000.50/-',
-  '($649.35)'.
+  rounded: '$1,500', 'MVR10,000', '$500', '$1,500.50', 'MVR10,000.50',
+  '$649.35'. The dollar mark is '$' before the figure and the rufiyaa mark is
+  the prefix 'MVR' with no space after it.
 - S-c-total-two-decimals: Every total and subtotal keeps two decimals, except
   the rufiyaa subtotal, which is written like a rufiyaa amount with cents only
   when they are real.
@@ -27,14 +28,18 @@
   at src/domain/ledger-view.ts:130, which reads 'No entries', '1 entry' or 'N
   entries'.
 - S-c-board-grid: The sent list's header and rows stand on the grid 40px
-  minmax(0, 1fr) 84px 54px with a 6 px column gap, the header padded 10px 14px
+  minmax(0, 1fr) 90px 54px with a 6 px column gap, the header padded 10px 14px
   8px over a 1 px #cfd9d6 rule, each row padded 8px 14px over a 1 px #eef2f1
   rule at 12.5 px with tabular figures, and the MVR and USD cells right aligned.
+  The board draws 84 px for the MVR column, so this design is 6 px wider there
+  and the party column is 6 px narrower: the deviation buys room for the widest
+  rufiyaa reading the owner's ledger can hold.
 - S-c-board-colours: The colours are #24508a for dollars, #9c4f10 for rufiyaa,
-  #4f6f9c at weight 600 for a bracketed converted value, #4c5f5b for the inline
-  rate and the left-hand header words, #5f706c for the em dash placeholder,
-  #1b3f6e on the #e7eef7 ground for a sent footer, #cfdbea for the footer
-  divider and #0f6f68 for the paid-back figures.
+  #4f6f9c at weight 600 for the converted dollar value of a rufiyaa send, which
+  carries no brackets, #4c5f5b for the inline rate and the left-hand header
+  words, #5f706c for the em dash placeholder, #1b3f6e on the #e7eef7 ground for
+  a sent footer, #cfdbea for the footer divider and #0f6f68 for the paid-back
+  figures.
 - S-c-header-type: A column header cell reads 11 px, weight 700, uppercase with
   0.06em letter spacing in #4c5f5b, and a currency word is centred over its own
   column while the left-hand words stay left.
@@ -78,8 +83,8 @@
 - S-d-algebra-domain: Domain layer. States: a stored entry of kind send or
   receive, in USD or MVR, with whole minor units and a rate only where one is
   stored. Operations: statementOf, listOf, rowOf, mvrCellOf, sentFootOf and the
-  four figure formatters. Observations: a row's date, person, sub-line, MVR cell
-  and USD cell, and the three sent footer lines. Equality: two ledgers are equal
+  figure formatters. Observations: a row's date, person, sub-line, MVR cell and
+  USD cell, and the three sent footer lines. Equality: two ledgers are equal
   when every row reading and every footer reading agrees. Laws: a row's dollars
   are the dollars its entry stores; the rufiyaa and dollar footer lines
   partition the sends by currency; the total line is the sum of the two; and
@@ -101,8 +106,8 @@
 - S-d-carrier-mvr: src/domain/statement.ts owns StatementMvrCell, the choice
   type of what a row's MVR cell reads: a dollar send carries no rufiyaa figure
   at all, and a rufiyaa send carries its marked rufiyaa figure, its inline rate
-  text where a rate is stored, and the bracketed reading of the dollars it
-  stores.
+  text where a rate is stored, and the marked reading, with no brackets, of the
+  dollars it stores.
 - S-d-carrier-usd: src/domain/statement.ts owns usdFigure, the marked whole
   reading of the dollars a row stores, which is what a sent dollar row and a
   paid-back row both read in their USD column.
@@ -140,7 +145,7 @@
 - S-d-fv-absent: quint, tlc, apalache and agda resolve nowhere on this host, so
   no checker could have run even if the waiver had not been given.
 - S-d-type-exclusion-mvr: The MVR cell carrier excludes a dollar row carrying a
-  bracketed converted figure and a rufiyaa row carrying no rufiyaa figure. Only
+  converted dollar figure and a rufiyaa row carrying no rufiyaa figure. Only
   mvrCellOf in src/domain/statement.ts builds it; a cast, a JSON decode or a
   writer outside src/ could still present a row shape the compiler never saw;
   and the harm would be a row stating money the ledger does not hold.
@@ -174,10 +179,10 @@
 - S-d-pbt-properties: The properties checked over generated ledgers are: every
   sent row reads the dollars its own entry stores; a dollar send reads its
   marked whole figure and the em dash placeholder; a rufiyaa send reads its
-  marked rufiyaa figure, its inline rate and its bracketed stored dollars; the
-  three footer lines partition the sends and sum to the total line; a paid-back
-  row reads its marked dollars; and no drawn figure is rounded away from the
-  stored minor units.
+  marked rufiyaa figure, its inline rate and its stored dollars with the dollar
+  mark and no brackets; the three footer lines partition the sends and sum to
+  the total line; a paid-back row reads its marked dollars; and no drawn figure
+  is rounded away from the stored minor units.
 - S-d-pbt-generator: The generator is the repository's own seeded ledger
   generator at tests/acceptance/statement-sent.spec.ts:1385, which stores its
   rows through the real adapter: whole and fractional cents, whole and
@@ -193,9 +198,9 @@
   a figure its own way falsifies the property instead of confirming it.
 - S-d-res-stressor-rate: Stressor, negating the assumption that a rufiyaa entry
   always stores a rate: a stored MVR row with a null rate must still read its
-  rufiyaa figure and its bracketed dollars, may degrade to no rate clause at
-  all, must never read an invented rate or the word null, and leaves the residue
-  that the owner can still tell the two currencies apart.
+  rufiyaa figure and its stored dollars, may degrade to no rate clause at all,
+  must never read an invented rate or the word null, and leaves the residue that
+  the owner can still tell the two currencies apart.
 - S-d-res-stressor-length: Stressor, negating the assumption that a ledger is
   short: 500 rows must still read the header and all three footer lines with the
   page itself never scrolling, may degrade in scrolling smoothness, must never
@@ -223,12 +228,14 @@
   ledger store.
 - S-d-res-second-walk: A second set of stressors, not used to derive the design,
   was walked against the finished design. A person name long enough to fill the
-  party column shows the 84 px and 54 px columns clipping the name and not the
+  party column shows the 90 px and 54 px columns clipping the name and not the
   figures. A rate of four stored decimals shows the inline rate growing by three
-  characters inside the 84 px cell, which is the narrowest place of the design.
-  A ledger with no entry at all shows the three footer lines reading 'No
-  entries' with '0/-', '($0.00)' and '$0.00'. A tap on the pill while the rows
-  are mid-scroll shows the footer still rising as one part.
+  characters inside the 90 px cell, which is the narrowest place of the design,
+  where the 'MVR' prefix makes every rufiyaa reading three characters wider than
+  its figure alone, so such a reading runs past the column the owner's own
+  figures fit inside. A ledger with no entry at all shows the three footer lines
+  reading 'No entries' with 'MVR0', '$0.00' and '$0.00'. A tap on the pill while
+  the rows are mid-scroll shows the footer still rising as one part.
 - S-d-res-states: Admitted: a ledger of any length, a rufiyaa row with no stored
   rate, a row with real cents or real laari, a repayment with no stored method,
   an empty ledger and a failed read. Excluded by the carriers: a dollar row with
@@ -236,11 +243,13 @@
   with fewer than three lines. Unknown: a stored send in a currency that is
   neither USD nor MVR, whose risk owner is the ledger store's decoder.
 - S-d-reuse-money: formatUsdCents is referenced from nine modules of this app,
-  so it is read and never changed. Three functions are added beside it:
-  formatUsdWhole, which drops a trailing '.00' from its output; formatMvrAmount,
-  which adds the '/-' mark to formatMvrLaari; and inBrackets, which wraps a
-  figure text in brackets, so the row's converted reading brackets the whole
-  figure and the footer's brackets the two-decimal one.
+  so it is read and never changed. Two functions are added beside it:
+  formatUsdWhole, which drops a trailing '.00' from its output and words every
+  row dollar figure, the converted value of a rufiyaa send among them; and
+  formatMvrAmount, which puts the prefix 'MVR' before formatMvrLaari and words
+  every rufiyaa figure, the footer's rufiyaa subtotal among them. Every footer
+  dollar figure, the converted one included, keeps formatUsdCents and its two
+  decimals.
 - S-d-reuse-count: entryCountLabel stays the one owner of how a count is worded,
   on each of the three sent footer lines and on the paid-back footer alike.
 - S-d-reuse-dash: The em dash that stands where a rufiyaa figure is absent is
@@ -286,7 +295,7 @@
   figures and the rufiyaa subtotal. Its scope was wrong, not its carrier.
 - S-d-refuted-onecell: Refuted law: that one USD cell text serves both kinds of
   send. A dollar send reads '$1,500' at weight 700 in #24508a while a rufiyaa
-  send reads '($500)' at weight 600 in #4f6f9c, so the carrier had to become a
+  send reads '$500' at weight 600 in #4f6f9c, so the carrier had to become a
   choice type rather than one text field.
 - S-d-paradigm: The paradigm is functional and is read from the repository, not
   chosen: both statement modules are functions from values to values and from
@@ -298,20 +307,20 @@
   cell, naming date, party, method, mvr or usd; data-statement-mvr on a row's
   MVR cell, with data-statement-rate on its inline rate and
   data-statement-placeholder on the em dash; data-statement-usd on a row's USD
-  cell with data-converted saying whether it reads a bracketed converted figure;
-  and data-statement-foot-line on each sent footer line, naming mvr, usd or
-  total, each with its own data-count and data-cents.
+  cell with data-converted saying whether it reads the converted dollar value of
+  a rufiyaa send; and data-statement-foot-line on each sent footer line, naming
+  mvr, usd or total, each with its own data-count and data-cents.
 - S-d-mvr-cell-spacing: A row's MVR cell appends its figure span and its rate
   span with no whitespace text node between them and a 3 px left margin on the
-  rate, so the cell's own text reads '10,000/-@20' while the owner sees the 3 px
-  gap the authority draws. An oracle therefore reads the figure and the rate as
-  two spans and not as one joined string.
+  rate, so the cell's own text reads 'MVR10,000@20' while the owner sees the 3
+  px gap the authority draws. An oracle therefore reads the figure and the rate
+  as two spans and not as one joined string.
 - S-ru-usd-cents: The one owner of dollar grouping in this app, read by nine
   modules: it is reused and not changed, and the new row formatters are derived
   from its output.
 - S-ru-mvr-laari: Already words laari with its separators and only real cents,
-  which is exactly the rufiyaa row rule, so it is reused and the mark is added
-  around it.
+  which is exactly the rufiyaa row rule, so it is reused and the prefix 'MVR' is
+  put before it.
 - S-ru-rate-plain: Already words a rate with no trailing zeros and at most four
   decimals, which is the inline rate the authority draws, so it is reused
   unchanged.
@@ -352,11 +361,9 @@
 - S-ru-usd-whole: No formatter drops a trailing '.00', and changing
   formatUsdCents would change the card, Home and every total, so this one is
   created beside it.
-- S-ru-mvr-amount: No formatter adds the '/-' mark, and the entry sheet's
-  reading of a rufiyaa figure must stay as it is, so this one is created.
-- S-ru-in-brackets: No helper brackets a figure, and both the row's whole
-  reading and the footer's two-decimal reading need the same brackets, so one is
-  created and used by both.
+- S-ru-mvr-amount: No formatter writes a rufiyaa figure with the prefix 'MVR',
+  and the entry sheet's reading of a rufiyaa figure must stay as it is, so this
+  one is created.
 - S-ru-mvr-cell: No type says what a row's MVR cell reads, and a nullable field
   for each part would leave a dollar row with a converted figure representable,
   so a choice type is created.
@@ -431,7 +438,7 @@
 - S-b-fail-read-obs: The screen draws the port's own message, spoken through an
   alert role, and no figure and no row at all.
 - S-b-fail-rate: A stored rufiyaa row carries no rate.
-- S-b-fail-rate-obs: The row reads its rufiyaa figure and its bracketed dollars
+- S-b-fail-rate-obs: The row reads its rufiyaa figure and its stored dollars
   with no rate clause, and the figure is never computed from a rate nobody
   stored.
 - S-b-fail-method: A stored row carries a method token this app cannot name.
@@ -463,9 +470,10 @@
   the result.
 - S-adr-decision: A row's MVR cell becomes one choice type in
   src/domain/statement.ts, the sent footer becomes a three-place tuple there,
-  and three formatters derived from formatUsdCents and formatMvrLaari word every
-  row figure, while src/ui/statement.ts keeps only the grid, the words of a
-  header, the mark that stands for an absent figure and the hooks.
+  and two formatters derived from formatUsdCents and formatMvrLaari word every
+  row figure and the rufiyaa subtotal, while src/ui/statement.ts keeps only the
+  grid, the words of a header, the mark that stands for an absent figure and the
+  hooks.
 - S-adr-alt-screen: Wording the new figures in the screen was rejected: two
   modules would then decide what the owner's money says, and the repository's
   own architectural case already forbids it.
@@ -491,7 +499,8 @@
   the same rate on the same day, and it cannot tell which module worded the
   text.
 - S-ob-usd-desc: What a row's USD cell reads: the marked whole dollar figure of
-  a dollar send, or the bracketed reading of the dollars a rufiyaa send stores.
+  a dollar send, or the marked reading, with no brackets, of the dollars a
+  rufiyaa send stores.
 - S-ob-usd-blind: It cannot distinguish stored dollars from dollars converted a
   second time when the rate happens to make them equal, which is why the
   generated ledgers store dollars unrelated to their rate.
@@ -554,8 +563,8 @@
   rufiyaa line.
 - S-law-case-count-many: A ledger with several sends in each currency reads 'N
   entries' on every line.
-- S-law-case-totals: The brief's stand-in ledger reads '60,000/-',
-  '($3,000.00)', '$9,500.00' and '$12,500.00'.
+- S-law-case-totals: The brief's stand-in ledger reads 'MVR60,000', '$3,000.00',
+  '$9,500.00' and '$12,500.00'.
 - S-law-case-retry: A read refused by the endpoint reads the spoken notice with
   no row.
 - S-law-case-source: The bytes of src/ui/statement.ts, read from the repository
@@ -585,8 +594,8 @@
   stored currency and counts them itself.
 - S-law-independent-total: The oracle sums the stored dollars of its own seeded
   sends.
-- S-excl-mvr-prop: A row of the sending list cannot be built with a bracketed
-  converted figure unless it is a rufiyaa send, and cannot be built as a rufiyaa
+- S-excl-mvr-prop: A row of the sending list cannot be built with a converted
+  dollar figure unless it is a rufiyaa send, and cannot be built as a rufiyaa
   send with no rufiyaa figure.
 - S-excl-mvr-harm: A row would state money the ledger does not hold, which is
   the one thing this screen exists not to do.
@@ -654,6 +663,22 @@
   file, no run and no mutant to cite.
 - S-scen-na: No scenario is delivered: a scenario is read from the raw trace of
   a model run, and no model was run under the recorded waiver.
+- S-c-mvr-cell-fit: The widest rufiyaa reading this list can hold is
+  'MVR99,999@20'. The owner states that no send ever carries laari and that five
+  digits is the maximum, in their own words 'but there is no possibility of
+  laari ever..' and 'maximum digit would be 5 digits. it would not go 100,000.
+  99,999 is maximum width', and every rate of this ledger reads two characters.
+  That reading needs about 85 px at the phone's 360 px width, so the MVR column
+  is 90 px instead of the board's 84 px: the 5 px left over carry the difference
+  between the fallback type family these widths were taken in and the web family
+  the phone reads, and the 6 px come from the party column. The cell never wraps
+  and gathers its figure and its rate to its right edge, so a reading wider than
+  its column runs towards the party column, which is the one reading allowed to
+  give way, and no figure is ever clipped. Outside the owner's stated range a
+  reading still runs over: 'MVR10,000@15.4' needs about 94 px and
+  'MVR10,000.50@20' about 102 px, and the residue the design accepts there is
+  that a party name filling its own column, where it is already cut with an
+  ellipsis, can have its last characters run over while the figures stay whole.
 
 ### Targets (Shared design)
 
@@ -714,7 +739,8 @@ S-purpose
 S-c-stored-minor, S-c-rate-range, S-c-no-upper-bound, S-c-row-figure-rule,
 S-c-total-two-decimals, S-c-count-wording, S-c-board-grid, S-c-board-colours,
 S-c-header-type, S-c-header-type-deviation, S-c-back-grid-deviation,
-S-c-untouched, S-c-privacy, S-c-public-port, S-c-hooks-kept, S-c-read-only
+S-c-untouched, S-c-privacy, S-c-public-port, S-c-hooks-kept, S-c-read-only,
+S-c-mvr-cell-fit
 
 ### Inherits (Shared design)
 
@@ -891,7 +917,6 @@ None
 | .statement-foot | `src/ui/theme.css:2588` | EXTEND | S-ru-foot-css |
 | formatUsdWhole | `src/domain/money.ts:118` | CREATE_NEW | S-ru-usd-whole |
 | formatMvrAmount | `src/domain/money.ts:90` | CREATE_NEW | S-ru-mvr-amount |
-| inBrackets | `src/domain/money.ts:41` | CREATE_NEW | S-ru-in-brackets |
 | StatementMvrCell | `src/domain/statement.ts:99` | CREATE_NEW | S-ru-mvr-cell |
 | SentFoot | `src/domain/statement.ts:110` | CREATE_NEW | S-ru-sent-foot |
 
@@ -1163,10 +1188,6 @@ None
             {
               "id": "formatMvrAmount",
               "signature": "(laari: number) => string"
-            },
-            {
-              "id": "inBrackets",
-              "signature": "(figure: string) => string"
             },
             {
               "id": "renderStatement",
@@ -1750,9 +1771,10 @@ npm run build
 ### Facts (Value 2)
 
 - B-purpose: The Sent for Abbaas footer reads three lines in one block: what
-  went in rufiyaa with its dollar value in brackets, what went in dollars, and,
-  under a thin divider, the total of both, each line with its label at the left
-  and its figures at the right and its count worded as this app words a count.
+  went in rufiyaa with its dollar value beside it and no brackets round it, what
+  went in dollars, and, under a thin divider, the total of both, each line with
+  its label at the left and its figures at the right and its count worded as
+  this app words a count.
 - B-c-rows-stay: The sending list's columns, cells and row figures are already
   as the previous value draws them and nothing here changes a row.
 - B-c-back-foot-stays: The paid-back footer keeps its one line, its words, its
@@ -1760,16 +1782,16 @@ npm run build
 - B-c-foot-pinned: The footer stays outside the scrolling area and rises as one
   part, as it does today, so the three lines arrive together.
 - B-c-zero-lines: All three lines are drawn at every ledger, so a ledger with no
-  rufiyaa send reads 'Sent in MVR' with 'No entries', '0/-' and '($0.00)', and a
+  rufiyaa send reads 'Sent in MVR' with 'No entries', 'MVR0' and '$0.00', and a
   ledger with no dollar send reads its dollar line at zero.
 - B-c-total-label: The last line's label reads 'Total Sent' with a capital S,
   where today's single line reads 'Total sent'.
 - B-d-domain: src/domain/statement.ts gains sentFootOf, which takes the sends of
   the read ledger and returns SentFoot: the rufiyaa line from the sends stored
   in MVR, with their laari summed and worded by formatMvrAmount and their stored
-  dollars summed and worded by inBrackets around formatUsdCents; the dollar line
-  from the sends stored in USD; and the total line from every send. Each line
-  carries its count and its count label from entryCountLabel.
+  dollars summed and worded by formatUsdCents with no brackets round it; the
+  dollar line from the sends stored in USD; and the total line from every send.
+  Each line carries its count and its count label from entryCountLabel.
 - B-d-partition: A line's membership is the stored currency of the entry, never
   a drawn text: a send stored in neither currency is counted on the total line
   alone, which is why the two currency counts are checked against the number of
@@ -1832,8 +1854,6 @@ npm run build
   way.
 - B-ru-foot-css: The rule that paints a footer on its tinted bed, extended with
   the three lines, their gap and their divider.
-- B-ru-in-brackets: Already brackets a figure for a row's converted reading, so
-  the footer's bracketed subtotal reuses it around the two-decimal formatter.
 - B-ru-mvr-amount: Already words a rufiyaa figure with its mark for a row, so
   the rufiyaa subtotal reads through the same formatter.
 - B-pf-move: The footer is moved out of renderPanel into a per-list renderer the
@@ -1877,7 +1897,7 @@ npm run build
   footer's shape from the screen; neither imports an adapter.
 - B-b-fail-empty: The ledger holds no send at all.
 - B-b-fail-empty-obs: All three lines are still drawn, each reading 'No entries'
-  with '0/-', '($0.00)' and '$0.00'.
+  with 'MVR0', '$0.00' and '$0.00'.
 - B-b-fail-third: A send is stored in a currency that is neither USD nor MVR.
 - B-b-fail-third-obs: It is counted and summed on the total line, and on no
   currency line; which line should hold it is undecided.
@@ -1885,20 +1905,22 @@ npm run build
 - B-b-fail-read-obs: No footer is drawn at all and the spoken notice stands
   alone.
 - B-po-observation: The owner reads the sent footer and sees, in one block, what
-  went in rufiyaa with its dollar value in brackets, what went in dollars, and
-  the total of both under a thin divider, each line with its count in words.
+  went in rufiyaa with its dollar value beside it in the lighter blue, what went
+  in dollars, and the total of both under a thin divider, each line with its
+  count in words.
 - B-po-stimulus: A ledger seeded through the real stack with four rufiyaa sends
   worth $3,000.00 together and five dollar sends worth $9,500.00 together, read
   by signing in and tapping Statement; then a ledger with dollar sends only;
   then one rufiyaa send added to it.
-- B-po-expected: The lines read 'Sent in MVR · 4 entries' with '60,000/-' and
-  '($3,000.00)', 'Sent in USD · 5 entries' with '$9,500.00' and 'Total Sent · 9
+- B-po-expected: The lines read 'Sent in MVR · 4 entries' with 'MVR60,000' and
+  '$3,000.00', 'Sent in USD · 5 entries' with '$9,500.00' and 'Total Sent · 9
   entries' with '$12,500.00'; the dollars-only ledger reads 'Sent in MVR · No
-  entries' with '0/-' and '($0.00)'; and after one rufiyaa send is added that
+  entries' with 'MVR0' and '$0.00'; and after one rufiyaa send is added that
   line reads '1 entry'.
 - B-po-falsifier: A footer that hid a currency line at zero, counted a rufiyaa
-  send on the dollar line, wrote the rufiyaa subtotal with two decimals, or read
-  'Total sent' with a small s fails the oracle on the line it did it to.
+  send on the dollar line, wrote the rufiyaa subtotal with two decimals or as
+  '60,000/-', put brackets round the MVR line's dollar value, or read 'Total
+  sent' with a small s fails the oracle on the line it did it to.
 - B-ob-lines: What the three sent footer lines read: each line's label, its
   count wording and its own figures, in the order they are drawn.
 - B-ob-lines-blind: They cannot say which entries made up a count, only how many
@@ -1951,9 +1973,9 @@ npm run build
   subtotal, which reads like a rufiyaa amount with cents only when they are
   real.
 - B-law-decimals-case-round: A rufiyaa subtotal of whole rufiyaa reads
-  '60,000/-' beside '($3,000.00)'.
-- B-law-decimals-case-laari: A rufiyaa subtotal with real laari keeps its two
-  decimals before its mark.
+  'MVR60,000' beside '$3,000.00'.
+- B-law-decimals-case-laari: A rufiyaa subtotal with real laari keeps its laari
+  after its prefix 'MVR'.
 - B-law-decimals-reason: A subtotal is either whole or not, so the two cases
   exhaust the law.
 - B-law-three: All three lines are drawn at every ledger, the empty one
@@ -2015,6 +2037,9 @@ npm run build
   and no checker is installed on this host.
 - B-scen-na: No scenario is delivered for this value: a scenario is read from a
   model trace, and no model was run for it.
+- B-ru-usd-cents: Already words a two-decimal dollar figure, so the footer's
+  dollar subtotals and the rufiyaa line's dollar value read through it unchanged
+  and with no brackets.
 
 ### Targets (Value 2)
 
@@ -2216,7 +2241,7 @@ None
 | entryCountLabel | `src/domain/ledger-view.ts:130` | REUSE | B-ru-count-label |
 | renderPanel | `src/ui/statement.ts:240` | EXTEND | B-ru-render-panel |
 | .statement-foot | `src/ui/theme.css:2588` | EXTEND | B-ru-foot-css |
-| inBrackets | `src/domain/money.ts:41` | REUSE | B-ru-in-brackets |
+| formatUsdCents | `src/domain/money.ts:40` | REUSE | B-ru-usd-cents |
 | formatMvrAmount | `src/domain/money.ts:90` | REUSE | B-ru-mvr-amount |
 
 ### Impact closure (Value 2)
@@ -3694,27 +3719,29 @@ npm run build
 
 - A-purpose: The Sent for Abbaas list reads the four columns Date, Paid to, MVR
   and USD with no drawn row number: a rufiyaa send reads its marked rufiyaa
-  figure with its inline rate in the MVR column and its stored dollars bracketed
-  in the USD column, a dollar send reads its marked dollar figure and a grey em
-  dash, and the sub-line reads the stored method alone.
+  figure with its inline rate in the MVR column and its stored dollars with no
+  brackets in the USD column, a dollar send reads its marked dollar figure and a
+  grey em dash, and the sub-line reads the stored method alone.
 - A-c-foot-stays: The sent footer still reads today's one line, 'Total sent'
   with its count and its two-decimal total: splitting it into three lines is the
   next value's delta and nothing here changes it.
 - A-c-back-stays: The paid-back list still reads its four columns with its drawn
   number and its unsigned two-decimal figures: its own reading is a later value
   and nothing here changes it.
-- A-c-cell-widths: The MVR cell has 84 px and the USD cell 54 px, so a long
-  person name is clipped in the party column while a figure and its inline rate
-  are never clipped; a four-decimal rate is the widest reading the MVR cell must
-  hold.
+- A-c-cell-widths: The MVR cell has 90 px and the USD cell 54 px, so a long
+  person name gives way in the party column while a figure and its inline rate
+  are never clipped; the widest reading the cell must hold is a five-digit
+  rufiyaa figure with the prefix 'MVR' and a two-character rate, which fits
+  inside the column, while a wider reading, such as one at a four-decimal rate,
+  runs over the end of the party column instead of wrapping or losing a digit.
 - A-d-domain: src/domain/statement.ts gains mvrCellOf, which builds
   StatementMvrCell from one entry, and usdFigure on StatementRow, the marked
   whole reading of the dollars the entry stores; sublineOf is narrowed to the
   stored method's word alone, so a dollar send with no stored method still has
   no sub-line.
-- A-d-money: src/domain/money.ts gains formatUsdWhole, formatMvrAmount and
-  inBrackets beside the untouched formatUsdCents, and a rufiyaa row's rate text
-  is formatRatePlain prefixed with '@'.
+- A-d-money: src/domain/money.ts gains formatUsdWhole and formatMvrAmount beside
+  the untouched formatUsdCents, and a rufiyaa row's rate text is formatRatePlain
+  prefixed with '@'.
 - A-d-transitional: usdText and withoutCurrencySign stay in place for the
   paid-back row alone until the value that changes that list: the sending row
   reads usdFigure, so the two lists keep their own readings while this value is
@@ -3724,7 +3751,7 @@ npm run build
   sent row while renderLine keeps data-no, and draws the MVR cell and the USD
   cell with their own hooks; the em dash placeholder is the screen's own mark.
 - A-d-css: src/ui/theme.css gives the sent header and the sent row the grid 40px
-  minmax(0, 1fr) 84px 54px with a 6 px column gap, centres the two currency
+  minmax(0, 1fr) 90px 54px with a 6 px column gap, centres the two currency
   words, right-aligns the two figure cells, inks the dollar, rufiyaa, converted,
   rate and placeholder readings, and keeps the zebra tints and the row rule.
 - A-d-closure: Safety stays BLOCKED for this value, because no checker ran;
@@ -3811,15 +3838,16 @@ npm run build
   motion; the meaning modules import no screen and no adapter.
 - A-b-fail-rate: A stored rufiyaa send carries no rate.
 - A-b-fail-rate-obs: Its MVR cell reads the rufiyaa figure with no rate clause
-  and its USD cell still reads the bracketed stored dollars.
+  and its USD cell still reads the stored dollars with no brackets.
 - A-b-fail-zero: A stored send carries zero stored dollars.
-- A-b-fail-zero-obs: The USD cell reads '$0' for a dollar send and '($0)' for a
-  rufiyaa send, and no cell is left blank.
+- A-b-fail-zero-obs: The USD cell reads '$0' for a dollar send and, with no
+  brackets, '$0' for the converted value of a rufiyaa send, and no cell is left
+  blank.
 - A-b-fail-read: The read of the ledger fails before any send is listed.
 - A-b-fail-read-obs: The screen speaks the port's message and draws no header,
   no row and no figure of this list.
 - A-po-observation: The owner reads the sending list and tells a rufiyaa send
-  from a dollar send at a glance: '10,000/- @20' with '($500)' on one row,
+  from a dollar send at a glance: 'MVR10,000@20' with '$500' on one row,
   '$1,500' with a grey em dash on another, four column words with the two
   currency words centred, and no number anywhere.
 - A-po-stimulus: A ledger seeded through the real stack with a rufiyaa send of
@@ -3832,14 +3860,15 @@ npm run build
   alone, and the header reads Date, Paid to, MVR, USD with the two currency
   words centred.
 - A-po-falsifier: A screen that kept the drawn number, wrote the rufiyaa figure
-  into the sub-line, drew '1,500.00' without its mark, rounded '($649.35)' or
-  left a dollar send's MVR cell empty fails the oracle on the row it did it to.
+  into the sub-line, drew '1,500.00' without its mark, wrote a rufiyaa figure as
+  '10,000/-' or a converted value as '($500)', rounded '$649.35' or left a
+  dollar send's MVR cell empty fails the oracle on the row it did it to.
 - A-ob-mvr: What a sent row's MVR cell reads: the marked rufiyaa figure and its
   inline rate, or the em dash placeholder.
 - A-ob-mvr-blind: It cannot tell two rufiyaa sends of equal amount and rate
   apart, and it cannot say which module worded the text.
 - A-ob-usd: What a sent row's USD cell reads: the marked whole dollar figure, or
-  the bracketed reading of the dollars a rufiyaa send stores.
+  the marked reading, with no brackets, of the dollars a rufiyaa send stores.
 - A-ob-usd-blind: It cannot tell stored dollars from a second conversion when
   the rate makes the two equal.
 - A-ob-sub: What the sub-line under the person reads: the stored method's word,
@@ -3860,13 +3889,13 @@ npm run build
 - A-gen-inc-mvr-rate: A rufiyaa send at a four-decimal rate, whose inline rate
   must read without trailing zeros.
 - A-gen-inc-mvr-laari: A rufiyaa send with real laari, which must keep them
-  before its mark.
+  after its prefix 'MVR'.
 - A-gen-inc-no-method: A send stored with no method, which must have no sub-line
   at all.
 - A-law-cells: Every sent row's MVR and USD cells read what its own stored row
-  says: a rufiyaa send its marked laari figure, its inline rate and its
-  bracketed stored dollars, a dollar send its marked dollar figure and the
-  placeholder.
+  says: a rufiyaa send its marked laari figure, its inline rate and its stored
+  dollars with the dollar mark and no brackets, a dollar send its marked dollar
+  figure and the placeholder.
 - A-law-cells-ind: The oracle derives both cells from the stored currency, minor
   units, rate and dollars of each seeded row.
 - A-law-cells-fal: A row that read the converted figure in the MVR column, or
@@ -3899,9 +3928,9 @@ npm run build
   as the existing architectural case reads them.
 - A-law-silent-reason: One module's own bytes are one closed reading, so a
   generated domain would add nothing.
-- A-excl-prop: A sent row cannot be built with a bracketed converted figure
-  unless its entry is a rufiyaa send, and cannot be built as a rufiyaa send with
-  no rufiyaa figure.
+- A-excl-prop: A sent row cannot be built with a converted dollar figure unless
+  its entry is a rufiyaa send, and cannot be built as a rufiyaa send with no
+  rufiyaa figure.
 - A-excl-harm: The row would state money the ledger does not hold, or hide the
   currency a send was made in.
 - A-excl-input: A decoded entry of kind send whose currency is USD or MVR, with
@@ -3929,9 +3958,9 @@ npm run build
   rests on the compiler and on the observed row cells rather than on a proof.
 - A-cl-safety-assume: It assumes every row reaching the projection was decoded
   by the ledger store and that the migration's constraints held.
-- A-cl-inhab: A rufiyaa row reading '10,000/- @20' with '($500)' and a dollar
-  row reading '$1,500' with the placeholder can both be built from admitted
-  stored rows.
+- A-cl-inhab: A rufiyaa row reading 'MVR10,000@20' with '$500' and a dollar row
+  reading '$1,500' with the placeholder can both be built from admitted stored
+  rows.
 - A-cl-inhab-input: Two seeded sends, one stored in MVR with a rate and one
   stored in USD, both admitted by the migration.
 - A-cl-inhab-obs: The two drawn rows, each read cell by cell.
@@ -4012,7 +4041,8 @@ A-purpose
 S-c-stored-minor, S-c-rate-range, S-c-no-upper-bound, S-c-row-figure-rule,
 S-c-count-wording, S-c-board-grid, S-c-board-colours, S-c-header-type,
 S-c-header-type-deviation, S-c-untouched, S-c-privacy, S-c-public-port,
-S-c-hooks-kept, S-c-read-only, A-c-foot-stays, A-c-back-stays, A-c-cell-widths
+S-c-hooks-kept, S-c-read-only, A-c-foot-stays, A-c-back-stays, A-c-cell-widths,
+S-c-mvr-cell-fit
 
 ### Inherits (Value 1)
 

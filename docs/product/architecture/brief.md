@@ -2540,7 +2540,7 @@ Verification command: `npm run test:acceptance -- tests/acceptance/entry-method.
 - F-c-usd-column: The USD column shows its figure with no currency sign, because
   the column is headed USD and every figure on this screen is in US dollars; the
   balance card keeps its '$' and shows every figure unsigned.
-  Superseded by the statement-currency-columns feature (docs/feature/statement-currency-columns/architecture/brief.md): every row figure now carries its mark ('$1,500', '10,000/-', '($500)') and drops a trailing '.00'; totals keep two decimals.
+  Superseded by the statement-currency-columns feature (docs/feature/statement-currency-columns/architecture/brief.md): every row figure now carries its mark ('$1,500', 'MVR10,000', and a rufiyaa send's converted value '$500' with no brackets) and drops a trailing '.00'; totals keep two decimals.
 - F-c-no-top: The Statement pane draws nothing above the balance card: no
   heading and no period line, at any ledger length, the empty one included. The
   pane keeps the accessible name Statement, so a screen reader still names the
@@ -5332,7 +5332,7 @@ npm run build
   px column gap, rows alternating #ffffff and #fafcfb starting white at row 1,
   each USD figure in #24508a, and the footer reading 'Total sent' with its count
   and its total on #e7eef7 in #1b3f6e.
-  Superseded by the statement-currency-columns feature (docs/feature/statement-currency-columns/architecture/brief.md): the sent header reads Date, Paid to, MVR and USD on the grid 40px minmax(0, 1fr) 84px 54px with a 6 px gap, and the footer reads three lines (Sent in MVR, Sent in USD, Total Sent).
+  Superseded by the statement-currency-columns feature (docs/feature/statement-currency-columns/architecture/brief.md): the sent header reads Date, Paid to, MVR and USD on the grid 40px minmax(0, 1fr) 90px 54px with a 6 px gap, and the footer reads three lines (Sent in MVR, Sent in USD, Total Sent).
 - V1-c-row-cells: A row's cells are its number, its date as day and short month
   with no leading zero, the person paid with the sub-line under the name, and
   its USD figure with no currency sign.
@@ -5342,7 +5342,7 @@ npm run build
   entry_date, its party from person_name, its sub-line text, and its usdCents.
   The person's own id stays on the element naming the person, as Home already
   carries it.
-  Superseded by the statement-currency-columns feature (docs/feature/statement-currency-columns/architecture/brief.md): a sent row also carries its MVR cell (marked figure, inline rate, bracketed stored dollars) and its marked USD figure.
+  Superseded by the statement-currency-columns feature (docs/feature/statement-currency-columns/architecture/brief.md): a sent row also carries its MVR cell (marked figure, inline rate, stored dollars with no brackets) and its marked USD figure.
 - V1-d-subline: A send's sub-line names the stored method first and then, for an
   MVR entry, the rufiyaa figure and the rate: 'Transfer - MVR 17,000 @ 20' for
   an MVR entry with a method, 'Transfer' for a USD one, 'MVR 10,000 @ 15.4' for
