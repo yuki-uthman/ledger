@@ -22,8 +22,8 @@ import {
 } from '../support/accounts.js'
 
 // What the owner reads here: under the sending list, one block of three lines -- what went
-// out in rufiyaa with its dollar value in brackets, what went out in dollars, and, under a
-// thin divider, the total of both -- each line with its label at the left, its figures at
+// out in rufiyaa with its dollar value beside it and no brackets round it, what went out in
+// dollars, and, under a thin divider, the total of both -- each line with its label at the left, its figures at
 // the right and its count worded the way this app words a count. The lines are all there at
 // every ledger, the one with nothing in it included.
 //
@@ -170,12 +170,10 @@ const groupedWithMinor = new Intl.NumberFormat('en-US', { minimumFractionDigits:
 const minorFigure = (minor: number): string =>
   minor % 100 === 0 ? grouped.format(minor / 100) : groupedWithMinor.format(minor / 100)
 
-/** The marked reading of stored laari: '60,000/-', '60,000.50/-', '0/-'. */
-const mvrFigure = (laari: number): string => `${minorFigure(laari)}/-`
+/** The marked reading of stored laari: 'MVR60,000', 'MVR60,000.50', 'MVR0'. */
+const mvrFigure = (laari: number): string => `MVR${minorFigure(laari)}`
 /** A figure as every total and subtotal in dollars reads it: always two decimals. */
 const twoDecimalFigure = (cents: number): string => `$${groupedWithMinor.format(cents / 100)}`
-/** The bracketed dollar reading of what a set of rufiyaa sends stores. */
-const bracketed = (cents: number): string => `(${twoDecimalFigure(cents)})`
 /** The marked whole reading a row uses: '$1,500', '$1,500.50'. */
 const usdRowFigure = (cents: number): string => `$${minorFigure(cents)}`
 /** A stored rate as a row reads it beside its figure, behind its mark. */
@@ -219,7 +217,7 @@ type ExpectedLine = {
 /**
  * The three lines the stored sends mean, derived from the stored currency and the stored
  * minor units alone: the rufiyaa line from the sends stored in MVR with their laari summed
- * and their stored dollars in brackets, the dollar line from the sends stored in USD, and
+ * and their stored dollars beside them with no brackets, the dollar line from the sends stored in USD, and
  * the total line from every send, whatever currency it is stored in.
  */
 const expectedFootLines = (stored: readonly StoredLedgerRow[]): readonly ExpectedLine[] => {
@@ -232,7 +230,7 @@ const expectedFootLines = (stored: readonly StoredLedgerRow[]): readonly Expecte
       label: `${LINE_LABELS.mvr} ${DOT} ${countLabel(inRufiyaa.length)}`,
       count: inRufiyaa.length,
       cents: centsOf(inRufiyaa),
-      figures: [mvrFigure(laariOf(inRufiyaa)), bracketed(centsOf(inRufiyaa))],
+      figures: [mvrFigure(laariOf(inRufiyaa)), twoDecimalFigure(centsOf(inRufiyaa))],
     },
     {
       which: 'usd',
@@ -290,13 +288,36 @@ const expectedRowCells = (stored: readonly StoredLedgerRow[]): ReadonlyArray<rea
     row.currency === 'MVR'
       ? [
           `${mvrFigure(row.amount_minor)}${row.rate === null ? '' : inlineRate(row.rate)}`,
-          bracketedRow(row.usd_cents),
+          usdRowFigure(row.usd_cents),
         ]
       : [EM_DASH, usdRowFigure(row.usd_cents)],
   )
 
-/** A row's converted reading: the whole row rule inside brackets. */
-const bracketedRow = (cents: number): string => `(${usdRowFigure(cents)})`
+/**
+ * The currency marks a module writes itself, read out of its own string literals: a dollar
+ * mark anywhere in a literal, or the rufiyaa prefix joined to another reading. The bare
+ * word 'MVR' is the column word this screen draws and the currency it compares a stored
+ * row against, so it counts as a written mark only where it is joined to something else --
+ * a template with a value put into it, or a literal concatenated onto a figure.
+ */
+const currencyMarksWritten = (plain: string): readonly string[] => {
+  const ANY_LITERAL = /`(?:[^`\\]|\\.)*`|'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"/g
+  // The opening of an interpolation is masked first, so a value put into a sentence is
+  // never mistaken for a written dollar mark.
+  const masked = plain.replace(/\$\{/g, '@{')
+  const written: string[] = []
+  for (const match of masked.matchAll(ANY_LITERAL)) {
+    const literal = match[0]
+    if (!/\$|MVR/.test(literal)) continue
+    const joinedOn = masked
+      .slice((match.index ?? 0) + literal.length)
+      .trimStart()
+      .startsWith('+')
+    if (literal.slice(1, -1) === 'MVR' && !joinedOn) continue
+    written.push(literal)
+  }
+  return written
+}
 
 // ===== The stimulus: the stored ledgers the owner signs in to =====
 
@@ -370,7 +391,7 @@ const BOTH_CURRENCIES_READS: readonly ExpectedLine[] = [
     label: 'Sent in MVR · 4 entries',
     count: 4,
     cents: 300_000,
-    figures: ['60,000/-', '($3,000.00)'],
+    figures: ['MVR60,000', '$3,000.00'],
   },
   { which: 'usd', label: 'Sent in USD · 5 entries', count: 5, cents: 950_000, figures: ['$9,500.00'] },
   { which: 'total', label: 'Total Sent · 9 entries', count: 9, cents: 1_250_000, figures: ['$12,500.00'] },
@@ -768,7 +789,7 @@ test('the footer tells what went in rufiyaa, what went in dollars and the total'
       reading.lines[1]?.leaves[1]?.ink,
       reading.lines.map((line) => line.leaves[0]?.ink),
     ],
-    'WHAT: the figures of the two currency lines are not inked in their own currency colours over the footer ink. WHY: colour is how the owner tells rufiyaa from dollars and a converted value from money actually sent in dollars. HOW: ink the rufiyaa subtotal amber-brown, its bracketed dollars the lighter blue, the dollar subtotal blue, and every label in the footer ink.',
+    'WHAT: the figures of the two currency lines are not inked in their own currency colours over the footer ink. WHY: colour is how the owner tells rufiyaa from dollars and a converted value from money actually sent in dollars. HOW: ink the rufiyaa subtotal amber-brown, its dollar value the lighter blue, the dollar subtotal blue, and every label in the footer ink.',
   ).toEqual([MVR_INK, CONVERTED_INK, USD_INK, [FOOT_INK, FOOT_INK, FOOT_INK]])
 })
 
@@ -788,8 +809,8 @@ test('a currency nobody sent this month still reads its own line at zero', async
   ).toEqual(linesMeant(stored))
   expect(
     [reading.lines[0]?.leaves[0]?.text, reading.lines[0]?.leaves.slice(1).map((figure) => figure.text)],
-    "WHAT: the rufiyaa line of a dollars-only month does not read 'No entries' with '0/-' and '($0.00)'. WHY: those are the readings that tell the owner nothing went out in rufiyaa this month. HOW: word a count of none the way this app words it, and read a subtotal of nothing as zero in both figures.",
-  ).toEqual(['Sent in MVR · No entries', ['0/-', '($0.00)']])
+    "WHAT: the rufiyaa line of a dollars-only month does not read 'No entries' with 'MVR0' and '$0.00'. WHY: those are the readings that tell the owner nothing went out in rufiyaa this month. HOW: word a count of none the way this app words it, and read a subtotal of nothing as zero in both figures.",
+  ).toEqual(['Sent in MVR · No entries', ['MVR0', '$0.00']])
 })
 
 test('the first rufiyaa send of the month makes that line read one entry', async ({ page }) => {
@@ -885,7 +906,7 @@ test('a rufiyaa subtotal with real laari keeps them while every dollar figure ke
     "WHAT: a footer figure does not keep its two decimals, or the rufiyaa subtotal was given two decimals it does not have. WHY: a total that drops its decimals reads as a round figure the owner does not hold, and a rufiyaa subtotal padded to two decimals reads unlike every other rufiyaa figure on the screen. HOW: keep '.00' on every dollar figure of the footer and on no rufiyaa subtotal of whole rufiyaa.",
   ).toEqual([
     mvrFigure(laariOf(sendsOf(stored).filter((row) => row.currency === 'MVR'))),
-    bracketed(centsOf(sendsOf(stored).filter((row) => row.currency === 'MVR'))),
+    twoDecimalFigure(centsOf(sendsOf(stored).filter((row) => row.currency === 'MVR'))),
     twoDecimalFigure(centsOf(sendsOf(stored).filter((row) => row.currency === 'USD'))),
     twoDecimalFigure(centsOf(sendsOf(stored))),
   ])
@@ -1135,9 +1156,7 @@ test('the screen draws the three lines without wording any money itself', async 
   const plain = withoutComments(screenSource ?? '')
   // A written mark, never a value put into a sentence: the opening of an interpolation is
   // masked before the marks are looked for.
-  const marks = Array.from(plain.replace(/\$\{/g, '@{').matchAll(LITERAL))
-    .map((match) => match[0])
-    .filter((literal) => /\$|\/-/.test(literal))
+  const marks = currencyMarksWritten(plain)
   const code = plain.replace(LITERAL, '""')
   const wordsMoneyItself = /\b(Intl|NumberFormat|toLocaleString|toFixed)\b/.test(code)
   // Arithmetic the screen may not do: any scaling at all, and any sum or difference whose

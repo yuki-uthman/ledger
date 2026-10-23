@@ -22,10 +22,11 @@ import {
 } from '../support/accounts.js'
 
 // What the owner reads here: the Sent for Abbaas list in four columns -- Date, Paid to,
-// MVR and USD -- where a send made in rufiyaa reads its own rufiyaa figure with its rate
-// beside it and the dollars that entry stores in brackets, and a send made in dollars
-// reads its dollar figure and a grey em dash. No number is drawn in any row, and the line
-// under the person names how the money changed hands and nothing else.
+// MVR and USD -- where a send made in rufiyaa reads its own rufiyaa figure with the prefix
+// 'MVR' and its rate beside it, and the dollars that entry stores with no brackets round
+// them, and a send made in dollars reads its dollar figure and a grey em dash. No number is
+// drawn in any row, and the line under the person names how the money changed hands and
+// nothing else.
 //
 // Judged only through the declared public port: the BUILT bundle as Chrome loads it over
 // the served loopback origin, at 360 by 780, with the local stack behind it. Nothing here
@@ -38,7 +39,7 @@ import {
 //
 // Two notes on the readings.
 //   - A row's MVR cell appends its figure and its rate with no whitespace between them, so
-//     the cell's own text reads '10,000/-@20' while the owner sees the gap the board draws.
+//     the cell's own text reads 'MVR10,000@20' while the owner sees the gap the board draws.
 //     This oracle therefore reads the figure and the rate as two readings, never as one
 //     joined string.
 //   - A rufiyaa send's dollars are the dollars its entry STORES, never a second conversion
@@ -70,7 +71,7 @@ const ZEBRA_TINT = 'rgb(250, 252, 251)'
 const PLAIN_ROW = 'rgb(255, 255, 255)'
 
 const DATE_TRACK = '40px'
-const MVR_TRACK = '84px'
+const MVR_TRACK = '90px'
 const USD_TRACK = '54px'
 const COLUMN_GAP = '6px'
 /** The gap the board leaves between a rufiyaa figure and its inline rate. */
@@ -118,9 +119,16 @@ type MvrCellReading = {
   readonly placeholder: Drawn | null
   readonly rateGap: string
   readonly rateFollowsTheFigure: boolean
+  /**
+   * How far the reading runs past the left edge of its own column, in pixels. The cell
+   * never wraps and gathers its readings to its right edge, so a reading too wide for the
+   * column runs out of it towards the party column; a reading that fits answers nothing
+   * over, which is zero or less.
+   */
+  readonly runsOverTheColumn: number
 }
 
-/** What a row's USD cell reads: a marked dollar figure, or a bracketed converted one. */
+/** What a row's USD cell reads: a marked dollar figure, or the converted one beside it. */
 type UsdCellReading = {
   readonly found: boolean
   readonly text: string
@@ -211,10 +219,10 @@ const minorFigure = (minor: number): string => {
 
 /** The marked whole reading of stored dollars: '$1,500', '$1,500.50'. */
 const usdFigure = (cents: number): string => `$${minorFigure(cents)}`
-/** The bracketed reading of the dollars a rufiyaa send stores: '($500)', '($649.35)'. */
-const convertedFigure = (cents: number): string => `(${usdFigure(cents)})`
-/** The marked reading of stored laari: '10,000/-', '10,000.50/-'. */
-const mvrFigure = (laari: number): string => `${minorFigure(laari)}/-`
+/** The reading, with no brackets, of the dollars a rufiyaa send stores: '$500', '$649.35'. */
+const convertedFigure = (cents: number): string => usdFigure(cents)
+/** The marked reading of stored laari: 'MVR10,000', 'MVR10,000.50'. */
+const mvrFigure = (laari: number): string => `MVR${minorFigure(laari)}`
 /** A figure as the card and the two footers read it, always to two decimals. */
 const twoDecimalFigure = (cents: number): string => `$${groupedWithMinor.format(Math.abs(cents) / 100)}`
 
@@ -286,7 +294,8 @@ const expectedRows = (stored: readonly StoredLedgerRow[]): readonly ExpectedRow[
 /**
  * The footer of the sending list: three lines in the order they are drawn, read as the one
  * block of text they stand in. The rufiyaa line reads the laari the sends stored in MVR add
- * up to, with the dollars those same sends store in brackets; the dollar line reads the sends
+ * up to, with the dollars those same sends store beside it and no brackets round them; the
+ * dollar line reads the sends
  * stored in USD; the total line reads every send, whatever its currency. Each count is worded
  * as this app words a count, every figure keeps its two decimals except the rufiyaa subtotal,
  * which reads like a rufiyaa amount, and the block's own count and cents are still the total
@@ -306,7 +315,7 @@ const expectedFoot = (
     count: String(sends.length),
     cents: String(centsOf(sends)),
     text: [
-      `Sent in MVR ${DOT} ${countLabel(inRufiyaa.length)} ${mvrFigure(laari)} (${twoDecimalFigure(centsOf(inRufiyaa))})`,
+      `Sent in MVR ${DOT} ${countLabel(inRufiyaa.length)} ${mvrFigure(laari)} ${twoDecimalFigure(centsOf(inRufiyaa))}`,
       `Sent in USD ${DOT} ${countLabel(inDollars.length)} ${twoDecimalFigure(centsOf(inDollars))}`,
       `Total Sent ${DOT} ${countLabel(sends.length)} ${twoDecimalFigure(centsOf(sends))}`,
     ].join(' '),
@@ -328,20 +337,45 @@ const expectedCard = (
 }
 
 /**
- * The whole minor units a drawn figure STATES, read back out of its own text: the mark,
- * the brackets and the thousands separators come off, and what is left is the amount. It
- * answers null when the text is not a figure of this app at all.
+ * The whole minor units a drawn figure STATES, read back out of its own text: the mark and
+ * the thousands separators come off, and what is left is the amount. It answers null when
+ * the text is not a figure of this app at all -- a figure in brackets among them, because
+ * no figure of this list carries brackets any more.
  */
 const minorUnitsStated = (drawn: string): number | null => {
   const bare = drawn
-    .replace(/^\(/, '')
-    .replace(/\)$/, '')
     .replace(/^\$/, '')
-    .replace(/\/-$/, '')
+    .replace(/^MVR/, '')
     .replace(/,/g, '')
   if (!/^\d+(\.\d{2})?$/.test(bare)) return null
   const [whole, minor] = bare.split('.')
   return Number(whole) * 100 + Number(minor ?? '0')
+}
+
+/**
+ * The currency marks a module writes itself, read out of its own string literals: a dollar
+ * mark anywhere in a literal, or the rufiyaa prefix joined to another reading. The bare
+ * word 'MVR' is the column word this screen draws and the currency it compares a stored
+ * row against, so it counts as a written mark only where it is joined to something else --
+ * a template with a value put into it, or a literal concatenated onto a figure.
+ */
+const currencyMarksWritten = (plain: string): readonly string[] => {
+  const ANY_LITERAL = /`(?:[^`\\]|\\.)*`|'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"/g
+  // The opening of an interpolation is masked first, so a value put into a sentence is
+  // never mistaken for a written dollar mark.
+  const masked = plain.replace(/\$\{/g, '@{')
+  const written: string[] = []
+  for (const match of masked.matchAll(ANY_LITERAL)) {
+    const literal = match[0]
+    if (!/\$|MVR/.test(literal)) continue
+    const joinedOn = masked
+      .slice((match.index ?? 0) + literal.length)
+      .trimStart()
+      .startsWith('+')
+    if (literal.slice(1, -1) === 'MVR' && !joinedOn) continue
+    written.push(literal)
+  }
+  return written
 }
 
 // ===== The stimulus: the stored ledgers the owner signs in to =====
@@ -351,6 +385,7 @@ const ACCOUNT_EMPTY = { email: 'owner-columns-b@abbaas.test', password: 'columns
 const ACCOUNT_METHODS = { email: 'owner-columns-c@abbaas.test', password: 'columns-password-c3' } as const
 const ACCOUNT_ROUND_TRIP = { email: 'owner-columns-d@abbaas.test', password: 'columns-password-d4' } as const
 const ACCOUNT_LONG_NAME = { email: 'owner-columns-e@abbaas.test', password: 'columns-password-e5' } as const
+const ACCOUNT_WIDEST = { email: 'owner-columns-f@abbaas.test', password: 'columns-password-f5' } as const
 const ACCOUNT_GENERATED = { email: 'owner-columns-g@abbaas.test', password: 'columns-password-g6' } as const
 const ACCOUNT_OFFERED = { email: 'owner-columns-r@abbaas.test', password: 'columns-password-r7' } as const
 
@@ -446,14 +481,14 @@ const SENDING_LEDGER: readonly EntrySeed[] = [
 
 /**
  * What those six sends read, stated as constants so a wrong derivation above cannot pass
- * unnoticed: a rufiyaa figure with its inline rate and the stored dollars in brackets, or
- * a marked dollar figure and the placeholder, with the stored method alone under the
- * person. A null rufiyaa figure means the placeholder stands in its place.
+ * unnoticed: a rufiyaa figure with its prefix and its inline rate and the stored dollars
+ * with no brackets, or a marked dollar figure and the placeholder, with the stored method
+ * alone under the person. A null rufiyaa figure means the placeholder stands in its place.
  */
 const SENDING_LEDGER_READS: readonly ExpectedRow[] = [
-  { place: '1', date: '14 Sep', person: MARIYAM, sub: 'Transfer', mvr: '10,000/-', rate: '@20', usd: '($500)', rufiyaa: true },
-  { place: '2', date: '18 Sep', person: AHMED, sub: 'Transfer', mvr: '10,000.50/-', rate: '@20', usd: '($500.03)', rufiyaa: true },
-  { place: '3', date: '22 Sep', person: AHMED, sub: 'Transfer', mvr: '10,000/-', rate: '@15.4', usd: '($649.35)', rufiyaa: true },
+  { place: '1', date: '14 Sep', person: MARIYAM, sub: 'Transfer', mvr: 'MVR10,000', rate: '@20', usd: '$500', rufiyaa: true },
+  { place: '2', date: '18 Sep', person: AHMED, sub: 'Transfer', mvr: 'MVR10,000.50', rate: '@20', usd: '$500.03', rufiyaa: true },
+  { place: '3', date: '22 Sep', person: AHMED, sub: 'Transfer', mvr: 'MVR10,000', rate: '@15.4', usd: '$649.35', rufiyaa: true },
   { place: '4', date: '26 Sep', person: MARIYAM, sub: 'Transfer', mvr: null, rate: null, usd: '$1,500', rufiyaa: false },
   { place: '5', date: '30 Sep', person: MARIYAM, sub: 'Transfer', mvr: null, rate: null, usd: '$1,500.50', rufiyaa: false },
   { place: '6', date: '4 Oct', person: AHMED, sub: null, mvr: null, rate: null, usd: '$720', rufiyaa: false },
@@ -548,6 +583,25 @@ const LONG_NAME_LEDGER: readonly EntrySeed[] = [
   },
 ]
 
+/**
+ * The widest rufiyaa send the owner can make: five digits at a two-character rate, which
+ * is the longest reading the MVR column ever has to hold. Its stored dollars are what that
+ * send came to.
+ */
+const WIDEST_LEDGER: readonly EntrySeed[] = [
+  {
+    kind: 'send',
+    currency: 'MVR',
+    amountMinor: 9_999_900,
+    rate: '20.0000',
+    usdCents: 500_000,
+    entryDate: '2026-05-12',
+    savedAt: '2026-05-12T09:00:00Z',
+    personName: AHMED,
+    method: 'transfer',
+  },
+]
+
 let stack: Stack
 let served: ServedOrigin
 let columns: Account
@@ -555,6 +609,7 @@ let empty: Account
 let methods: Account
 let roundTrip: Account
 let longName: Account
+let widest: Account
 let generated: Account
 let offered: Account
 let generatedPeople: ReadonlyMap<string, string>
@@ -586,6 +641,9 @@ test.beforeAll(async () => {
 
   longName = await createAccount(stack, ACCOUNT_LONG_NAME)
   await replaceEntries(stack, longName, LONG_NAME_LEDGER, await seedPeopleByName(stack, longName, [LONG_NAME]))
+
+  widest = await createAccount(stack, ACCOUNT_WIDEST)
+  await replaceEntries(stack, widest, WIDEST_LEDGER, await seedPeopleByName(stack, widest, [AHMED]))
 
   generated = await createAccount(stack, ACCOUNT_GENERATED)
   generatedPeople = await seedPeopleByName(stack, generated, [AHMED, MARIYAM])
@@ -739,6 +797,7 @@ const readSendingList = (page: Page): Promise<SendingListReading> =>
       placeholder: null,
       rateGap: '',
       rateFollowsTheFigure: false,
+      runsOverTheColumn: 0,
     }
     const noUsd: UsdCellReading = { found: false, text: '', figure: null, converted: null }
     const noHead: HeadReading = {
@@ -781,6 +840,13 @@ const readSendingList = (page: Page): Promise<SendingListReading> =>
       const rate = drawnOf(rateElement, mvrCell)
       const placeholder = drawnOf(placeholderElement, mvrCell)
       const usdFigureElement = usdCell === null ? null : (readingInside(usdCell, []) ?? usdCell)
+      const leftmostReading = [figure, rate, placeholder]
+        .filter((part): part is Drawn => part !== null)
+        .map((part) => part.left)
+      const runsOverTheColumn =
+        mvrCell === null || leftmostReading.length === 0
+          ? 0
+          : mvrCell.getBoundingClientRect().left - Math.min(...leftmostReading)
       const sub = row.querySelector('[data-statement-sub]')
       const person = row.querySelector('[data-person]')
       return {
@@ -806,6 +872,7 @@ const readSendingList = (page: Page): Promise<SendingListReading> =>
                   rate === null ||
                   figure === null ||
                   (rate.left >= figure.right - 1 && rate.top < figure.bottom && figure.top < rate.bottom),
+                runsOverTheColumn,
               },
         usd:
           usdCell === null
@@ -984,8 +1051,12 @@ test('the sending list tells a rufiyaa send from a dollar send at a glance', asy
   )
   expect(
     reading.rows.map((row) => row.usd.text),
-    "WHAT: the USD column does not read a dollar send's marked figure and a rufiyaa send's stored dollars in brackets. WHY: the dollars of a rufiyaa send are the dollars its entry stores: converting its rufiyaa figure a second time moves the owner's money by the rounding. HOW: mark a dollar figure, drop a trailing '.00', keep real cents, and bracket the stored dollars of a rufiyaa send.",
+    "WHAT: the USD column does not read a dollar send's marked figure and a rufiyaa send's stored dollars, with no brackets round either. WHY: the dollars of a rufiyaa send are the dollars its entry stores: converting its rufiyaa figure a second time moves the owner's money by the rounding, and brackets round a figure read as money the owner is not sure of. HOW: mark a dollar figure, drop a trailing '.00', keep real cents, and read the stored dollars of a rufiyaa send the same way, with no brackets.",
   ).toEqual(SENDING_LEDGER_READS.map((row) => row.usd))
+  expect(
+    reading.rows.map((row) => [/\/-/.test(row.mvr.text), /[()]/.test(`${row.mvr.text}${row.usd.text}`)]),
+    "WHAT: a row still draws the old trailing rufiyaa mark, or a figure in brackets. WHY: the owner reads 'MVR10,000' and '$500': a mark after the figure and brackets round a dollar value are the two readings this list must no longer draw anywhere in either column. HOW: put the prefix 'MVR' before a rufiyaa figure and draw a converted dollar value bare.",
+  ).toEqual(SENDING_LEDGER_READS.map(() => [false, false]))
 
   // And each reading carries the colour and the weight that says which currency it is
   expect(
@@ -997,7 +1068,7 @@ test('the sending list tells a rufiyaa send from a dollar send at a glance', asy
   ).toEqual(SENDING_LEDGER_READS.map((row) => (row.mvr === null ? [PLACEHOLDER_INK, null] : [MVR_INK, '700'])))
   expect(
     reading.rows.map((row) => [row.usd.figure?.ink ?? null, row.usd.figure?.weight ?? null]),
-    'WHAT: a stored dollar figure and a bracketed converted one are inked and weighted alike. WHY: the owner must see at once which figure is money that left and which is only what it was worth. HOW: ink a dollar figure blue at weight 700 and a bracketed converted figure lighter blue at weight 600.',
+    'WHAT: a stored dollar figure and a converted one are inked and weighted alike. WHY: the two figures carry no brackets to tell them apart any more, so colour and weight are the whole of how the owner sees which figure is money that left and which is only what it was worth. HOW: ink a dollar figure blue at weight 700 and a converted figure lighter blue at weight 600.',
   ).toEqual(SENDING_LEDGER_READS.map((row) => (row.rufiyaa ? [CONVERTED_INK, '600'] : [USD_INK, '700'])))
   expect(
     reading.rows.map((row) => [
@@ -1029,7 +1100,7 @@ test('the sending list tells a rufiyaa send from a dollar send at a glance', asy
   const rufiyaaMark = marks[0]
   expect(
     [typeof rufiyaaMark, rufiyaaMark === marks[3]],
-    'WHAT: the USD cell of a rufiyaa send and of a dollar send say the same thing about what they read. WHY: a reading must be able to tell a bracketed converted figure from money that left in dollars without parsing the text. HOW: say on each USD cell whether it reads a converted figure, differently for the two kinds.',
+    'WHAT: the USD cell of a rufiyaa send and of a dollar send say the same thing about what they read. WHY: the two readings are worded alike now, so a reader must be able to tell a converted figure from money that left in dollars without parsing the text. HOW: say on each USD cell whether it reads a converted figure, differently for the two kinds.',
   ).toEqual(['string', false])
   expect(
     [marks.filter((mark) => mark === rufiyaaMark).length, reading.rows.length],
@@ -1043,7 +1114,7 @@ test('the sending list tells a rufiyaa send from a dollar send at a glance', asy
   ).toEqual([PLAIN_ROW, ZEBRA_TINT, PLAIN_ROW, ZEBRA_TINT, PLAIN_ROW, ZEBRA_TINT])
   expect(
     reading.foot,
-    "WHAT: the footer no longer reads its three lines — 'Sent in MVR' with the laari subtotal and the bracketed dollars, 'Sent in USD', and 'Total Sent' — each with its own count, while the block itself still carries the total's count and cents. WHY: the footer is the owner's check that the list and the card agree, and a split list is only checkable against a footer that splits the same way. HOW: draw all three lines at every ledger, count and sum each from the stored currency of the sends, and keep the block's own hooks reading the total line.",
+    "WHAT: the footer no longer reads its three lines — 'Sent in MVR' with the rufiyaa subtotal and its dollar value, 'Sent in USD', and 'Total Sent' — each with its own count, while the block itself still carries the total's count and cents. WHY: the footer is the owner's check that the list and the card agree, and a split list is only checkable against a footer that splits the same way. HOW: draw all three lines at every ledger, count and sum each from the stored currency of the sends, and keep the block's own hooks reading the total line.",
   ).toEqual(expectedFoot(stored))
   expect(
     reading.writingControls,
@@ -1102,7 +1173,7 @@ test('the line under a person names how the money changed hands and nothing else
     "WHAT: the three sends do not read 'Cash', 'Cheque' and no line at all. WHY: a word nobody recorded invents how the money changed hands, and a missing word hides it. HOW: word the line from the stored method, and draw no line where nothing is stored.",
   ).toEqual(['Cash', 'Cheque', null])
   expect(
-    reading.rows.map((row) => /MVR|\/-|@/.test(row.sub ?? '')),
+    reading.rows.map((row) => /MVR|@/.test(row.sub ?? '')),
     'WHAT: a line under a person still carries a rufiyaa figure or a rate. WHY: the rufiyaa figure and its rate now read in the MVR column: left under the person as well they would state the same money twice. HOW: word the line from the stored method alone.',
   ).toEqual([false, false, false])
   expect(
@@ -1122,7 +1193,7 @@ test('every stored send reads its own currency in its own column', async ({ page
   // Assert: nothing disagreed; a failing ledger is reported at its smallest
   expect(
     await reportOf(page, failing, judgeTheCurrencyColumns),
-    "WHAT: a generated ledger was not read as its stored rows mean it. WHY: this is the law that makes the two columns true of every ledger and not only of the seeded one: a rufiyaa send reads its own marked laari figure, its stored rate and its stored dollars in brackets, a dollar send reads its marked dollar figure and the placeholder, and neither ever reads the other's shape. HOW: read the failing ledger printed above, which is the smallest one that still disagrees.",
+    "WHAT: a generated ledger was not read as its stored rows mean it. WHY: this is the law that makes the two columns true of every ledger and not only of the seeded one: a rufiyaa send reads its own marked laari figure, its stored rate and its stored dollars with no brackets, a dollar send reads its marked dollar figure and the placeholder, and neither ever reads the other's shape. HOW: read the failing ledger printed above, which is the smallest one that still disagrees.",
   ).toBe('')
 })
 
@@ -1172,6 +1243,44 @@ test('a long name gives way before the figures do', async ({ page }) => {
     reading.rows.map((row) => row.person),
     'WHAT: the row does not name the person the money went to. WHY: a clipped name is a degradation the owner accepts; a missing name is not. HOW: draw the stored name in the party column.',
   ).toEqual(expected.map((row) => row.person))
+})
+
+
+test('the widest rufiyaa send the owner can make still reads on one line', async ({ page }) => {
+  // Given the ledger holds the largest rufiyaa send the owner ever makes
+  const stored = await readStoredLedger(stack, widest)
+  expect(
+    expectedRows(stored).map((row) => [row.mvr, row.rate]),
+    "WHAT: the ledger seeded for this reading is not the widest rufiyaa cell the owner can send. WHY: this reading exists for that one cell, five digits at a two-character rate, which is the longest the MVR column ever has to hold: a narrower send would not test the column at all. HOW: seed a send of 99,999 rufiyaa at the rate 20.",
+  ).toEqual([['MVR99,999', '@20']])
+  await givenTheOwnerIsSignedIn(page, widest)
+
+  // When the owner taps the Statement tab on the phone's own width
+  await whenTheOwnerTapsStatement(page)
+
+  // Then that cell reads whole, on one line, inside its own column
+  const reading = await readSendingList(page)
+  const row = reading.rows[0]
+  expect(
+    row?.mvr.rateFollowsTheFigure,
+    'WHAT: the widest rufiyaa cell wrapped its rate under its figure. WHY: a rate on a line of its own reads as a second amount, which is money the owner never sent. HOW: keep the figure and its rate on one line at the phone\'s width.',
+  ).toBe(true)
+  expect(
+    row?.mvr.runsOverTheColumn ?? Number.POSITIVE_INFINITY,
+    `WHAT: the widest rufiyaa cell runs out of its own ${MVR_TRACK} column, by the number of pixels above. WHY: this is the cell the column is sized for: a reading pushed out of it runs over the name beside it, where the owner reads two things at once. HOW: give the MVR column the width this pair needs at 360 px.`,
+  ).toBeLessThanOrEqual(0)
+  expect(
+    [row?.mvr.figure?.text ?? null, row?.mvr.rate?.text ?? null],
+    "WHAT: the widest rufiyaa cell does not read 'MVR99,999' with '@20' beside it. WHY: it is the largest send the owner makes, so a digit dropped or a rate lost here hides the amount they are most likely to be checking. HOW: word the figure from the stored laari and the rate from the stored decimals, however wide the pair comes out.",
+  ).toEqual(['MVR99,999', '@20'])
+  expect(
+    [row?.date ?? null, row?.usd.text ?? null, row?.tracks.split(' ').filter((_track, index) => index !== 1)],
+    'WHAT: the date or the dollar column gave up its own reading or its own width to make room for the widest rufiyaa cell. WHY: the party column is the one reading allowed to give way: a date or a dollar figure that moves instead reads as a different row. HOW: fix the date and the two currency tracks and let the party column alone take what is left.',
+  ).toEqual([
+    expectedRows(stored)[0]?.date,
+    expectedRows(stored)[0]?.usd,
+    [DATE_TRACK, MVR_TRACK, USD_TRACK],
+  ])
 })
 
 test('real laari, real cents and a four-decimal rate survive the way to the screen', async ({ page }) => {
@@ -1308,9 +1417,7 @@ test('the screen draws the currency readings without wording any money itself', 
   const plain = withoutComments(screenSource ?? '')
   // A written mark, never a value put into a sentence: the opening of an interpolation is
   // masked before the marks are looked for.
-  const marks = Array.from(plain.replace(/\$\{/g, '@{').matchAll(LITERAL))
-    .map((match) => match[0])
-    .filter((literal) => /\$|\/-/.test(literal))
+  const marks = currencyMarksWritten(plain)
   const code = plain.replace(LITERAL, '""')
   const wordsMoneyItself = /\b(Intl|NumberFormat|toLocaleString|toFixed)\b/.test(code)
   const scales = code
@@ -1633,7 +1740,7 @@ const judgeNothingIsRounded: Judge = async (page: Page): Promise<readonly string
         `'${rufiyaaText}' ${rufiyaaText.includes('.') ? 'keeps' : 'drops'} its decimals on ${row.amount_minor} stored laari`,
       )
     }
-    if (!rufiyaaText.endsWith('/-')) {
+    if (!rufiyaaText.startsWith('MVR')) {
       reasons.push(`'${rufiyaaText}' carries no rufiyaa mark`)
     }
     const rateText = drawnRow.mvr.rate?.text ?? ''

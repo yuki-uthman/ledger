@@ -42,11 +42,11 @@ import {
 //     one entry up to twelve, so no case is observed twice with the same assertion.
 //   - The two lists no longer read the same row. A send reads its date, the person paid,
 //     its rufiyaa column and its dollar column, and its dollar figure carries its mark,
-//     bracketed where the send was made in rufiyaa. A repayment is untouched here: it
+//     with no brackets round it. A repayment is untouched here: it
 //     keeps its number, its method, its unsigned two-decimal figure and its one-line
 //     footer until the value that reads that list. The sending list's footer now reads
-//     three lines in one block - what went in rufiyaa with its stored dollars in
-//     brackets, what went in dollars, and the total of both - read here as the one text
+//     three lines in one block - what went in rufiyaa with its stored dollars beside
+//     them, what went in dollars, and the total of both - read here as the one text
 //     they stand in. Every footer figure keeps its two decimals except the rufiyaa
 //     subtotal, which reads like a rufiyaa amount, and the balance card is untouched.
 
@@ -191,17 +191,15 @@ const minorFigure = (minor: number): string => {
 
 /**
  * What one stored send reads in the USD column of the sending list: the marked whole
- * reading of the dollars it stores, bracketed where the send was made in rufiyaa.
+ * reading of the dollars it stores, with no brackets round it whichever currency the send
+ * was made in.
  */
-const sentFigureOf = (row: StoredLedgerRow): string => {
-  const figure = `$${minorFigure(row.usd_cents)}`
-  return row.currency === 'MVR' ? `(${figure})` : figure
-}
+const sentFigureOf = (row: StoredLedgerRow): string => `$${minorFigure(row.usd_cents)}`
 
 /**
  * What one stored repayment reads in the USD column of the paid-back list: the same
- * marked reading under the same row rule, never bracketed, because this list holds one
- * currency and has no rufiyaa column to compare a converted figure with.
+ * marked reading under the same row rule, because this list holds one currency and has no
+ * rufiyaa column to compare a converted figure with.
  */
 const backFigureOf = (row: StoredLedgerRow): string => `$${minorFigure(row.usd_cents)}`
 
@@ -244,7 +242,7 @@ const expectedNumbers = (count: number): readonly string[] =>
  * What the sending list's footer says, counts and sums from its own rows alone: three
  * lines in the order they are drawn, read as the one block of text they stand in. The
  * rufiyaa line reads the laari the sends stored in MVR add up to with the dollars those
- * same sends store in brackets, the dollar line reads the sends stored in USD, and the
+ * same sends store beside them, the dollar line reads the sends stored in USD, and the
  * total line reads every send whatever its currency. All three stand at every ledger.
  */
 const sentFootText = (sends: readonly StoredLedgerRow[]): string => {
@@ -254,7 +252,7 @@ const sentFootText = (sends: readonly StoredLedgerRow[]): string => {
   const inDollars = sends.filter((row) => row.currency === 'USD')
   const laari = inRufiyaa.reduce((sum, row) => sum + row.amount_minor, 0)
   return [
-    `Sent in MVR ${DOT} ${countLabel(inRufiyaa.length)} ${minorFigure(laari)}/- (${usdWithSign(centsOf(inRufiyaa))})`,
+    `Sent in MVR ${DOT} ${countLabel(inRufiyaa.length)} MVR${minorFigure(laari)} ${usdWithSign(centsOf(inRufiyaa))}`,
     `Sent in USD ${DOT} ${countLabel(inDollars.length)} ${usdWithSign(centsOf(inDollars))}`,
     `Total Sent ${DOT} ${countLabel(sends.length)} ${usdWithSign(centsOf(sends))}`,
   ].join(' ')
@@ -1081,7 +1079,7 @@ test('an owner with nothing recorded reads both lists empty, and neither counts 
     `WHAT: the two footers of an empty ledger do not read 'Total paid back ${DOT} No entries $0.00' and the sending list's three lines all at zero. WHY: 'No entries' is how this app words a count of none, both sides of an empty ledger are empty in the same way, and a currency line hidden at zero would read as a currency the owner cannot send in. HOW: word each count from the rows of its own list, and draw all three sent lines whatever the ledger holds.`,
   ).toEqual([
     `Total paid back ${DOT} No entries $0.00`,
-    `Sent in MVR ${DOT} No entries 0/- ($0.00)` +
+    `Sent in MVR ${DOT} No entries MVR0 $0.00` +
       ` Sent in USD ${DOT} No entries $0.00` +
       ` Total Sent ${DOT} No entries $0.00`,
   ])
@@ -1559,8 +1557,8 @@ const readBothListsAndJudge = async (
       reasons.push(`the ${which} footer reads ${JSON.stringify(seenFoot)} not ${JSON.stringify(foot)}`)
     }
     // Each list words its own figure under the one row rule: a send reads its stored
-    // dollars marked, and bracketed where it was sent in rufiyaa, while a repayment
-    // reads the same marked dollars with no brackets at all.
+    // dollars marked, whichever currency it was sent in, while a repayment reads the
+    // same marked dollars.
     const figureOf = (row: StoredLedgerRow): string =>
       which === 'sent' ? sentFigureOf(row) : backFigureOf(row)
     if (seen.rows.map((row) => row.usd).join(',') !== expectedRows.map(figureOf).join(',')) {

@@ -45,12 +45,12 @@ import {
 //   - A sent row now reads its own currency columns: the MVR column holds a rufiyaa
 //     send's marked figure with its rate appended to it, and nothing but the em dash
 //     where the send was made in dollars, while the USD column holds the dollars the
-//     entry stores, marked, and bracketed where the send was made in rufiyaa. The MVR
+//     entry stores, marked, with no brackets round them. The MVR
 //     cell appends its figure and its rate with NO whitespace between them, so the
-//     cell's own text reads '10,000/-@20' while the owner sees the gap the board
+//     cell's own text reads 'MVR10,000@20' while the owner sees the gap the board
 //     draws; a row read as one line of text therefore holds that one token.
 //   - The footer of this list now reads three lines in one block: what went in rufiyaa
-//     with its stored dollars in brackets, what went in dollars, and the total of both,
+//     with its stored dollars beside them, what went in dollars, and the total of both,
 //     each with its own count. Read as one text here, those lines stand in that order;
 //     each line's own hooks are read by the footer's own oracle. The balance card is
 //     untouched and keeps its two decimals.
@@ -143,10 +143,10 @@ const minorFigure = (minor: number): string => {
 
 /** The marked whole reading of the dollars a row stores: '$1,500', '$1,500.50'. */
 const usdFigure = (cents: number): string => `$${minorFigure(cents)}`
-/** The bracketed reading of the dollars a rufiyaa send stores: '($500)', '($649.35)'. */
-const convertedFigure = (cents: number): string => `(${usdFigure(cents)})`
-/** The marked reading of stored laari: '10,000/-', '10,000.50/-'. */
-const mvrFigure = (laari: number): string => `${minorFigure(laari)}/-`
+/** The reading, with no brackets, of the dollars a rufiyaa send stores: '$500', '$649.35'. */
+const convertedFigure = (cents: number): string => usdFigure(cents)
+/** The marked reading of stored laari: 'MVR10,000', 'MVR10,000.50'. */
+const mvrFigure = (laari: number): string => `MVR${minorFigure(laari)}`
 
 /** A stored rate as the owner reads it beside a figure: no trailing zeros, at most four decimals. */
 const plainRate = (stored: string): string => {
@@ -228,13 +228,13 @@ const expectedFigures = (
   return { sent, paid, balance: Math.abs(sent - paid) }
 }
 
-/** The bracketed reading of a footer subtotal in dollars, which keeps its two decimals. */
-const convertedTotal = (cents: number): string => `(${usdWithSign(cents)})`
+/** The dollar value of the rufiyaa subtotal, which keeps its two decimals and no brackets. */
+const convertedTotal = (cents: number): string => usdWithSign(cents)
 
 /**
  * The footer of the sent list: three lines in the order they are drawn, read as the one
  * block of text they stand in. The rufiyaa line reads the laari the sends stored in MVR
- * add up to, with the dollars those same sends store in brackets; the dollar line reads
+ * add up to, with the dollars those same sends store beside them; the dollar line reads
  * the sends stored in USD; the total line reads every send, whatever its currency. Each
  * count is worded as this app words a count, every figure keeps its two decimals except
  * the rufiyaa subtotal, which reads like a rufiyaa amount, and the block's own count and
@@ -947,12 +947,12 @@ test('a tap on Statement starts at the balance card, reads the three figures and
   ).toEqual(rows.map((row) => row.sub))
   expect(
     reading.rowTexts.filter((text) => !text.includes('$')),
-    'WHAT: a sent row reads a figure with no mark on it. WHY: a row carries two currencies at once, so an unmarked figure leaves the owner unable to tell rufiyaa from dollars: every row reads its stored dollars marked, in brackets where the send was made in rufiyaa. HOW: word each row figure with its own mark rather than through the unmarked two-decimal formatter.',
+    'WHAT: a sent row reads a figure with no mark on it. WHY: a row carries two currencies at once, so an unmarked figure leaves the owner unable to tell rufiyaa from dollars: every row reads its stored dollars marked, whichever currency the send was made in. HOW: word each row figure with its own mark rather than through the unmarked two-decimal formatter.',
   ).toEqual([])
 
   expect(
     reading.foot,
-    'WHAT: the footer does not read its three lines - Sent in MVR with the rufiyaa subtotal and its bracketed dollars, Sent in USD with its dollar subtotal, and Total Sent with the total - each with the count of its own sends. WHY: the footer is the owner\'s check that the list and the card agree, and a single line would hide which half of the money went in which currency. HOW: split the sent footer by the stored currency of each send, draw all three lines, and keep the block\'s own count and cents reading the total line.',
+    'WHAT: the footer does not read its three lines - Sent in MVR with the rufiyaa subtotal and its dollar value, Sent in USD with its dollar subtotal, and Total Sent with the total - each with the count of its own sends. WHY: the footer is the owner\'s check that the list and the card agree, and a single line would hide which half of the money went in which currency. HOW: split the sent footer by the stored currency of each send, draw all three lines, and keep the block\'s own count and cents reading the total line.',
   ).toEqual(expectedFoot(stored))
 
   expect(
@@ -1082,9 +1082,9 @@ test('an owner with nothing recorded still reads the whole statement, with no ro
   ).toEqual([])
   expect(
     reading.foot?.text,
-    `WHAT: the footer of an empty list does not read all three of its lines at zero: 'Sent in MVR ${DOT} No entries 0/- ($0.00)', 'Sent in USD ${DOT} No entries $0.00' and 'Total Sent ${DOT} No entries $0.00'. WHY: 'No entries' is how this app words a count of none, and a currency line hidden at zero would read as a currency the owner cannot send in. HOW: draw all three lines whatever the ledger holds, wording each count from the sends stored in that currency.`,
+    `WHAT: the footer of an empty list does not read all three of its lines at zero: 'Sent in MVR ${DOT} No entries MVR0 $0.00', 'Sent in USD ${DOT} No entries $0.00' and 'Total Sent ${DOT} No entries $0.00'. WHY: 'No entries' is how this app words a count of none, and a currency line hidden at zero would read as a currency the owner cannot send in. HOW: draw all three lines whatever the ledger holds, wording each count from the sends stored in that currency.`,
   ).toBe(
-    `Sent in MVR ${DOT} No entries 0/- ($0.00)` +
+    `Sent in MVR ${DOT} No entries MVR0 $0.00` +
       ` Sent in USD ${DOT} No entries $0.00` +
       ` Total Sent ${DOT} No entries $0.00`,
   )
@@ -1389,11 +1389,11 @@ test('a stored MVR row and a row with no method read as recorded', async ({ page
   ).toHaveText(sublineOf(mvr!) ?? '')
   await expect(
     mvrRow,
-    `WHAT: the rufiyaa row does not read '${mvrFigure(1700000)}${inlineRate('20.0000')}' in its MVR column. WHY: it is read from the stored laari and the stored rate: a padded rate would read '@20.00' and a rounded figure would state an amount the ledger does not hold. HOW: mark the stored rufiyaa figure with '/-' and append the stored rate behind '@', with no trailing zeros.`,
+    `WHAT: the rufiyaa row does not read '${mvrFigure(1700000)}${inlineRate('20.0000')}' in its MVR column. WHY: it is read from the stored laari and the stored rate: a padded rate would read '@20.00' and a rounded figure would state an amount the ledger does not hold. HOW: write the stored rufiyaa figure behind the prefix 'MVR' and append the stored rate behind '@', with no trailing zeros.`,
   ).toContainText(`${mvrFigure(mvr!.amount_minor)}${inlineRate(mvr!.rate ?? '')}`)
   await expect(
     mvrRow,
-    'WHAT: the rufiyaa row\'s dollars are not the bracketed reading of the dollars it stores. WHY: converting the rufiyaa figure a second time moves the owner\'s money by the rounding, and the brackets are what tell the owner this dollar figure stands behind a rufiyaa send. HOW: draw the stored dollars, marked and in brackets.',
+    'WHAT: the rufiyaa row\'s dollars are not the marked reading of the dollars it stores. WHY: converting the rufiyaa figure a second time moves the owner\'s money by the rounding, and brackets round that figure read as money the owner is not sure of. HOW: draw the stored dollars, marked and with no brackets.',
   ).toContainText(convertedFigure(mvr!.usd_cents))
 
   const noMethodRow = statement(page).locator(`[data-statement-list="sent"] [data-statement-row="${noMethod!.id}"]`)

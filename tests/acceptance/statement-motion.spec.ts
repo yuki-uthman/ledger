@@ -861,13 +861,13 @@ const grouped = new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maxim
 /** Stored laari as a rufiyaa figure reads it: grouped, with cents only when they are real. */
 const mvrFigure = (laari: number): string => {
   const units = Math.abs(laari)
-  return `${units % 100 === 0 ? grouped.format(units / 100) : dollars.format(units / 100)}/-`
+  return `MVR${units % 100 === 0 ? grouped.format(units / 100) : dollars.format(units / 100)}`
 }
 
 /**
  * What each footer says, counted and summed against the rows the ledger actually stores.
  * The sending list reads three lines in the order they are drawn - what went in rufiyaa
- * with the dollars those sends store in brackets, what went in dollars, and the total of
+ * with the dollars those sends store beside them, what went in dollars, and the total of
  * both - read here as the one block of text they stand in, which is what a motion must
  * leave untouched. The paid-back list keeps its one line.
  */
@@ -883,7 +883,7 @@ const expectedFoot = (rows: readonly StoredLedgerRow[], which: Which): string =>
   const inDollars = sends.filter((row) => row.currency === 'USD')
   const laari = inRufiyaa.reduce((sum, row) => sum + row.amount_minor, 0)
   return [
-    `Sent in MVR · ${countLabel(inRufiyaa.length)} ${mvrFigure(laari)} (${usd(centsOf(inRufiyaa))})`,
+    `Sent in MVR · ${countLabel(inRufiyaa.length)} ${mvrFigure(laari)} ${usd(centsOf(inRufiyaa))}`,
     `Sent in USD · ${countLabel(inDollars.length)} ${usd(centsOf(inDollars))}`,
     `Total Sent · ${countLabel(sends.length)} ${usd(centsOf(sends))}`,
   ].join(' ')
