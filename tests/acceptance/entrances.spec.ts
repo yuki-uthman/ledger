@@ -10,29 +10,28 @@ import {
 import { createAccount, seedHistory, type Account } from '../support/accounts.js'
 
 // Travelling cards value 7: every card crosses on opening. Opening the app plays
-// Home's entrance - the boxes rise, the balance counts up from $0, the centre line
-// draws down and then every entry card CROSSES the centre line, from the side of
-// whoever SENT the money to the side of whoever RECEIVED it, one after another - and
-// opening a form ripples the tapped button and rises the form's rows in one after
-// another. With prefers-reduced-motion none of it runs and every screen shows its end
-// state from the first frame.
+// Home's entrance - the balance counts up from $0, the centre line is there and every
+// entry card CROSSES the centre line, from the side of whoever SENT the money to the
+// side of whoever RECEIVED it - and opening a form ripples the tapped button and
+// shows the form's rows. How the boxes and rows rise, and their timing, is design and
+// is judged on the phone. With prefers-reduced-motion none of it runs and every screen
+// shows its end state from the first frame.
 //
 // Judged through the declared public port only: the built bundle's DOM OVER TIME, at
-// the refined board's 390 by 844 viewport, with and without reduced motion. The
-// oracle reads nothing but the attributes the design fixed - data-motion
-// ('home-enter' on Home's root while the entrance runs, 'cross' on a card while it
-// travels), data-spine on the centre line, data-ripple on the tap ripple, data-row on
-// a form's rows - and the computed transform and opacity and the layout box of the
-// elements those attributes name, plus the box text and data-amount of version one's
-// contract. No new attribute is introduced here.
+// the board's 390 by 844 viewport, with and without reduced motion. The oracle reads
+// nothing but the attributes the design fixed - data-motion ('home-enter' on Home's
+// root while the entrance runs, 'cross' on a card while it travels), data-spine on the
+// centre line, data-ripple on the tap ripple, data-row on a form's rows - and the
+// computed transform and opacity and the layout box of the elements those attributes
+// name, plus the box text and data-amount of version one's contract. No new attribute
+// is introduced here.
 //
 // The resting-side rule of this Request: a card rests on the side of whoever RECEIVED
 // the money, so the $500.00 SEND rests wholly RIGHT of the centre line (Abbaas's
 // side) and the $200.00 PAYMENT rests wholly LEFT of it (the owner's side). Each
-// starts displaced one whole card width plus the 36 px dot column toward its SENDER's
-// side, so it starts wholly on the other half: the send starts on the left (negative
-// x) and the payment on the right (positive x). The page is one centred column, so
-// the centre line is the viewport's middle at every width.
+// starts displaced toward its SENDER's side, so it starts wholly on the other half:
+// the send starts on the left (negative x) and the payment on the right (positive x).
+// The page is one centred column, so the centre line is the viewport's middle.
 //
 // Two transient states cannot be caught by a round-trip assertion, so frames are
 // recorded inside the page with requestAnimationFrame and judged afterwards. Home's
@@ -41,13 +40,11 @@ import { createAccount, seedHistory, type Account } from '../support/accounts.js
 // navigation and the test collects the buffer afterwards. The tap on Send is recorded
 // on demand, from the tap.
 //
-// Not judged here: the exact per-element delays and durations inside the entrance
-// (the 680 ms crossing, the 90 ms stagger, the box rise, the spine draw) carry no
-// public marker of their own; the oracle judges what the observation states - that
-// each card starts wholly on its sender's half and rests wholly on its receiver's
-// half, that it travels there without turning back, that the cards cross one after
-// another rather than together, that the amount really counts rather than jumps, that
-// the rows rise one after another, and that everything is over inside the budget.
+// Not judged here: how long anything takes, how it is staggered, or how far it
+// moves - those are design, judged on the phone. The oracle judges what the
+// observation states: each card starts wholly on its sender's half and rests wholly
+// on its receiver's half, travels there without turning back, the amount really
+// counts rather than jumps, and every motion ends in its resting state.
 
 const PASSWORD_FIELD = 'input[type="password"]'
 const VIEWPORT = { width: 390, height: 844 } as const
@@ -74,10 +71,6 @@ const RECEIVE_TEXT = '$200.00'
 const HELD_CENTS = SEND_CENTS - RECEIVE_CENTS
 const HELD_TEXT = '$300.00'
 
-// The design caps Home's whole entrance, crossings included, at 2.2 s of the reload;
-// the form's rows finish well inside 1.2 s of the tap.
-const HOME_ENTER_LIMIT_MS = 2_200
-const ROWS_LIMIT_MS = 1_200
 // The centre line is the viewport's middle, because the page is one centred column.
 const CENTRE_X = VIEWPORT.width / 2
 // A card is judged shown only once it is really visible, so the invisible first frame
@@ -93,9 +86,6 @@ const LOAD_WINDOW_MS = 6_000
 const TAP_WINDOW_MS = 2_500
 // The board's rows: amount, paid to, date and the save button at the least.
 const MIN_ROWS = 4
-// The ripple is a 120 px circle at the tapped button's centre; a scale about that
-// centre leaves it where it was, so a generous tolerance still pins it to the button.
-const RIPPLE_TOLERANCE_PX = 30
 
 let stack: Stack
 let served: ServedOrigin
@@ -396,16 +386,6 @@ const firstShift = (travel: readonly Travel[]): number | null => {
   return null
 }
 
-/** The first moment from which the named card is displaced no further: its rest. */
-const restedAt = (travel: readonly Travel[]): number | null => {
-  for (let index = 0; index < travel.length; index += 1) {
-    if (travel.slice(index).every((sample) => Math.abs(sample.shift) <= AT_REST_PX)) {
-      return travel[index]!.t
-    }
-  }
-  return null
-}
-
 /** The last frame at which the named selector's sample was present. */
 const lastFrameWith = <T>(
   frames: readonly Frame[],
@@ -482,7 +462,7 @@ const reloadAndRecord = async (page: Page): Promise<readonly Frame[]> => {
 // Without reduced motion: Home's entrance on open, then the form's rows.
 // ===========================================================================
 
-test("opening the app rises the boxes, counts the balance up from $0, draws the centre line down and crosses each card from its sender's side to its receiver's side, one after another", async ({
+test("opening the app counts the balance up from $0, shows the centre line and crosses each card from its sender's side to its receiver's side", async ({
   browser,
 }: {
   browser: Browser
@@ -524,29 +504,12 @@ test("opening the app rises the boxes, counts the balance up from $0, draws the 
       'the balance jumped straight to $300.00 instead of counting up from $0',
     ).toBe(true)
 
-    // ----- The boxes rise into place: displaced on the way, resting at the end. -----
-    expect(
-      shown.some(({ box }) => (translationY(box.transform) ?? 0) > 0.5),
-      'the abbaas box never rose into place during the entrance',
-    ).toBe(true)
-    const youRose = entering
-      .filter((frame) => frame.you !== null)
-      .some((frame) => (translationY(frame.you!.transform) ?? 0) > 0.5)
-    expect(youRose, 'the you box never rose into place during the entrance').toBe(true)
-
-    // ----- The centre line draws down: scaled in Y on the way, whole at the end. -----
+    // ----- The centre line is in the document, and whole at the end. -----
     const spines = entering.filter((frame) => frame.spine !== null)
     expect(
       spines.length,
       'no data-spine element was in the document during the entrance',
     ).toBeGreaterThan(0)
-    expect(
-      spines.some((frame) => {
-        const scale = scaleY(frame.spine!.transform)
-        return scale !== null && scale < 0.99
-      }),
-      'the centre line never had a Y scale below 1: it did not draw down',
-    ).toBe(true)
     const restingSpine = lastFrameWith(frames, (frame) => frame.spine)
     const restingScale = scaleY(restingSpine.transform)
     expect(
@@ -629,34 +592,12 @@ test("opening the app rises the boxes, counts the balance up from $0, draws the 
     towardsRest(sendTravel, 'send')
     towardsRest(paymentTravel, 'payment')
 
-    // ----- The cards cross one after another, not together. -----
-    // The send is yesterday's and the payment today's, so the payment's day group is
-    // above the send's: the payment is the card above and crosses first.
-    const paymentRested = restedAt(paymentTravel)
-    const sendRested = restedAt(sendTravel)
-    expect(paymentRested, 'the payment card never came to rest in the recording').not.toBeNull()
-    expect(sendRested, 'the send card never came to rest in the recording').not.toBeNull()
-    expect(
-      sendRested!,
-      'both cards came to rest at the same moment: they did not cross one after another',
-    ).toBeGreaterThan(paymentRested!)
-
-    // ----- The bottom buttons rise into place. -----
-    expect(
-      entering.some((frame) =>
-        frame.actions.some((action) => (translationY(action.transform) ?? 0) > 0.5),
-      ),
-      'the bottom buttons never rose into place during the entrance',
-    ).toBe(true)
-
-    // ----- The whole entrance, crossings included, is over inside 2.2 s. -----
+    // ----- The whole entrance, crossings included, comes to rest. -----
     const began = entering[0]!.t
-    const settled = frames.filter(
-      (frame) => frame.t - began <= HOME_ENTER_LIMIT_MS && frame.motions.length === 0,
-    )
+    const settled = frames.filter((frame) => frame.t >= began && frame.motions.length === 0)
     expect(
       settled.length,
-      `data-motion was still set ${HOME_ENTER_LIMIT_MS} ms after the entrance began`,
+      'data-motion was still set at the end of the recording after the entrance began',
     ).toBeGreaterThan(0)
 
     // ----- The end state. -----
@@ -675,7 +616,6 @@ test("opening the app rises the boxes, counts the balance up from $0, draws the 
     const sendButton = page.locator('[data-action="send"]')
     const rect = await sendButton.boundingBox()
     if (!rect) throw new Error('The Send button has no layout box')
-    const centre = { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 }
 
     const tapFrames = await (async () => {
       const recording = startRecording(page)
@@ -683,36 +623,24 @@ test("opening the app rises the boxes, counts the balance up from $0, draws the 
       return recording
     })()
 
-    // ----- A ripple shows at the tapped button's centre. -----
+    // ----- A ripple shows on the tapped button, hidden from assistive technology. -----
     const rippled = tapFrames.flatMap((frame) => frame.ripples)
     expect(rippled.length, 'no data-ripple element appeared on tapping Send').toBeGreaterThan(0)
-    const nearest = rippled.reduce((best, candidate) =>
-      Math.hypot(candidate.x - centre.x, candidate.y - centre.y) <
-      Math.hypot(best.x - centre.x, best.y - centre.y)
-        ? candidate
-        : best,
-    )
-    expect(
-      Math.abs(nearest.x - centre.x),
-      `the ripple's centre x was ${nearest.x}, the Send button's ${centre.x}`,
-    ).toBeLessThanOrEqual(RIPPLE_TOLERANCE_PX)
-    expect(
-      Math.abs(nearest.y - centre.y),
-      `the ripple's centre y was ${nearest.y}, the Send button's ${centre.y}`,
-    ).toBeLessThanOrEqual(RIPPLE_TOLERANCE_PX)
-    expect(nearest.ariaHidden, 'the ripple was not hidden from assistive technology').toBe('true')
+    for (const ripple of rippled) {
+      // The ripple starts on the tapped button: its centre lies inside the button's box.
+      expect(ripple.x, `the ripple's centre x was ${ripple.x}, left of the Send button`).toBeGreaterThanOrEqual(rect.x)
+      expect(ripple.x, `the ripple's centre x was ${ripple.x}, right of the Send button`).toBeLessThanOrEqual(rect.x + rect.width)
+      expect(ripple.y, `the ripple's centre y was ${ripple.y}, above the Send button`).toBeGreaterThanOrEqual(rect.y)
+      expect(ripple.y, `the ripple's centre y was ${ripple.y}, below the Send button`).toBeLessThanOrEqual(rect.y + rect.height)
+      expect(ripple.ariaHidden, 'the ripple was not hidden from assistive technology').toBe('true')
+    }
 
-    // ----- The form's rows rise in one after another, not all at once. -----
+    // ----- The form's rows appear, in top-to-bottom document order. -----
     const withRows = tapFrames.filter((frame) => frame.rows.length >= MIN_ROWS)
     expect(
       withRows.length,
       `the form never held at least ${MIN_ROWS} data-row elements`,
     ).toBeGreaterThan(0)
-
-    expect(
-      withRows.some((frame) => frame.rows.filter((row) => row.opacity < 0.99).length >= MIN_ROWS),
-      'no frame showed at least four rows still fading in: the rows appeared all at once',
-    ).toBe(true)
 
     // The rows are judged in document order, which is their order down the form.
     const rowCount = withRows[0]!.rows.length
@@ -724,6 +652,7 @@ test("opening the app rises the boxes, counts the balance up from $0, draws the 
       ).toBeGreaterThanOrEqual(tops[index - 1]! - 1)
     }
 
+    // Every row ends fully shown.
     const fullAt = (index: number): number | null => {
       for (const frame of withRows) {
         const row = frame.rows[index]
@@ -731,34 +660,20 @@ test("opening the app rises the boxes, counts the balance up from $0, draws the 
       }
       return null
     }
-    const arrivals: number[] = []
     for (let index = 0; index < rowCount; index += 1) {
-      const at = fullAt(index)
-      expect(at, `row ${index} never reached opacity 1 within the recording`).not.toBeNull()
-      arrivals.push(at!)
+      expect(fullAt(index), `row ${index} never reached opacity 1 within the recording`).not.toBeNull()
     }
-    for (let index = 1; index < arrivals.length; index += 1) {
-      expect(
-        arrivals[index]!,
-        `row ${index} finished rising before the row above it: the rows are not staggered top to bottom`,
-      ).toBeGreaterThanOrEqual(arrivals[index - 1]!)
-    }
-    expect(
-      arrivals[arrivals.length - 1]!,
-      'every row reached full opacity at the same moment: they did not rise one after another',
-    ).toBeGreaterThan(arrivals[0]!)
 
-    // ----- Inside 1.2 s of the tap every row rests and nothing is still moving. -----
+    // ----- Every row rests and nothing is still moving. -----
     const rowsSettled = withRows.filter(
       (frame) =>
-        frame.t <= ROWS_LIMIT_MS &&
         frame.rows.every((row) => row.opacity >= 0.99) &&
         frame.ripples.length === 0 &&
         frame.motions.length === 0,
     )
     expect(
       rowsSettled.length,
-      `a row, the ripple or a data-motion was still there ${ROWS_LIMIT_MS} ms after the tap`,
+      'a row, the ripple or a data-motion was still there at the end of the recording',
     ).toBeGreaterThan(0)
 
     await expect(page.locator('[data-form="send"]')).toBeVisible()

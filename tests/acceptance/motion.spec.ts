@@ -10,9 +10,9 @@ import {
 import { createAccount, seedUsdSend, type Account } from '../support/accounts.js'
 
 // Travelling cards value 6: the new card crosses the line.
-// Home still grows as a circle from the form's white save button over the dimmed form.
+// Home still grows from the form's save button over the form.
 // Then the new card APPEARS ON THE SENDER'S HALF -- a send on the owner's left, a
-// payment on Abbaas's right -- lifted and already wearing its uncut ring, holds there,
+// payment on Abbaas's right -- already wearing its uncut ring, holds there,
 // and crosses the centre line to rest on the RECEIVER'S half while the boxes count.
 //
 // Judged through the declared public port only: the built bundle's DOM OVER TIME,
@@ -36,21 +36,21 @@ import { createAccount, seedUsdSend, type Account } from '../support/accounts.js
 // recorder reads nothing but the public attributes, text, and the computed clip-path,
 // transform, opacity and ring of the elements the contract names.
 //
-// The ring: the design leaves the drawing property open ('an inset 2 px box-shadow in
-// its colour, or a border inside the card's box') and fixes only that it is 2 px, in
-// the entry's colour, and that value 7's horizontal clip of the entries area never
-// cuts it. So the ring is read as either a border or an inset box-shadow, and 'uncut'
-// is judged geometrically at rest: the ringed card's whole box lies inside the
-// viewport and inside the box of the ancestor that clips it horizontally. An OUTSIDE
-// ring (a plain outline or an outward box-shadow) is not accepted, because that is the
-// very drawing the design ruled out as the one that gets cut.
+// The ring: the design leaves the drawing property open ('an inset box-shadow, or a
+// border inside the card's box') and fixes only that the horizontal clip of the entries
+// area never cuts it. So the ring is read as either a border or an inset box-shadow
+// (its colour and thickness are design, judged on the phone), and 'uncut' is judged
+// geometrically at rest: the ringed card's whole box lies inside the viewport and
+// inside the box of the ancestor that clips it horizontally. An OUTSIDE ring (a plain
+// outline or an outward box-shadow) is not accepted, because that is the very drawing
+// the design ruled out as the one that gets cut.
 //
-// Not judged here: the save button's 16 % pressed overlay and the dim layer over the
-// form carry no public marker in the design, so this oracle asserts only that the
-// form is still mounted under the growing Home, which is what makes the dim layer and
-// the press visible at all. The Saved message is gone from Home at this board (its own
-// value asserts its absence at tests/acceptance/undo.spec.ts), so nothing here waits
-// for it or asserts it.
+// Not judged here: how long a motion takes, how it is timed or staggered, where the
+// grow starts, the dim layer over the form or the press overlay on the save button -
+// those are design, judged on the phone. This oracle asserts that the form is still
+// mounted under the growing Home, and that every motion ends in its resting state. The
+// Saved message is gone from Home at this board (its own value asserts its absence at
+// tests/acceptance/undo.spec.ts), so nothing here waits for it or asserts it.
 
 const PASSWORD_FIELD = 'input[type="password"]'
 const VIEWPORT = { width: 390, height: 844 } as const
@@ -92,25 +92,9 @@ const RECEIVE_BUTTON_NAME = 'Receive · $600.00'
 const AFTER_RECEIVE_CENTS = 20000
 const AFTER_RECEIVE_TEXT = '$200.00'
 
-// The ring the design puts on the new card, in its kind's colour.
-const SEND_COLOUR = 'rgb(36, 80, 138)'
-const RECEIVE_COLOUR = 'rgb(15, 111, 104)'
-const RING_WIDTH_PX = 2
-
-// The grow runs 520 ms and the form leaves the DOM at its end, so the whole of it is
-// over well inside 900 ms of the tap. The longest motion after it is the 900 ms swap.
 // The window covers the whole save motion plus the save's round trip to the local
 // stack, so the recording always reaches the resting state.
 const WINDOW_MS = 3_500
-const GROW_LIMIT_MS = 900
-
-// The design fixes the whole save, from the tap to rest, at under 2.6 s: the grow, the
-// day group opening, the +120 ms appear over 240 ms, the 500 ms hold, the 760 ms cross
-// and the 800 ms count all finish inside it. Measured from the tap, which is the frame
-// the recording starts on, to the last frame on which anything still carries
-// data-motion. The 3,500 ms window is longer so that an overrun is SEEN and reported
-// rather than cutting the recording short.
-const SETTLE_LIMIT_MS = 2_600
 
 // Sub-pixel tolerance for 'wholly on one half of the line' and for 'moves only one
 // way': layout and compositing round, and a card resting exactly on the line is not a
@@ -168,15 +152,15 @@ type EntrySample = {
   readonly text: string
   readonly transform: string
   readonly opacity: number
-  /** The card's ring, drawn inside its box: a border or an inset box-shadow. */
-  readonly ringWidth: number
-  readonly ringColour: string
-  /** Which property drew it, for a legible failure. */
+  /** Which property drew the card's ring inside its box, for a legible failure. */
   readonly ringSource: 'border' | 'inset-shadow' | 'none'
   /** The card's box in viewport pixels, as drawn: the motion's transform is in it. */
   readonly left: number
   readonly right: number
 }
+
+/** A layout box in viewport pixels, as Playwright reports it. */
+type Box = { readonly x: number; readonly y: number; readonly width: number; readonly height: number }
 
 type Frame = {
   readonly t: number
@@ -226,24 +210,13 @@ const installRecorder = async (page: Page): Promise<void> => {
             cents: cents ? clean(cents.textContent) : null,
           }
         }
-        // The ring the design draws INSIDE the card: a border, or an inset box-shadow
-        // whose widest length (its spread) is the ring. An outward shadow and a plain
-        // outline are ignored, so a ring drawn where the clip would cut it reads as
-        // absent rather than as a pass.
-        const insetRing = (boxShadow: string): { width: number; colour: string } | null => {
-          if (!boxShadow || boxShadow === 'none') return null
-          for (const part of boxShadow.split(/,(?![^(]*\))/)) {
-            if (!part.includes('inset')) continue
-            const colour = /(rgba?\([^)]*\))/.exec(part)
-            const lengths = Array.from(part.matchAll(/(-?[\d.]+)px/g), (found) =>
-              Math.abs(Number(found[1])),
-            )
-            // offsetX, offsetY, blur, spread: the ring's thickness is the widest.
-            const width = lengths.length > 0 ? Math.max(...lengths) : 0
-            if (width > 0 && colour) return { width, colour: colour[1]! }
-          }
-          return null
-        }
+        // The ring the design draws INSIDE the card: a border, or an inset box-shadow. An
+        // outward shadow and a plain outline are ignored, so a ring drawn where the clip
+        // would cut it reads as absent rather than as a pass.
+        const hasInsetRing = (boxShadow: string): boolean =>
+          boxShadow !== '' &&
+          boxShadow !== 'none' &&
+          boxShadow.split(/,(?![^(]*\))/).some((part) => part.includes('inset'))
 
         const tick = (): void => {
           const t = performance.now() - started
@@ -278,7 +251,7 @@ const installRecorder = async (page: Page): Promise<void> => {
               // The design leaves the property open: a border inside the card's box,
               // or an inset box-shadow. Either is accepted; nothing outside the box is.
               const borderWidth = Number.parseFloat(style.borderTopWidth) || 0
-              const shadow = borderWidth > 0 ? null : insetRing(style.boxShadow)
+              const shadow = borderWidth > 0 ? false : hasInsetRing(style.boxShadow)
               const box = element.getBoundingClientRect()
               return {
                 left: box.left,
@@ -287,8 +260,6 @@ const installRecorder = async (page: Page): Promise<void> => {
                 text: clean(element.textContent),
                 transform: style.transform,
                 opacity: Number(style.opacity),
-                ringWidth: borderWidth > 0 ? borderWidth : (shadow?.width ?? 0),
-                ringColour: borderWidth > 0 ? style.borderTopColor : (shadow?.colour ?? ''),
                 ringSource: borderWidth > 0 ? 'border' : shadow ? 'inset-shadow' : 'none',
               }
             }),
@@ -433,19 +404,17 @@ const expectCrossing = (
   ).toEqual([])
 }
 
-/** Nothing is still moving: the last frame on which anything carried data-motion. */
-const expectRestedWithin = (frames: readonly Frame[], limitMs: number): void => {
-  const moving = frames.filter((frame) => frame.motions.length > 0)
-  const last = moving[moving.length - 1]
+/** Every motion ends in its resting state: the last recorded frame carries no data-motion. */
+const expectRested = (frames: readonly Frame[]): void => {
+  const last = frames[frames.length - 1]
+  expect(last, 'the recording holds no frame').toBeDefined()
   expect(
-    last ? last.t : 0,
-    `something still carried data-motion ${last ? Math.round(last.t) : 0} ms after the tap (${
-      last ? last.motions.join(', ') : ''
-    })`,
-  ).toBeLessThanOrEqual(limitMs)
+    last!.motions,
+    'something still carried data-motion at the end of the recording',
+  ).toEqual([])
 }
 
-/** The resting ring of the entry whose text holds `amount`, at the last frame. */
+/** The resting entry whose text holds `amount`, at the last frame. */
 const restingEntry = (frames: readonly Frame[], amount: string): EntrySample => {
   for (let index = frames.length - 1; index >= 0; index -= 1) {
     const entry = frames[index]!.entries.find((candidate) => candidate.text.includes(amount))
@@ -464,7 +433,7 @@ const signIn = async (page: Page, account: Account): Promise<void> => {
   await expect(page.locator('[data-box="abbaas"]')).toContainText(SEEDED_TEXT)
 }
 
-/** A phone-sized context on the refined board's viewport, optionally reduced-motion. */
+/** A phone-sized context on the board's viewport, optionally reduced-motion. */
 const openPhone = async (
   browser: Browser,
   options?: { readonly reduce: boolean },
@@ -480,41 +449,37 @@ const openPhone = async (
 
 /**
  * Taps the save button while the page records every frame, after noting where that
- * button was: the grow must start from exactly that centre.
+ * button was: the grow must start from that button.
  */
 const saveAndRecord = async (
   page: Page,
   buttonName: string,
-): Promise<{ readonly frames: readonly Frame[]; readonly centre: { x: number; y: number } }> => {
+): Promise<{ readonly frames: readonly Frame[]; readonly box: Box }> => {
   const button = page.getByRole('button', { name: buttonName })
   await expect(button).toBeEnabled()
-  const rect = await button.boundingBox()
-  if (!rect) throw new Error(`The ${buttonName} button has no layout box`)
-  const centre = { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 }
+  const box = await button.boundingBox()
+  if (!box) throw new Error(`The ${buttonName} button has no layout box`)
   const recording = startRecording(page)
   await button.click()
-  return { frames: await recording, centre }
+  return { frames: await recording, box }
 }
 
 /**
- * The grow: Home mounted above the still-present form, clipped to a circle centred on
- * the save button, and both the clip and the form gone within 900 ms of the tap.
+ * The grow: Home mounted above the still-present form, clipped to a circle whose centre
+ * lies on the save button, then both the grow and the form gone, with nothing left
+ * clipped to a circle.
  */
-const expectGrowFromButton = (
-  frames: readonly Frame[],
-  centre: { readonly x: number; readonly y: number },
-  formKind: string,
-): void => {
+const expectGrowFromButton = (frames: readonly Frame[], box: Box, formKind: string): void => {
   const growing = frames.filter((frame) => frame.grow !== null)
   expect(growing.length, 'no frame carried data-motion="grow" on Home after the save').toBeGreaterThan(0)
 
-  // The form is still mounted under the growing Home, which is what the dim layer and
-  // the pressed button are seen through.
+  // The form is still mounted under the growing Home.
   expect(
     growing[0]!.formKinds,
     'the form had already left the DOM when Home began to grow',
   ).toContain(formKind)
 
+  // The grow starts from the button: every circle centre lies inside the button's box.
   const centres = growing.map((frame) => circleCentre(frame.grow!))
   expect(
     centres.filter((found) => found !== null).length,
@@ -522,22 +487,20 @@ const expectGrowFromButton = (
   ).toBeGreaterThan(0)
   for (const found of centres) {
     if (!found) continue
-    expect(Math.abs(found.x - centre.x), `grow centre x was ${found.x}, the button's ${centre.x}`).toBeLessThanOrEqual(4)
-    expect(Math.abs(found.y - centre.y), `grow centre y was ${found.y}, the button's ${centre.y}`).toBeLessThanOrEqual(4)
+    expect(found.x, `grow centre x was ${found.x}, left of the save button`).toBeGreaterThanOrEqual(box.x - EDGE_TOLERANCE_PX)
+    expect(found.x, `grow centre x was ${found.x}, right of the save button`).toBeLessThanOrEqual(box.x + box.width + EDGE_TOLERANCE_PX)
+    expect(found.y, `grow centre y was ${found.y}, above the save button`).toBeGreaterThanOrEqual(box.y - EDGE_TOLERANCE_PX)
+    expect(found.y, `grow centre y was ${found.y}, below the save button`).toBeLessThanOrEqual(box.y + box.height + EDGE_TOLERANCE_PX)
   }
 
-  // Within 900 ms of the tap the grow is over: Home carries no data-motion="grow",
-  // nothing is clipped to a circle any more, and the form has left the DOM.
+  // The grow ends in its resting state: Home carries no data-motion="grow", nothing is
+  // clipped to a circle any more, and the form has left the DOM.
   const settled = frames.filter(
-    (frame) =>
-      frame.t <= GROW_LIMIT_MS &&
-      frame.grow === null &&
-      frame.circleClipped === 0 &&
-      frame.formKinds.length === 0,
+    (frame) => frame.grow === null && frame.circleClipped === 0 && frame.formKinds.length === 0,
   )
   expect(
     settled.length,
-    `the form, the grow or its clip-path was still there ${GROW_LIMIT_MS} ms after the tap`,
+    'the form, the grow or its clip-path was still there at the end of the recording',
   ).toBeGreaterThan(0)
 }
 
@@ -599,13 +562,11 @@ const expectRingNotCutOff = async (page: Page, amount: string): Promise<void> =>
 }
 
 /** The ring is drawn inside the card, so the clip cannot reach it. */
-const expectRingInsideCard = (entry: EntrySample, colour: string, what: string): void => {
+const expectRingInsideCard = (entry: EntrySample, what: string): void => {
   expect(
     entry.ringSource,
     `the new ${what} card had no ring drawn inside it (a border or an inset box-shadow); an outline or an outward shadow is the drawing the design ruled out`,
   ).not.toBe('none')
-  expect(entry.ringWidth, `the new ${what} card had no 2 px ring`).toBeCloseTo(RING_WIDTH_PX, 1)
-  expect(entry.ringColour, `the new ${what} card's ring was not in its own colour`).toBe(colour)
 }
 
 /** No board after this one shows a Saved message or an Undo on Home. */
@@ -630,7 +591,7 @@ test('saving a send grows Home from the button over the form, shows the card on 
     await signIn(page, account)
     const abbaasBox = page.locator('[data-box="abbaas"]')
 
-    // ===== Opening Send still reveals the form as a circle from the tapped button. =====
+    // ===== Opening Send still reveals the form. =====
     let recording = startRecording(page)
     await page.locator('[data-action="send"]').click()
     expect(
@@ -641,9 +602,9 @@ test('saving a send grows Home from the button over the form, shows the card on 
     await page.getByLabel('Amount sent').fill(SENT_AMOUNT)
     await page.getByRole('button', { name: SEEDED_PERSON }).click()
 
-    // ===== The save: Home grows from the white button over the mounted form. =====
-    const { frames, centre } = await saveAndRecord(page, SEND_BUTTON_NAME)
-    expectGrowFromButton(frames, centre, 'send')
+    // ===== The save: Home grows over the mounted form. =====
+    const { frames, box } = await saveAndRecord(page, SEND_BUTTON_NAME)
+    expectGrowFromButton(frames, box, 'send')
 
     // ===== The new card appears on the SENDER'S half (the owner's left), holds, and
     // ===== crosses the centre line to rest on the RECEIVER'S half (Abbaas's right).
@@ -658,7 +619,7 @@ test('saving a send grows Home from the button over the form, shows the card on 
     )
     expect(movedOthers, 'an entry other than the new one was marked or displaced').toEqual([])
 
-    expectRingInsideCard(restingEntry(frames, SENT_TEXT), SEND_COLOUR, 'send')
+    expectRingInsideCard(restingEntry(frames, SENT_TEXT), 'send')
 
     // ===== The holder's box counts from $400.00 to $500.00, keeping its cents span. =====
     const counting = frames.filter((frame) => frame.abbaas?.motion === 'count')
@@ -680,8 +641,8 @@ test('saving a send grows Home from the button over the form, shows the card on 
       'the balance jumped straight to its final text instead of counting',
     ).toBe(true)
 
-    // ===== The whole save, tap to rest, is over within 2.6 s. =====
-    expectRestedWithin(frames, SETTLE_LIMIT_MS)
+    // ===== The whole save comes to rest. =====
+    expectRested(frames)
 
     // ===== The end state, with the ring on screen and uncut. =====
     await expect(page.locator('[data-motion]')).toHaveCount(0)
@@ -718,15 +679,15 @@ test('saving a payment larger than Abbaas holds shows the card on his right, car
     await page.locator('[data-action="receive"]').click()
     await page.getByLabel('Amount received').fill(RECEIVED_AMOUNT)
 
-    const { frames, centre } = await saveAndRecord(page, RECEIVE_BUTTON_NAME)
-    expectGrowFromButton(frames, centre, 'receive')
+    const { frames, box } = await saveAndRecord(page, RECEIVE_BUTTON_NAME)
+    expectGrowFromButton(frames, box, 'receive')
 
     // The payment card appears on the SENDER'S half (Abbaas's right) and crosses to
     // rest on the RECEIVER'S half (the owner's left).
     expectCrossing(frames, RECEIVED_TEXT, 'left', 'payment')
-    expectRestedWithin(frames, SETTLE_LIMIT_MS)
+    expectRested(frames)
 
-    expectRingInsideCard(restingEntry(frames, RECEIVED_TEXT), RECEIVE_COLOUR, 'payment')
+    expectRingInsideCard(restingEntry(frames, RECEIVED_TEXT), 'payment')
 
     // Both boxes say so while his drains and the owner's fills, and both already hold
     // their end values on data-amount while the shown amounts are still moving.

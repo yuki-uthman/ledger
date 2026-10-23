@@ -15,10 +15,8 @@ import { createAccount, type Account } from '../support/accounts.js'
 // Judged through the declared public port only: the built bundle's DOM as a phone
 // browser sees it - the Receive form's role=radiogroup named Method, its three
 // role=radio options with their accessible names, data-method values and
-// aria-checked, where that group sits between the amount block and the date chip,
-// and the two drawn facts the board fixes for it (the 52 px track, the chosen
-// option's #0b5750 text) - and, outside the browser, the method each save really
-// stored.
+// aria-checked, and where that group sits between the amount block and the date
+// chip - and, outside the browser, the method each save really stored.
 //
 // A repayment from Abbaas names nobody, so nothing is chosen on this form but the
 // amount, the currency and the method: no person is seeded here.
@@ -48,11 +46,6 @@ const OPTIONS = [
   { method: 'cheque', name: 'Cheque' },
   { method: 'transfer', name: 'Transfer' },
 ] as const
-
-/** Abbaas teal deep, the token the chosen option's text is drawn in. */
-const CHOSEN_INK = 'rgb(11, 87, 80)'
-/** The height of the board's Method track, shared with the Send form. */
-const TRACK_HEIGHT = 52
 
 let stack: Stack
 let served: ServedOrigin
@@ -141,16 +134,6 @@ const expectOnlyChosen = async (page: Page, chosen: string): Promise<void> => {
   }
 }
 
-/** The colour one option's text is drawn in, as the browser resolves it. */
-const inkOf = async (page: Page, method: string): Promise<string> => {
-  const handle = await methodGroup(page).locator(`[data-method="${method}"]`).elementHandle()
-  if (!handle) throw new Error(`The ${method} option must be present`)
-  return page.evaluate(
-    (option) => getComputedStyle(option as Element).color,
-    handle,
-  )
-}
-
 /**
  * A save is answered by Home, not by the tap: between the tap and the store's
  * reply nothing is displaced yet, so a bare rest wait would pass at once while
@@ -195,19 +178,6 @@ test('the Receive form offers Cash, Cheque and Transfer between the amount and t
   // Cheque is chosen on opening, and it is the only one chosen.
   await expectOnlyChosen(page, 'Cheque')
 
-  // ----- The two drawn facts: the 52 px track, and the chosen option's ink. -----
-  // The track is the group itself, which is what holds the three options.
-  const trackHeight = await group.evaluate((track) => track.getBoundingClientRect().height)
-  expect(trackHeight, 'the Method track is the board’s 52 px tall').toBeCloseTo(
-    TRACK_HEIGHT,
-    0,
-  )
-  // Teal deep marks the chosen option, and only the chosen one: were an
-  // unchosen option drawn in it too, the mark would say nothing.
-  expect(await inkOf(page, 'cheque')).toBe(CHOSEN_INK)
-  expect(await inkOf(page, 'cash')).not.toBe(CHOSEN_INK)
-  expect(await inkOf(page, 'transfer')).not.toBe(CHOSEN_INK)
-
   // ----- Where the row sits: under the amount and above the date. -----
   // The three rectangles are read in one pass with getBoundingClientRect, which
   // never scrolls, so the comparison holds even when the form's content area
@@ -250,9 +220,6 @@ test('the Receive form offers Cash, Cheque and Transfer between the amount and t
 
   await methodGroup(page).locator('[data-method="cash"]').click()
   await expectOnlyChosen(page, 'Cash')
-  // The teal mark moved with the tap.
-  expect(await inkOf(page, 'cash')).toBe(CHOSEN_INK)
-  expect(await inkOf(page, 'cheque')).not.toBe(CHOSEN_INK)
 
   await page.getByRole('button', { name: 'MVR', exact: true }).click()
   await settled(page)

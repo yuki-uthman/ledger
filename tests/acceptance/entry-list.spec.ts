@@ -21,9 +21,7 @@ import { createAccount, seedHistory, type Account, type EntrySeed } from '../sup
 // side a card rests on. A card rests on the side of whoever RECEIVED the money:
 // a send lies wholly RIGHT of the centre line (Abbaas's side) and a payment from
 // Abbaas lies wholly LEFT of it (the owner's side), with the after line on the
-// other half, the side the card came from. Each row's node on the line is a
-// round dot in its card's colour and carries no arrow glyph, so no row spells
-// an arrow character. The totals read 'You received $…' on the left and
+// other half, the side the card came from. No row spells an arrow character. The totals read 'You received $…' on the left and
 // 'Abbaas received $…' on the right.
 
 // This revision drops the currency detail from the cards. A card reads its
@@ -65,7 +63,7 @@ const TODAY = dayOffset(0)
 const MIDDLE_DAY = dayOffset(2)
 const EARLIEST_DAY = dayOffset(4)
 
-/** 'Thu 8 Oct' for a date, as the day pill spells it before CSS uppercases it. */
+/** 'Thu 8 Oct' for a date, as the day pill spells it. */
 const dayLabel = (isoDate: string): string => {
   const date = new Date(`${isoDate}T12:00:00`)
   const parts = new Intl.DateTimeFormat('en-GB', {
@@ -127,8 +125,6 @@ const DAYS: readonly string[] = [TODAY, MIDDLE_DAY, EARLIEST_DAY]
 
 // Every entry, newest first. Chronologically the balance walks
 // +25000, +50000, -30000, +34000, so it ends at 79000.
-const SEND_TINT = 'rgba(36, 80, 138, 0.1)'
-const PAYMENT_TINT = 'rgba(15, 111, 104, 0.11)'
 
 // A card rests on the side of whoever received the money, and that resting side
 // is what the row's data-side names.
@@ -142,7 +138,6 @@ const ENTRIES: readonly {
   readonly party: string
   readonly after: string
   readonly afterText: string
-  readonly tint: string
 }[] = [
   {
     day: TODAY,
@@ -151,7 +146,6 @@ const ENTRIES: readonly {
     party: AHMED,
     after: '79000',
     afterText: 'Abbaas has $790.00',
-    tint: SEND_TINT,
   },
   {
     day: MIDDLE_DAY,
@@ -160,7 +154,6 @@ const ENTRIES: readonly {
     party: 'from Abbaas',
     after: '45000',
     afterText: 'Abbaas has $450.00',
-    tint: PAYMENT_TINT,
   },
   {
     day: MIDDLE_DAY,
@@ -169,7 +162,6 @@ const ENTRIES: readonly {
     party: AHMED,
     after: '75000',
     afterText: 'Abbaas has $750.00',
-    tint: SEND_TINT,
   },
   {
     day: EARLIEST_DAY,
@@ -178,7 +170,6 @@ const ENTRIES: readonly {
     party: MARIYAM,
     after: '25000',
     afterText: 'Abbaas has $250.00',
-    tint: SEND_TINT,
   },
 ]
 
@@ -188,7 +179,7 @@ let account: Account
 
 test.describe.configure({ mode: 'serial' })
 
-// The refined board is read at a 390 by 844 phone.
+// The board is read at a 390 by 844 phone.
 test.use({ viewport: { width: 390, height: 844 } })
 
 test.beforeAll(async () => {
@@ -256,8 +247,6 @@ test('Home at rest is the travelling-cards board: no title, boxes on top, an Ent
   // ----- No title, and nothing headed above the boxes. -----
   await expect(page.getByText('Abbaas Ledger')).toHaveCount(0)
   const youGeometry = await boxOf(youBox, 'the you box')
-  expect(youGeometry.y, 'the box row starts just below the top of the screen').toBeGreaterThanOrEqual(24)
-  expect(youGeometry.y).toBeLessThanOrEqual(64)
 
   const headingTops = await page
     .locator('h1, h2, h3, h4, h5, h6')
@@ -271,7 +260,7 @@ test('Home at rest is the travelling-cards board: no title, boxes on top, an Ent
   }
 
   // ----- The boxes: the holder filled, the pill in the outer top corner, the
-  // ----- amount on the outer edge with its cents at half size. -----
+  // ----- amount whole inside its box. -----
   await expect(abbaasBox).toHaveAttribute('data-state', 'filled')
   await expect(abbaasBox).toHaveAttribute('data-amount', '79000')
   expect(squashed(await abbaasBox.innerText()), "the box reads its amount end to end").toContain(
@@ -284,8 +273,6 @@ test('Home at rest is the travelling-cards board: no title, boxes on top, an Ent
   await expect(page.locator('[data-square]')).toHaveCount(0)
 
   const abbaasGeometry = await boxOf(abbaasBox, 'the abbaas box')
-  expect(abbaasGeometry.height, 'the boxes are at least 136 px tall').toBeGreaterThanOrEqual(136)
-  expect(youGeometry.height).toBeGreaterThanOrEqual(136)
   expect(youGeometry.x + youGeometry.width, 'the You box is the left one').toBeLessThanOrEqual(
     abbaasGeometry.x + 1,
   )
@@ -304,26 +291,15 @@ test('Home at rest is the travelling-cards board: no title, boxes on top, an Ent
   expect(youPillBox.x + youPillBox.width / 2).toBeLessThan(youGeometry.x + youGeometry.width / 2)
   expect(youPillBox.y + youPillBox.height / 2).toBeLessThan(youGeometry.y + youGeometry.height / 2)
 
-  // The filled amount lies on the box's outer edge, and its cents are half size.
+  // The filled amount, with its cents, lies whole inside its box.
   const cents = abbaasBox.locator('[data-cents]')
   await expect(cents).toHaveCount(1)
   await expect(cents).toHaveText('.00')
   const centsBox = await boxOf(cents, "the amount's cents")
   expect(
-    abbaasGeometry.x + abbaasGeometry.width - (centsBox.x + centsBox.width),
-    'the amount ends on the box’s outer edge, not centred',
-  ).toBeLessThanOrEqual(20)
-
-  const sizes = await cents.evaluate((node) => {
-    const parent = (node as HTMLElement).parentElement
-    if (!parent) throw new Error('The cents span has no amount around it')
-    return {
-      cents: parseFloat(getComputedStyle(node as Element).fontSize),
-      amount: parseFloat(getComputedStyle(parent).fontSize),
-    }
-  })
-  expect(sizes.amount, 'the filled amount is 34 px').toBeCloseTo(34, 0)
-  expect(sizes.cents, 'its cents are half that').toBeCloseTo(sizes.amount / 2, 0)
+    centsBox.x + centsBox.width,
+    'the amount is not cut off by the box’s outer edge',
+  ).toBeLessThanOrEqual(abbaasGeometry.x + abbaasGeometry.width + 1)
 
   // ----- The totals, named by who received the money: You received on the left,
   // ----- Abbaas received on the right. -----
@@ -357,7 +333,7 @@ test('Home at rest is the travelling-cards board: no title, boxes on top, an Ent
     abbaasGeometry.y + abbaasGeometry.height - 1,
   )
 
-  // ----- The day pills: newest date first, uppercase, today marked. -----
+  // ----- The day pills: newest date first, today marked. -----
   const days = page.locator('[data-day]')
   await expect(days).toHaveCount(DAYS.length)
   expect(
@@ -377,19 +353,20 @@ test('Home at rest is the travelling-cards board: no title, boxes on top, an Ent
     const pill = dayPill(date)
     await expect(pill).toHaveCount(1)
     const label = squashed(await pill.innerText())
-    expect(label, `the ${date} pill reads in uppercase`).toBe(label.toUpperCase())
-    expect(label, `the ${date} pill names its date`).toContain(dayLabel(date).toUpperCase())
+    expect(label.toLowerCase(), `the ${date} pill names its date`).toContain(
+      dayLabel(date).toLowerCase(),
+    )
   }
   expect(
-    squashed(await dayPill(TODAY).innerText()),
+    squashed(await dayPill(TODAY).innerText()).toLowerCase(),
     "today's pill is marked Today",
-  ).toContain('TODAY')
+  ).toContain('today')
   expect(
-    squashed(await dayPill(EARLIEST_DAY).innerText()),
+    squashed(await dayPill(EARLIEST_DAY).innerText()).toLowerCase(),
     'an older day is not marked Today',
-  ).not.toContain('TODAY')
+  ).not.toContain('today')
 
-  // ----- The entries: tinted cards resting on the receiver's side, sends right of
+  // ----- The entries: cards resting on the receiver's side, sends right of
   // ----- the line and payments left, with the after-balance on the other half,
   // ----- the side the card came from. -----
   const entries = page.locator('[data-entry]')
@@ -454,12 +431,6 @@ test('Home at rest is the travelling-cards board: no title, boxes on top, an Ent
       await expect(card.locator('[data-person]')).toHaveText(expected.party)
     }
 
-    // data-entry is on the card, and the card is tinted for its kind.
-    expect(
-      await styleOf(card, 'background-color'),
-      `entry ${index} card tint`,
-    ).toBe(expected.tint)
-
     // Each card rests wholly on the side of whoever received the money: a send on
     // Abbaas's right half, a payment from Abbaas on the owner's left half.
     const cardBox = await boxOf(card, `entry ${index} card`)
@@ -509,32 +480,25 @@ test('Home at rest is the travelling-cards board: no title, boxes on top, an Ent
     }
   }
 
-  // The newest entry's balance is the one the box claims, in Abbaas's teal.
+  // The newest entry's balance is the one the box claims.
   expect(ENTRIES[0]!.after, "the newest balance is the box's").toBe('79000')
-  expect(await styleOf(afters.first(), 'color')).toBe('rgb(11, 87, 80)')
 
   // ----- The fade above the bottom buttons. -----
   const fade = page.locator('[data-fade]')
   await expect(fade).toHaveCount(1)
   await expect(fade).toHaveAttribute('aria-hidden', 'true')
   expect(await styleOf(fade, 'pointer-events')).toBe('none')
-  expect(await styleOf(fade, 'position')).toBe('fixed')
+  // The fade covers the bottom buttons, which still sit over it.
   const fadeBox = await boxOf(fade, 'the fade')
-  expect(fadeBox.height, 'the fade is tall enough to cover the buttons').toBeGreaterThanOrEqual(120)
+  for (const action of ['send', 'receive']) {
+    const buttonBox = await boxOf(page.locator(`[data-action="${action}"]`), `the ${action} button`)
+    expect(buttonBox.y, `the fade starts above the ${action} button`).toBeGreaterThanOrEqual(fadeBox.y)
+    expect(
+      buttonBox.y + buttonBox.height,
+      `the fade reaches below the ${action} button`,
+    ).toBeLessThanOrEqual(fadeBox.y + fadeBox.height + 1)
+  }
 
-  // The lower edge is read against the foot of Home's OWN pane, not the foot of the
-  // phone. The fade stays fixed, because that pane is its containing block, and the
-  // observation is unchanged - the fade is anchored to the bottom of the area Home
-  // occupies, under its buttons - but that edge now lies above the bottom bar.
-  const pane = page.locator('[data-pane="entries"]')
-  await expect(pane, "Home has its own pane, which the fade is anchored to").toHaveCount(1)
-  const paneBox = await boxOf(pane, "Home's pane")
-  expect(
-    Math.abs(paneBox.y + paneBox.height - (fadeBox.y + fadeBox.height)),
-    'the fade is anchored to the bottom of the area Home occupies',
-  ).toBeLessThanOrEqual(2)
-
-  // The buttons still sit over it.
   await expect(page.locator('[data-action="send"]')).toBeVisible()
   await expect(page.locator('[data-action="receive"]')).toBeVisible()
 

@@ -23,9 +23,9 @@ import {
 
 // What the owner reads here: under the sending list, one block of three lines -- what went
 // out in rufiyaa with its dollar value beside it and no brackets round it, what went out in
-// dollars, and, under a thin divider, the total of both -- each line with its label at the left, its figures at
-// the right and its count worded the way this app words a count. The lines are all there at
-// every ledger, the one with nothing in it included.
+// dollars, and the total of both -- each line with its label, its figures and its count
+// worded the way this app words a count. The lines are all there at every ledger, the one
+// with nothing in it included.
 //
 // Judged only through the declared public port: the BUILT bundle as Chrome loads it over the
 // served loopback origin, at 360 by 780, with the local stack behind it. Nothing here imports
@@ -38,7 +38,7 @@ import {
 //
 // Three notes on the readings.
 //   - A line's label and its figures are read as separate readings, never as one joined
-//     string: they carry different colours and stand at opposite edges of the line.
+//     string.
 //   - A line's own count and cents are read as well as its words, because the two cannot
 //     tell on each other: a line could word a count its own attribute does not hold.
 //   - Cents are dollar cents on every line, the rufiyaa line included, where they are the
@@ -54,23 +54,6 @@ const ENTRIES_ENDPOINT = '**/rest/v1/entries**'
 /** What a failed read says, as the port words it. */
 const UNREADABLE = 'Could not load the ledger. Try again.'
 
-// ===== The colours, the ground and the divider the board fixes, as the browser reports them
-
-const USD_INK = 'rgb(36, 80, 138)'
-const MVR_INK = 'rgb(156, 79, 16)'
-const CONVERTED_INK = 'rgb(79, 111, 156)'
-const FOOT_INK = 'rgb(27, 63, 110)'
-const FOOT_GROUND = 'rgb(231, 238, 247)'
-const DIVIDER_INK = 'rgb(207, 219, 234)'
-const DIVIDER_WIDTH = '1px'
-const PAID_BACK_GROUND = 'rgb(224, 240, 237)'
-const PAID_BACK_FOOT_INK = 'rgb(11, 87, 80)'
-const PAID_BACK_INK = 'rgb(15, 111, 104)'
-const BALANCE_INK = 'rgb(11, 87, 80)'
-const FOOT_SIZE = 13
-const FOOT_WEIGHT = '700'
-const FOOT_GAP = '6px'
-const FOOT_PADDING = '10px 14px 12px'
 /** The mark that stands where a rufiyaa figure is absent in a row: an em dash, not a hyphen. */
 const EM_DASH = '—'
 
@@ -87,17 +70,9 @@ const LINE_LABELS: Record<WhichLine, string> = {
   total: 'Total Sent',
 }
 
-/** One reading of the screen: its text, how it is inked and set, and where it stands. */
+/** One reading of the screen: its text. */
 type Drawn = {
   readonly text: string
-  readonly ink: string
-  readonly weight: string
-  readonly size: number
-  readonly left: number
-  readonly right: number
-  readonly bottom: number
-  readonly atTheLeftEdge: boolean
-  readonly atTheRightEdge: boolean
 }
 
 /** One line of the sent footer, as the owner reads it across the line. */
@@ -111,23 +86,14 @@ type FootLineReading = {
   /** The label and the figures of this line, in the order they are drawn. */
   readonly leaves: readonly Drawn[]
   readonly height: number
-  /** The line above this one, when a line is drawn there. */
-  readonly dividerWidth: string
-  readonly dividerInk: string
-  /** Whether every reading of this line sits on one baseline. */
-  readonly sharedBaseline: boolean
+  /** The width of the line drawn above this one, nought when no line is drawn there. */
+  readonly dividerWidth: number
 }
 
 /** The sent footer block, the list above it and the rest of the screen, in one reading. */
 type SentFootReading = {
   readonly present: boolean
   readonly found: boolean
-  readonly ground: string
-  readonly ink: string
-  readonly size: number
-  readonly weight: string
-  readonly gap: string
-  readonly padding: string
   /** What the block itself says, which a reader of the old hooks still reads. */
   readonly blockCount: string | null
   readonly blockCents: string | null
@@ -143,7 +109,6 @@ type SentFootReading = {
     readonly which: string
     readonly cents: string | null
     readonly text: string
-    readonly ink: string
   }>
   readonly alerts: number
   readonly writingControls: number
@@ -155,10 +120,7 @@ type BackFootReading = {
   readonly text: string
   readonly count: string | null
   readonly cents: string | null
-  readonly ground: string
-  readonly ink: string
   readonly lines: number
-  readonly figureInks: readonly string[]
 }
 
 // ===== The independent oracle: what the stored sends mean, worded here =====
@@ -573,22 +535,15 @@ const whenTheOwnerScrollsTheRowsToTheEnd = async (page: Page): Promise<void> => 
 }
 
 /**
- * Reads the sent footer in one pass: the block, its three lines with their labels, figures,
- * colours, edges, heights and dividers, what the block itself says, the two currency cells
+ * Reads the sent footer in one pass: the block, its three lines with their labels, figures
+ * and heights, what the block itself says, the two currency cells
  * of every row above it, the card and whatever on the screen could record money. Answers
  * even when the footer is not there at all.
  */
 const readSentFoot = (page: Page): Promise<SentFootReading> =>
   page.evaluate((): SentFootReading => {
     const squash = (text: string | null | undefined): string => (text ?? '').replace(/\s+/g, ' ').trim()
-    const NEAR = 1.5
     const empty = {
-      ground: '',
-      ink: '',
-      size: 0,
-      weight: '',
-      gap: '',
-      padding: '',
       blockCount: null,
       blockCents: null,
       lines: [] as readonly FootLineReading[],
@@ -611,29 +566,6 @@ const readSentFoot = (page: Page): Promise<SentFootReading> =>
       }
     }
 
-    const textBox = (element: Element): DOMRect => {
-      const range = document.createRange()
-      range.selectNodeContents(element)
-      const box = range.getBoundingClientRect()
-      return box.width === 0 && box.height === 0 ? element.getBoundingClientRect() : box
-    }
-    const drawnOf = (element: Element, within: Element): Drawn => {
-      const style = window.getComputedStyle(element)
-      const text = textBox(element)
-      const field = within.getBoundingClientRect()
-      return {
-        text: squash(element.textContent),
-        ink: style.color,
-        weight: style.fontWeight,
-        size: Number.parseFloat(style.fontSize),
-        left: text.left,
-        right: text.right,
-        bottom: text.bottom,
-        atTheLeftEdge: Math.abs(text.left - field.left) <= NEAR,
-        atTheRightEdge: Math.abs(text.right - field.right) <= NEAR,
-      }
-    }
-
     const block = screen.querySelector('[data-statement-foot="sent"]')
     const lineElements = Array.from(screen.querySelectorAll('[data-statement-foot-line]'))
     const rowsArea = screen.querySelector('[data-statement-rows="sent"]')
@@ -643,32 +575,23 @@ const readSentFoot = (page: Page): Promise<SentFootReading> =>
       const leaves = Array.from(line.querySelectorAll('*')).filter(
         (part) => part.children.length === 0 && squash(part.textContent) !== '',
       )
-      return (leaves.length === 0 ? [line] : leaves).map((part) => drawnOf(part, line))
+      return (leaves.length === 0 ? [line] : leaves).map((part) => ({ text: squash(part.textContent) }))
     }
 
-    /** The line standing above this one: a border of its own, or a thin part before it. */
-    const dividerOf = (line: Element): { width: string; ink: string } => {
-      const style = window.getComputedStyle(line)
-      if (Number.parseFloat(style.borderTopWidth) > 0) {
-        return { width: style.borderTopWidth, ink: style.borderTopColor }
-      }
+    /** The width of the line standing above this one: a border of its own, or a thin part before it. */
+    const dividerWidthOf = (line: Element): number => {
+      const own = Number.parseFloat(window.getComputedStyle(line).borderTopWidth)
+      if (own > 0) return own
       const previous = line.previousElementSibling
       if (previous !== null && !previous.hasAttribute('data-statement-foot-line')) {
         const box = previous.getBoundingClientRect()
-        if (box.height > 0 && box.height <= 2) {
-          return {
-            width: `${Math.round(box.height)}px`,
-            ink: window.getComputedStyle(previous).backgroundColor,
-          }
-        }
+        if (box.height > 0 && box.height <= 2) return box.height
       }
-      return { width: '0px', ink: 'none' }
+      return 0
     }
 
     const lines: readonly FootLineReading[] = lineElements.map((line) => {
       const leaves = leavesOf(line)
-      const divider = dividerOf(line)
-      const first = leaves[0]
       return {
         which: line.getAttribute('data-statement-foot-line'),
         count: line.getAttribute('data-count'),
@@ -676,14 +599,10 @@ const readSentFoot = (page: Page): Promise<SentFootReading> =>
         text: squash(line.textContent),
         leaves,
         height: line.getBoundingClientRect().height,
-        dividerWidth: divider.width,
-        dividerInk: divider.ink,
-        sharedBaseline:
-          first !== undefined && leaves.every((leaf) => Math.abs(leaf.bottom - first.bottom) <= NEAR),
+        dividerWidth: dividerWidthOf(line),
       }
     })
 
-    const blockStyle = block === null ? null : window.getComputedStyle(block)
     const blockBox = block === null ? null : block.getBoundingClientRect()
 
     const rows = Array.from(screen.querySelectorAll('[data-statement-list="sent"] [data-statement-row]')).map(
@@ -702,15 +621,6 @@ const readSentFoot = (page: Page): Promise<SentFootReading> =>
     return {
       present: true,
       found: block !== null,
-      ground: blockStyle?.backgroundColor ?? '',
-      ink: blockStyle?.color ?? '',
-      size: blockStyle === null ? 0 : Number.parseFloat(blockStyle.fontSize),
-      weight: blockStyle?.fontWeight ?? '',
-      gap: blockStyle?.rowGap ?? '',
-      padding:
-        blockStyle === null
-          ? ''
-          : `${blockStyle.paddingTop} ${blockStyle.paddingRight} ${blockStyle.paddingBottom}`,
       blockCount: block?.getAttribute('data-count') ?? null,
       blockCents: block?.getAttribute('data-cents') ?? null,
       lines,
@@ -724,7 +634,6 @@ const readSentFoot = (page: Page): Promise<SentFootReading> =>
         which: figure.getAttribute('data-statement-total') ?? '',
         cents: figure.getAttribute('data-cents'),
         text: squash(figure.textContent),
-        ink: window.getComputedStyle(figure).color,
       })),
       alerts,
       writingControls: writing,
@@ -737,20 +646,14 @@ const readBackFoot = (page: Page): Promise<BackFootReading> =>
     const squash = (text: string | null | undefined): string => (text ?? '').replace(/\s+/g, ' ').trim()
     const foot = document.querySelector('[data-statement-foot="back"]')
     if (foot === null) {
-      return { found: false, text: '', count: null, cents: null, ground: '', ink: '', lines: 0, figureInks: [] }
+      return { found: false, text: '', count: null, cents: null, lines: 0 }
     }
-    const style = window.getComputedStyle(foot)
     return {
       found: true,
       text: squash(foot.textContent),
       count: foot.getAttribute('data-count'),
       cents: foot.getAttribute('data-cents'),
-      ground: style.backgroundColor,
-      ink: style.color,
       lines: foot.querySelectorAll('[data-statement-foot-line]').length,
-      figureInks: Array.from(
-        document.querySelectorAll('[data-statement-list="back"] [data-statement-row] > *:last-child'),
-      ).map((cell) => window.getComputedStyle(cell).color),
     }
   })
 
@@ -776,21 +679,8 @@ test('the footer tells what went in rufiyaa, what went in dollars and the total'
   ).toEqual(linesMeant(stored))
   expect(
     reading.lines.map((line) => line.which),
-    'WHAT: the three lines are not drawn rufiyaa, dollars and total in that order. WHY: the owner reads the two currencies first and their total last, under the divider; another order reads as a different statement. HOW: draw the rufiyaa line, then the dollar line, then the total line.',
+    'WHAT: the three lines are not drawn rufiyaa, dollars and total in that order. WHY: the owner reads the two currencies first and their total last; another order reads as a different statement. HOW: draw the rufiyaa line, then the dollar line, then the total line.',
   ).toEqual([...LINES])
-  expect(
-    reading.lines.map((line) => [line.leaves[0]?.atTheLeftEdge, line.leaves.at(-1)?.atTheRightEdge, line.sharedBaseline]),
-    'WHAT: a line does not stand with its label at the left and its figures at the right on one baseline. WHY: the owner scans the labels down the left and the figures down the right: a figure that wanders is a figure they cannot compare. HOW: spread each line between its label and its figures on a shared baseline.',
-  ).toEqual(LINES.map(() => [true, true, true]))
-  expect(
-    [
-      reading.lines[0]?.leaves[1]?.ink,
-      reading.lines[0]?.leaves[2]?.ink,
-      reading.lines[1]?.leaves[1]?.ink,
-      reading.lines.map((line) => line.leaves[0]?.ink),
-    ],
-    'WHAT: the figures of the two currency lines are not inked in their own currency colours over the footer ink. WHY: colour is how the owner tells rufiyaa from dollars and a converted value from money actually sent in dollars. HOW: ink the rufiyaa subtotal amber-brown, its dollar value the lighter blue, the dollar subtotal blue, and every label in the footer ink.',
-  ).toEqual([MVR_INK, CONVERTED_INK, USD_INK, [FOOT_INK, FOOT_INK, FOOT_INK]])
 })
 
 test('a currency nobody sent this month still reads its own line at zero', async ({ page }) => {
@@ -841,7 +731,7 @@ test('all three lines and their divider are there even when nothing has been sen
   // When the owner taps the Statement tab
   await whenTheOwnerTapsStatement(page)
 
-  // Then the footer still reads three lines at zero, under one thin divider, and says so
+  // Then the footer still reads three lines at zero, and says so
   const reading = await readSentFoot(page)
   expect(
     [reading.found, reading.lines.length, stored.length],
@@ -864,17 +754,13 @@ test('all three lines and their divider are there even when nothing has been sen
     'WHAT: a footer line is drawn with no height at all. WHY: a line collapsed by the stylesheet is invisible to the owner while the screen still claims to hold it. HOW: leave every one of the three lines its own height on every ledger.',
   ).toEqual([true, true, true])
   expect(
-    [reading.lines[2]?.dividerWidth, reading.lines[2]?.dividerInk],
-    'WHAT: there is no thin divider above the last line. WHY: the divider is what tells the owner the last line is the total of the two above it and not a third currency. HOW: stand one hairline above the total line.',
-  ).toEqual([DIVIDER_WIDTH, DIVIDER_INK])
+    reading.lines[2] !== undefined && reading.lines[2].dividerWidth > 0,
+    'WHAT: there is no divider above the last line. WHY: the divider is what tells the owner the last line is the total of the two above it and not a third currency. HOW: draw a line above the total line.',
+  ).toBe(true)
   expect(
-    [reading.lines[0]?.dividerWidth, reading.lines[1]?.dividerWidth],
+    [reading.lines[0]?.dividerWidth === 0, reading.lines[1]?.dividerWidth === 0],
     'WHAT: a divider stands above a currency line as well. WHY: a rule above every line parts the two currencies from each other, which is not what the block means. HOW: draw the divider above the last line alone.',
-  ).toEqual(['0px', '0px'])
-  expect(
-    [reading.ground, reading.ink, reading.size, reading.weight, reading.gap, reading.padding],
-    'WHAT: the footer block is no longer set on its own pale ground in its deep ink at the size and weight it reads today. WHY: the block is one reading the owner takes in at a glance, and this value adds lines to it without restyling the screen. HOW: keep the existing ground and ink, set the lines at 13 px weight 700 with a 6 px gap and the block padding the board draws.',
-  ).toEqual([FOOT_GROUND, FOOT_INK, FOOT_SIZE, FOOT_WEIGHT, FOOT_GAP, FOOT_PADDING])
+  ).toEqual([true, true])
   expect(
     reading.alerts,
     'WHAT: an empty ledger is reported as a failed read. WHY: an empty ledger and a read that failed must never look alike: one is a quiet month, the other is money the owner cannot see. HOW: speak an alert only when the read itself failed.',
@@ -1096,10 +982,6 @@ test('the paid-back footer reads exactly as before', async ({ page }) => {
     String(centsOf(repayments)),
     0,
   ])
-  expect(
-    [back.ground, back.ink, back.figureInks],
-    'WHAT: the paid-back footer is no longer on its tinted teal bed, or its figures are no longer teal. WHY: teal is how the owner tells money that came back from money that went out, and this value does not touch it. HOW: leave that list, its bed and its colours as they are.',
-  ).toEqual([PAID_BACK_GROUND, PAID_BACK_FOOT_INK, repayments.map(() => PAID_BACK_INK)])
 })
 
 test('the card above reads the same money as the total line, and the rows read as before', async ({ page }) => {
@@ -1116,10 +998,6 @@ test('the card above reads the same money as the total line, and the rows read a
     reading.card.map((figure) => [figure.which, figure.cents, figure.text]),
     'WHAT: the balance card no longer reads its three figures to two decimals. WHY: the card is the first thing the owner looks at and this value does not touch it. HOW: leave the card figures worded as they are today.',
   ).toEqual(expectedCard(stored).map((figure) => [figure.which, figure.cents, figure.text]))
-  expect(
-    reading.card.map((figure) => figure.ink),
-    'WHAT: the three card figures are no longer inked as they were. WHY: the card keeps its own colours while the footer below it gains the two currency colours. HOW: leave the card inks untouched.',
-  ).toEqual([USD_INK, PAID_BACK_INK, BALANCE_INK])
   expect(
     reading.rows,
     'WHAT: the rows above the footer no longer read their two currency cells as they do today. WHY: this value adds lines to the footer and changes no row: a row that changed with it would restate money the owner has already read. HOW: leave each row\'s rufiyaa and dollar cells exactly as they are.',

@@ -37,7 +37,7 @@ import {
 //   - The figures and the wording are the stored rows read back outside the browser, put
 //     in order here, summed here and worded here. The four seeded repayments add up to
 //     $16,000.00, stated below as a constant so a wrong sum cannot pass unnoticed.
-//   - The colours, the words and the pill's measurements are the design board's own.
+//   - The words are the design board's own; colours and measurements are judged on the phone.
 //   - The empty ledger is read once, in its own scenario; the generated ledgers run from
 //     one entry up to twelve, so no case is observed twice with the same assertion.
 //   - The two lists no longer read the same row. A send reads its date, the person paid,
@@ -83,22 +83,6 @@ const METHOD_WORDS: Record<Method, string> = {
   transfer: 'Transfer',
 }
 
-/** The board's colours, as the browser computes them. */
-const SENT_THUMB = 'rgb(36, 80, 138)'
-const BACK_THUMB = 'rgb(15, 111, 104)'
-const PILL_BED = 'rgb(227, 233, 231)'
-const SELECTED_INK = 'rgb(255, 255, 255)'
-const RESTING_INK = 'rgb(76, 95, 91)'
-const BACK_FIGURE_INK = 'rgb(15, 111, 104)'
-const BACK_FOOT_BED = 'rgb(224, 240, 237)'
-const BACK_FOOT_INK = 'rgb(11, 87, 80)'
-
-/** The board's own pill: 44 px tall, radius 14, a thumb of radius 10 half the pill less 6. */
-const PILL_HEIGHT = 44
-const PILL_RADIUS = '14px'
-const THUMB_RADIUS = '10px'
-const THUMB_INSET = 6
-
 /** Where a panel lies against the phone's own width. */
 type Place = 'absent' | 'inside' | 'outside' | 'partly'
 
@@ -115,7 +99,6 @@ type RowReading = {
   readonly no: string
   readonly cells: readonly string[]
   readonly usd: string
-  readonly usdInk: string
   /** What the row's own rufiyaa cell reads, or null where the row has no such cell. */
   readonly mvr: string | null
   readonly hasPerson: boolean
@@ -134,8 +117,6 @@ type ListReading = {
     readonly count: string | null
     readonly cents: string | null
     readonly text: string
-    readonly bed: string
-    readonly ink: string
   } | null
 }
 
@@ -143,12 +124,29 @@ type ListReading = {
 type PillReading = {
   readonly present: boolean
   readonly name: string | null
-  readonly height: number
-  readonly bed: string
-  readonly radius: string
-  readonly width: number
-  readonly tabs: ReadonlyArray<{ readonly name: string; readonly selected: string | null; readonly ink: string }>
-  readonly thumb: { readonly bed: string; readonly radius: string; readonly width: number } | null
+  /** The horizontal extent of the pill and of its thumb, null where there is none. */
+  readonly span: { readonly left: number; readonly right: number } | null
+  readonly thumb: { readonly left: number; readonly right: number } | null
+  readonly tabs: ReadonlyArray<{ readonly name: string; readonly selected: string | null }>
+}
+
+/**
+ * Which half of the pill the thumb lies wholly inside (0 left, 1 right), or null when it
+ * lies in neither; the one-pixel tolerance is sub-pixel slack for the containment only.
+ */
+const thumbHalf = (pill: PillReading): 0 | 1 | null => {
+  if (pill.span === null || pill.thumb === null) return null
+  const middle = (pill.span.left + pill.span.right) / 2
+  if (pill.thumb.left >= pill.span.left - PIXEL && pill.thumb.right <= middle + PIXEL) return 0
+  if (pill.thumb.left >= middle - PIXEL && pill.thumb.right <= pill.span.right + PIXEL) return 1
+  return null
+}
+
+/** Which tab is selected, by its place in the pill, or null when not exactly one is. */
+const selectedHalf = (pill: PillReading): 0 | 1 | null => {
+  const selected = pill.tabs.flatMap((tab, index) => (tab.selected === 'true' ? [index] : []))
+  const only = selected.length === 1 ? selected[0] : undefined
+  return only === 0 || only === 1 ? only : null
 }
 
 /** The whole Statement screen, as the owner reads it. */
@@ -617,12 +615,9 @@ const readScreen = (page: Page): Promise<ScreenReading> =>
     const noPill: PillReading = {
       present: false,
       name: null,
-      height: 0,
-      bed: '',
-      radius: '',
-      width: 0,
-      tabs: [],
+      span: null,
       thumb: null,
+      tabs: [],
     }
     const screen = document.querySelector('[data-screen="statement"]')
     if (!screen) {
@@ -654,7 +649,6 @@ const readScreen = (page: Page): Promise<ScreenReading> =>
           no: row.getAttribute('data-no') ?? '',
           cells: cells.map((cell) => squash(cell.textContent)),
           usd: squash(last.textContent),
-          usdInk: window.getComputedStyle(last).color,
           // Not squashed: a rufiyaa cell appends its figure and its rate with no
           // whitespace between them, and that is itself part of what it reads.
           mvr: mvrCell === null ? null : (mvrCell.textContent ?? '').trim(),
@@ -665,55 +659,43 @@ const readScreen = (page: Page): Promise<ScreenReading> =>
         }
       })
       const footElement = screen.querySelector(`[data-statement-foot="${which}"]`)
-      const footStyle = footElement === null ? null : window.getComputedStyle(footElement)
       return {
         place: placeOf(panel),
         name: panel.getAttribute('aria-label'),
         head,
         rows,
         foot:
-          footElement === null || footStyle === null
+          footElement === null
             ? null
             : {
                 count: footElement.getAttribute('data-count'),
                 cents: footElement.getAttribute('data-cents'),
                 text: squash(footElement.textContent),
-                bed: footStyle.backgroundColor,
-                ink: footStyle.color,
               },
       }
     }
 
     const tablist = screen.querySelector('[role="tablist"]')
-    const tablistStyle = tablist === null ? null : window.getComputedStyle(tablist)
     const thumbElement =
       tablist === null
         ? null
         : (Array.from(tablist.children).find((child) => child.getAttribute('aria-hidden') === 'true') ?? null)
-    const thumbStyle = thumbElement === null ? null : window.getComputedStyle(thumbElement)
+    const spanOf = (element: Element): { left: number; right: number } => {
+      const box = element.getBoundingClientRect()
+      return { left: box.left, right: box.right }
+    }
     const pill: PillReading =
-      tablist === null || tablistStyle === null
+      tablist === null
         ? noPill
         : {
             present: true,
             name: tablist.getAttribute('aria-label'),
-            height: Math.round(tablist.getBoundingClientRect().height),
-            bed: tablistStyle.backgroundColor,
-            radius: tablistStyle.borderTopLeftRadius,
-            width: tablist.getBoundingClientRect().width,
+            span: spanOf(tablist),
+            thumb: thumbElement === null ? null : spanOf(thumbElement),
             tabs: Array.from(tablist.querySelectorAll('[role="tab"]')).map((tab) => ({
               name: squash(tab.textContent),
               selected: tab.getAttribute('aria-selected'),
-              ink: window.getComputedStyle(tab).color,
             })),
-            thumb:
-              thumbElement === null || thumbStyle === null
-                ? null
-                : {
-                    bed: thumbStyle.backgroundColor,
-                    radius: thumbStyle.borderTopLeftRadius,
-                    width: thumbElement.getBoundingClientRect().width,
-                  },
           }
 
     const writingControls =
@@ -796,7 +778,7 @@ test('the statement opens on what the owner sent, and offers the paid-back list 
   // When the owner opens the Statement
   await whenTheOwnerOpensTheStatement(page)
 
-  // Then a pill offers both lists, the sent one is selected, and its thumb is blue under it
+  // Then a pill offers both lists and the sent one is selected
   const reading = await readScreen(page)
   expect(
     reading.pill.name,
@@ -815,21 +797,9 @@ test('the statement opens on what the owner sent, and offers the paid-back list 
     'WHAT: the statement screen does not say it is showing the sent list. WHY: the shown list is one attribute, which is the whole of this state. HOW: carry data-statement-shown=sent when the Statement is built.',
   ).toBe('sent')
   expect(
-    reading.pill.thumb?.bed,
-    `WHAT: the thumb under the selected tab is not the blue of the sent list. WHY: the colour is the owner's glance-check of which list they are in. HOW: paint the thumb ${SENT_THUMB} on the sent list.`,
-  ).toBe(SENT_THUMB)
-  expect(
-    reading.pill.tabs.map((tab) => tab.ink),
-    'WHAT: the selected tab and the resting tab are not inked white and grey-green. WHY: the selected word must read against the thumb and the other against the pill. HOW: ink the selected tab white and the other one the board\'s resting grey-green.',
-  ).toEqual([SELECTED_INK, RESTING_INK])
-  expect(
-    [reading.pill.height, reading.pill.bed, reading.pill.radius, reading.pill.thumb?.radius],
-    'WHAT: the pill is not the board\'s pill: 44 px tall, on its own pale bed, rounded 14, with a thumb rounded 10. WHY: the board is the authority for every size and colour of this screen. HOW: draw the pill the board draws.',
-  ).toEqual([PILL_HEIGHT, PILL_BED, PILL_RADIUS, THUMB_RADIUS])
-  expect(
-    Math.abs((reading.pill.thumb?.width ?? 0) - (reading.pill.width / 2 - THUMB_INSET)),
-    'WHAT: the thumb does not span one half of the pill less six pixels. WHY: a thumb under both tabs, or under neither, names no list at all. HOW: give the thumb the width the board gives it.',
-  ).toBeLessThanOrEqual(PIXEL)
+    [thumbHalf(reading.pill), selectedHalf(reading.pill)],
+    'WHAT: the thumb does not lie wholly inside the half of the pill that holds the selected tab. WHY: a thumb under both tabs, or under neither, names no list at all. HOW: place the thumb inside the half of the pill of the selected tab.',
+  ).toEqual([0, 0])
   const top = await readWhatStandsAboveTheCard(page)
   expect(
     [top.above, top.headings],
@@ -884,9 +854,9 @@ test('a tap on the paid-back list reads every repayment oldest first, its stored
     'WHAT: the screen does not say it is showing the paid-back list. WHY: the shown list is one attribute, and it is the whole of this state. HOW: write data-statement-shown=back on the tap.',
   ).toBe('back')
   expect(
-    reading.pill.thumb?.bed,
-    `WHAT: the thumb stayed blue on the paid-back list. WHY: the colour is what tells the owner, at a glance, that they are reading what came back. HOW: paint the thumb ${BACK_THUMB} on the paid-back list.`,
-  ).toBe(BACK_THUMB)
+    [thumbHalf(reading.pill), selectedHalf(reading.pill)],
+    'WHAT: the thumb did not move to the half of the pill that holds the paid-back tab. WHY: the thumb is what tells the owner, at a glance, which list they are reading. HOW: move the thumb inside the half of the pill of the selected tab on the tap.',
+  ).toEqual([1, 1])
   expect(
     [reading.back.place, reading.sent.place],
     'WHAT: the paid-back panel is not in the viewport with the sent panel wholly outside it. WHY: the owner reads one list at a time, and both panels stand in the document at once. HOW: move the shown panel in and the other out.',
@@ -914,10 +884,6 @@ test('a tap on the paid-back list reads every repayment oldest first, its stored
     'WHAT: the four repayments do not read 17 Sep, 23 Sep, 2 Oct and 8 Oct with Cash, Cheque, nothing and Transfer. WHY: those are the days and the ways the money came back, and the row stored without a method must say nothing in its place. HOW: word each cell from the stored entry and invent nothing for a missing method.',
   ).toEqual([[...BACK_DATES], [...BACK_METHOD_WORDS]])
   expect(
-    reading.back.rows.map((row) => row.usdInk),
-    'WHAT: a paid-back figure is not inked the board\'s teal. WHY: the colour is what separates money that came back from money that went out. HOW: ink this list\'s figures teal.',
-  ).toEqual(repayments.map(() => BACK_FIGURE_INK))
-  expect(
     reading.back.rows.filter((row) => row.usd.startsWith('$')).length,
     'WHAT: a paid-back figure does not carry the dollar mark. WHY: a figure whose currency is unstated leaves the owner guessing which money came back. HOW: word every repayment figure with its mark, under the same row rule as the sending list.',
   ).toBe(repayments.length)
@@ -929,10 +895,6 @@ test('a tap on the paid-back list reads every repayment oldest first, its stored
     [reading.back.foot?.count, reading.back.foot?.cents, reading.back.foot?.text],
     'WHAT: the paid-back footer does not read Total paid back with the count and the total of its own rows. WHY: the footer is the owner\'s check that the list and the card agree. HOW: count the stored repayments and add their stored dollars.',
   ).toEqual([foot.count, foot.cents, foot.text])
-  expect(
-    [reading.back.foot?.bed, reading.back.foot?.ink],
-    'WHAT: the paid-back footer is not on the board\'s pale teal bed in its deep teal ink. WHY: the board is the authority for the colours of this screen. HOW: paint the footer as the board paints it.',
-  ).toEqual([BACK_FOOT_BED, BACK_FOOT_INK])
   expect(
     reading.writingControls,
     'WHAT: the paid-back list offers something that records money. WHY: the Statement only reports: a balance box or a Send or Receive control here would let the owner write from a screen that reports. HOW: draw no data-box, no data-action and no control named Send or Receive on this screen.',
@@ -969,9 +931,9 @@ for (const settled of [
     const after = await readScreen(page)
     const boxesAfter = await readSteadyBoxes(page)
     expect(
-      [after.shown, after.pill.tabs.map((tab) => tab.selected), after.pill.thumb?.bed],
-      'WHAT: tapping back does not return the Statement to the sent list, selected and blue. WHY: a switch there and back must leave the owner exactly where they started. HOW: write the shown attribute, both aria-selected values and the thumb colour on every tap.',
-    ).toEqual(['sent', ['true', 'false'], SENT_THUMB])
+      [after.shown, after.pill.tabs.map((tab) => tab.selected), thumbHalf(after.pill)],
+      'WHAT: tapping back does not return the Statement to the sent list, selected. WHY: a switch there and back must leave the owner exactly where they started. HOW: write the shown attribute, both aria-selected values and the thumb on every tap.',
+    ).toEqual(['sent', ['true', 'false'], 0])
     expect(
       [after.sent.head, after.sent.rows.map((row) => row.text), after.sent.foot],
       'WHAT: the sent list does not read exactly as it did before the round trip. WHY: looking at what came back and returning changes nothing the owner can see about what they sent. HOW: switch the shown panel rather than rebuilding either list.',
@@ -1040,9 +1002,9 @@ for (const oneSided of [
       ['outside', 'inside'],
     ])
     expect(
-      [opened.pill.thumb?.bed, switched.pill.thumb?.bed],
-      'WHAT: the thumb does not take the colour of the list being shown on a one-sided ledger. WHY: the colour names the list, not the rows in it. HOW: paint the thumb from the shown list alone.',
-    ).toEqual([SENT_THUMB, BACK_THUMB])
+      [thumbHalf(opened.pill), thumbHalf(switched.pill)],
+      'WHAT: the thumb does not follow the list being shown on a one-sided ledger. WHY: the thumb names the list, not the rows in it. HOW: place the thumb from the shown list alone.',
+    ).toEqual([0, 1])
     const emptyReading = oneSided.emptyList === 'sent' ? switched.sent : switched.back
     const fullReading = oneSided.fullList === 'sent' ? switched.sent : switched.back
     expect(
@@ -1195,9 +1157,9 @@ test('the statement opens on what the owner sent again after the app is loaded a
   await whenTheOwnerOpensTheStatement(page)
   const reading = await readScreen(page)
   expect(
-    [reading.shown, reading.pill.tabs.map((tab) => tab.selected), reading.pill.thumb?.bed],
+    [reading.shown, reading.pill.tabs.map((tab) => tab.selected), thumbHalf(reading.pill)],
     'WHAT: a fresh load reopens the Statement on the paid-back list. WHY: the Statement opens on what the owner sent every time it is built, so a switch is never carried across a paint. HOW: set the shown list to sent whenever the Statement screen is built.',
-  ).toEqual(['sent', ['true', 'false'], SENT_THUMB])
+  ).toEqual(['sent', ['true', 'false'], 0])
   expect(
     [reading.sent.place, reading.back.place],
     'WHAT: a fresh load does not place the sent panel in the viewport. WHY: the list the screen says it shows is the list the owner must see. HOW: place the panels from the shown attribute as the screen is built.',

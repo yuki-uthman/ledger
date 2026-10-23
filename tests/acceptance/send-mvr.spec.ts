@@ -14,8 +14,8 @@ import { createAccount, readEntries, seedPerson, type Account } from '../support
 //
 // Judged through the declared public port only: the built bundle's DOM (the
 // currency switch with its sliding data-pill, data-prefix, the 'Rate · MVR per $1'
-// card beside the white 'In dollars' card with its data-usd output, the Method
-// radio group, the white 'Send · $X' button, Home's centre-line card with its
+// card beside the 'In dollars' card with its data-usd output, the Method
+// radio group, the 'Send · $X' button, Home's centre-line card with its
 // three lines, the entry's sheet and the balance boxes) and, outside the browser,
 // the row the app stored.
 //
@@ -96,7 +96,7 @@ const openSendForm = async (page: Page): Promise<Locator> => {
   return form
 }
 
-/** The white save button, whatever dollar value it currently names. */
+/** The save button, whatever dollar value it currently names. */
 const saveButton = (page: Page): Locator => page.getByRole('button', { name: /^Send · \$/ })
 
 /** The centre of a laid-out element, in viewport pixels. */
@@ -104,6 +104,15 @@ const centreOf = async (locator: Locator): Promise<{ x: number; y: number }> => 
   const box = await locator.boundingBox()
   if (!box) throw new Error('That element has no layout box')
   return { x: box.x + box.width / 2, y: box.y + box.height / 2 }
+}
+
+/** Two elements share one row: their vertical extents overlap. */
+const expectOneRow = async (a: Locator, b: Locator): Promise<void> => {
+  const boxA = await a.boundingBox()
+  const boxB = await b.boundingBox()
+  if (!boxA || !boxB) throw new Error('That element has no layout box')
+  expect(boxA.y).toBeLessThan(boxB.y + boxB.height)
+  expect(boxB.y).toBeLessThan(boxA.y + boxA.height)
 }
 
 /**
@@ -132,7 +141,7 @@ const atRestAfterSave = async (page: Page, expectedEntries: number): Promise<voi
 }
 
 /**
- * The currency pill slides for 300 ms under its own transition, which carries no
+ * The currency pill slides under its own transition, which carries no
  * data-motion marker, so its rectangle is read only once it holds still across
  * two consecutive animation frames.
  */
@@ -178,8 +187,7 @@ test('MVR slides the pill and opens the rate card beside In dollars; the worked-
   await expect(usdButton).toHaveAttribute('aria-pressed', 'false')
   await expect(page.locator('[data-prefix]')).toHaveText('MVR')
 
-  // The white pill lies over the MVR button, not the USD one. The slide takes
-  // 300 ms, so this is read once it has settled.
+  // The pill lies over the MVR button, not the USD one, once it has settled.
   const pill = page.locator('[data-pill]')
   await expect(pill).toBeVisible()
   await expect(async () => {
@@ -193,7 +201,7 @@ test('MVR slides the pill and opens the rate card beside In dollars; the worked-
   // The dollars-need-no-rate note belongs to USD only.
   await expect(form.getByText(USD_NOTE)).toBeHidden()
 
-  // ----- The rate card and the white In dollars card open side by side. -----
+  // ----- The rate card and the In dollars card open side by side. -----
   const rate = page.getByLabel(RATE_LABEL)
   await expect(rate).toBeVisible()
   await expect(rate).toHaveAttribute('inputmode', 'decimal')
@@ -204,29 +212,18 @@ test('MVR slides the pill and opens the rate card beside In dollars; the worked-
   const worked = page.locator('[data-usd]')
   await expect(worked).toBeVisible()
 
-  // The rate row opens over 380 ms; its cards are measured at their resting
-  // place, not 1-2 px short of it.
+  // The rate row opens with motion; its cards are measured at their resting place.
   await atRest(page)
 
   // One row: like is compared with like. In both cards the label sits above its
   // value, so the two values line up with each other and the two labels line up
   // with each other, and the In dollars card sits to the right of the rate card.
-  const rateCentre = await centreOf(rate)
-  const workedCentre = await centreOf(worked)
-  expect(Math.abs(rateCentre.y - workedCentre.y)).toBeLessThanOrEqual(24)
-  expect(workedCentre.x).toBeGreaterThan(rateCentre.x)
+  await expectOneRow(rate, worked)
+  expect((await centreOf(worked)).x).toBeGreaterThan((await centreOf(rate)).x)
 
-  const rateLabelCentre = await centreOf(form.getByText(RATE_LABEL, { exact: true }))
-  const dollarsLabelCentre = await centreOf(inDollarsLabel)
-  expect(Math.abs(rateLabelCentre.y - dollarsLabelCentre.y)).toBeLessThanOrEqual(24)
-  expect(dollarsLabelCentre.x).toBeGreaterThan(rateLabelCentre.x)
-
-  // That card is white, which is what sets it apart from the blue form.
-  const dollarsCard = form
-    .locator('*', { hasText: 'In dollars' })
-    .filter({ has: page.locator('[data-usd]') })
-    .last()
-  await expect(dollarsCard).toHaveCSS('background-color', 'rgb(255, 255, 255)')
+  const rateLabel = form.getByText(RATE_LABEL, { exact: true })
+  await expectOneRow(rateLabel, inDollarsLabel)
+  expect((await centreOf(inDollarsLabel)).x).toBeGreaterThan((await centreOf(rateLabel)).x)
 
   // ----- Nothing is claimed or savable before the amount and rate are given. -----
   await expect(saveButton(page)).toBeDisabled()

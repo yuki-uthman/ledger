@@ -44,10 +44,6 @@ const RECEIVE_AMOUNT = '50'
 const RECEIVE_BUTTON = 'Receive · $50.00'
 const AFTER_RECEIVE_CENTS = 45000
 
-// The kinds' colours, as the board's decisions fix them.
-const SEND_INK = 'rgb(36, 80, 138)'
-const PAYMENT_INK = 'rgb(15, 111, 104)'
-
 let stack: Stack
 let served: ServedOrigin
 let account: Account
@@ -116,18 +112,16 @@ const expectNoSaveMessageOrUndo = async (page: Page): Promise<void> => {
 
 /**
  * The ring has no attribute of its own in the contract, so it is read as the board
- * draws it: a 2 px edge in the entry's colour, whether that is a border or the inset
- * box-shadow value 6 allows so the list's horizontal clip cannot cut it.
+ * draws it: a border or an inset shadow on the card. Only its presence is observed,
+ * never its colour or width.
  */
-const hasRing = async (card: Locator, ink: string): Promise<boolean> =>
-  card.evaluate((element, colour) => {
+const hasRing = async (card: Locator): Promise<boolean> =>
+  card.evaluate((element) => {
     const style = window.getComputedStyle(element)
-    const borderRing =
-      Number.parseFloat(style.borderTopWidth) >= 2 && style.borderTopColor === colour
-    const shadow = style.boxShadow
-    const shadowRing = shadow !== 'none' && shadow.includes('inset') && shadow.includes(colour)
+    const borderRing = Number.parseFloat(style.borderTopWidth) > 0
+    const shadowRing = style.boxShadow !== 'none' && style.boxShadow.includes('inset')
     return borderRing || shadowRing
-  }, ink)
+  })
 
 /** The card for a given amount, which is the entry the save just created. */
 const cardWith = (page: Page, amount: string): Locator =>
@@ -147,7 +141,7 @@ test('after a save Home shows no Saved message and no Undo: the ringed card on i
   await expect(entries).toHaveCount(1)
   await expectNoSaveMessageOrUndo(page)
 
-  // ===== Save a $100 send through the reworked blue form. =====
+  // ===== Save a $100 send through the send form. =====
   const sendForm = page.locator('[data-form="send"]')
   await page.locator('[data-action="send"]').click()
   await expect(sendForm).toBeVisible()
@@ -172,23 +166,23 @@ test('after a save Home shows no Saved message and no Undo: the ringed card on i
   await expect(abbaasBox).toHaveAttribute('data-amount', String(AFTER_SEND_CENTS))
   await expect(abbaasBox).toContainText('$500.00')
 
-  // The new card wears the ring in the send's colour and rests on the side of whoever
+  // The new card wears the ring and rests on the side of whoever
   // received the money: a send's receiver is Abbaas, so the card lies wholly RIGHT of
   // the centre line, which is the viewport's middle at every width.
   const sendCard = cardWith(page, '$100.00')
   await expect(sendCard).toHaveCount(1)
-  expect(await hasRing(sendCard, SEND_INK), 'the new send card wears its 2 px ring').toBe(true)
+  expect(await hasRing(sendCard), 'the new send card wears its ring').toBe(true)
   const sendRect = await boxOf(sendCard)
   expect(sendRect.x).toBeGreaterThanOrEqual(VIEWPORT.width / 2)
 
   // The seeded send, which this save did not touch, wears no ring.
   const seededCard = cardWith(page, '$400.00')
-  expect(await hasRing(seededCard, SEND_INK), 'only the new card is ringed').toBe(false)
+  expect(await hasRing(seededCard), 'only the new card is ringed').toBe(false)
 
   // The save is real, not only drawn.
   expect(await readEntries(stack, account)).toHaveLength(2)
 
-  // ===== Save a $50.00 payment through the reworked teal form. =====
+  // ===== Save a $50.00 payment through the receive form. =====
   const receiveForm = page.locator('[data-form="receive"]')
   await page.locator('[data-action="receive"]').click()
   await expect(receiveForm).toBeVisible()
@@ -210,7 +204,7 @@ test('after a save Home shows no Saved message and no Undo: the ringed card on i
 
   const paymentCard = cardWith(page, '$50.00')
   await expect(paymentCard).toHaveCount(1)
-  expect(await hasRing(paymentCard, PAYMENT_INK), 'the new payment card wears its ring').toBe(
+  expect(await hasRing(paymentCard), 'the new payment card wears its ring').toBe(
     true,
   )
   // A payment from Abbaas is received by the owner, so its card lies wholly LEFT of the
@@ -219,7 +213,7 @@ test('after a save Home shows no Saved message and no Undo: the ringed card on i
   expect(paymentRect.x + paymentRect.width).toBeLessThanOrEqual(VIEWPORT.width / 2)
 
   // The previous save's card has handed its ring on.
-  expect(await hasRing(sendCard, SEND_INK), 'the ring belongs to the newest save only').toBe(
+  expect(await hasRing(sendCard), 'the ring belongs to the newest save only').toBe(
     false,
   )
 
@@ -237,9 +231,9 @@ test('after a save Home shows no Saved message and no Undo: the ringed card on i
   await expect(abbaasBox).toHaveAttribute('data-amount', String(AFTER_RECEIVE_CENTS))
   await expect(abbaasBox).toContainText('$450.00')
 
-  expect(await hasRing(cardWith(page, '$100.00'), SEND_INK)).toBe(false)
-  expect(await hasRing(cardWith(page, '$50.00'), PAYMENT_INK)).toBe(false)
-  expect(await hasRing(cardWith(page, '$400.00'), SEND_INK)).toBe(false)
+  expect(await hasRing(cardWith(page, '$100.00'))).toBe(false)
+  expect(await hasRing(cardWith(page, '$50.00'))).toBe(false)
+  expect(await hasRing(cardWith(page, '$400.00'))).toBe(false)
 
   // Stored, and exactly what was saved: the seed, the send and the payment.
   const stored = await readEntries(stack, account)

@@ -22,10 +22,9 @@ import {
 } from '../support/accounts.js'
 
 // What the owner reads here: the Paid back by Abbaas list in three columns -- Date, Method
-// and USD -- where no number is drawn in any row, the word USD stands centred over its own
-// column in the header's own colour, and every repayment reads the dollars it stores with
-// the dollar mark under the same row rule as the sending list: '$3,000' whole, '$3,000.25'
-// when the cents are real, in the teal that side of the money reads in.
+// and USD -- where no number is drawn in any row, each header word stands over the column it
+// names, and every repayment reads the dollars it stores with the dollar mark under the
+// same row rule as the sending list: '$3,000' whole, '$3,000.25' when the cents are real.
 //
 // Judged only through the declared public port: the BUILT bundle as Chrome loads it over
 // the served loopback origin, at 360 by 780, with the local stack behind it. Nothing here
@@ -57,26 +56,6 @@ const ENTRIES_ENDPOINT = '**/rest/v1/entries**'
 /** What a failed read says, as the port words it. */
 const UNREADABLE = 'Could not load the ledger. Try again.'
 
-// ===== The colours, widths and type the board fixes, as the browser reports them =====
-
-/** The teal the money that came back is read in. */
-const PAID_BACK_INK = 'rgb(15, 111, 104)'
-/** The tinted bed and the deep ink of this list's own footer. */
-const PAID_BACK_BED = 'rgb(224, 240, 237)'
-const PAID_BACK_DEEP_INK = 'rgb(11, 87, 80)'
-/** The colour every column word of this screen is read in today. */
-const HEAD_INK = 'rgb(76, 95, 91)'
-const USD_INK = 'rgb(36, 80, 138)'
-const BALANCE_INK = 'rgb(11, 87, 80)'
-const ZEBRA_TINT = 'rgb(250, 252, 251)'
-const PLAIN_ROW = 'rgb(255, 255, 255)'
-
-const DATE_TRACK = '40px'
-const FIGURE_TRACK = '70px'
-const COLUMN_GAP = '6px'
-/** The letter spacing of a column word: 0.06em of its own 11 px. */
-const HEAD_LETTER_SPACING = 0.66
-
 /** The three words this list is headed by, in the order the owner reads them. */
 const BACK_WORDS = ['Date', 'Method', 'USD'] as const
 /** The hooks those three header cells carry, so a reading finds a column without styling. */
@@ -100,22 +79,6 @@ const METHOD_WORDS: Record<Method, string> = {
 /** Every word this app can read in that column, for the rows that must read none of them. */
 const EVERY_METHOD_WORD = Object.values(METHOD_WORDS)
 
-/** One reading of the screen: its text, how it is inked and set, and where it stands. */
-type Drawn = {
-  readonly text: string
-  readonly ink: string
-  readonly weight: string
-  readonly size: number
-  readonly transform: string
-  readonly letterSpacing: number
-  /** Whether this reading stands centred in the cell that holds it. */
-  readonly centred: boolean
-  /** Whether it stands at the left edge of that cell. */
-  readonly atTheLeftEdge: boolean
-  /** Whether it stands at the right edge of that cell. */
-  readonly atTheRightEdge: boolean
-}
-
 /** Where a part of the screen rests, so a reading can say it did not move. */
 type Box = {
   readonly left: number
@@ -133,13 +96,9 @@ type BackRowReading = {
   /** The word in the middle cell, and the token the ledger stored for it. */
   readonly method: string
   readonly token: string | null
-  readonly usd: Drawn | null
   readonly usdText: string
   /** The whole row as text, which is how this oracle reads what is NOT in it. */
   readonly text: string
-  readonly bed: string
-  readonly tracks: string
-  readonly gap: string
 }
 
 /** The column header of a list, as the owner reads it. */
@@ -147,10 +106,7 @@ type HeadReading = {
   readonly found: boolean
   readonly words: readonly string[]
   readonly columns: readonly (string | null)[]
-  readonly cells: readonly Drawn[]
-  readonly tracks: string
-  readonly gap: string
-  /** Whether each header cell stands exactly over the first row's own cell. */
+  /** Whether each header word's centre lies within the extent of the first row's cell of the same index (true when no row exists). */
   readonly overTheRowCells: boolean
 }
 
@@ -159,8 +115,6 @@ type FootReading = {
   readonly count: string | null
   readonly cents: string | null
   readonly text: string
-  readonly bed: string
-  readonly ink: string
 }
 
 /** The paid-back list, its furniture and the rest of the screen, in one reading. */
@@ -177,7 +131,6 @@ type StatementReading = {
     readonly which: string
     readonly cents: string | null
     readonly text: string
-    readonly ink: string
     readonly box: Box
   }>
   /** The sending list's own header words and footer lines, which this value leaves alone. */
@@ -517,32 +470,6 @@ const whenTheOwnerTapsWhatCameBack = async (page: Page): Promise<void> => {
 const readPaidBackList = (page: Page): Promise<StatementReading> =>
   page.evaluate((): StatementReading => {
     const squash = (text: string | null | undefined): string => (text ?? '').replace(/\s+/g, ' ').trim()
-    const NEAR = 1.5
-    /** The box of an element's own text, which is what the owner actually sees. */
-    const textBox = (element: Element): DOMRect => {
-      const range = document.createRange()
-      range.selectNodeContents(element)
-      const box = range.getBoundingClientRect()
-      return box.width === 0 && box.height === 0 ? element.getBoundingClientRect() : box
-    }
-    const drawnOf = (element: Element | null, within: Element | null): Drawn | null => {
-      if (element === null) return null
-      const style = window.getComputedStyle(element)
-      const text = textBox(element)
-      const field = (within ?? element).getBoundingClientRect()
-      const spacing = Number.parseFloat(style.letterSpacing)
-      return {
-        text: squash(element.textContent),
-        ink: style.color,
-        weight: style.fontWeight,
-        size: Number.parseFloat(style.fontSize),
-        transform: style.textTransform,
-        letterSpacing: Number.isNaN(spacing) ? 0 : spacing,
-        centred: Math.abs((text.left + text.right) / 2 - (field.left + field.right) / 2) <= NEAR,
-        atTheLeftEdge: Math.abs(text.left - field.left) <= NEAR,
-        atTheRightEdge: Math.abs(text.right - field.right) <= NEAR,
-      }
-    }
     const boxOf = (element: Element): Box => {
       const box = element.getBoundingClientRect()
       return {
@@ -557,9 +484,6 @@ const readPaidBackList = (page: Page): Promise<StatementReading> =>
       found: false,
       words: [],
       columns: [],
-      cells: [],
-      tracks: '',
-      gap: '',
       overTheRowCells: false,
     }
     const alerts = document.querySelectorAll('[data-pane="statement"] [role="alert"]').length
@@ -586,7 +510,6 @@ const readPaidBackList = (page: Page): Promise<StatementReading> =>
 
     const rows: BackRowReading[] = rowElements.map((row) => {
       const cells = Array.from(row.children)
-      const rowStyle = window.getComputedStyle(row)
       // The middle cell is where a repayment says how the money came back, and the last is
       // its figure: this list carries no hook of its own on either, so both are read where
       // the header says they stand.
@@ -599,43 +522,34 @@ const readPaidBackList = (page: Page): Promise<StatementReading> =>
         date: squash(cells[0]?.textContent),
         method: squash(methodCell?.textContent),
         token: methodCell === null ? null : methodCell.getAttribute('data-statement-method'),
-        usd: drawnOf(figureCell, figureCell),
         usdText: squash(figureCell?.textContent),
         text: squash(row.textContent),
-        bed: rowStyle.backgroundColor,
-        tracks: rowStyle.gridTemplateColumns,
-        gap: rowStyle.columnGap,
       }
     })
 
     let head = noHead
     if (headElement !== null) {
-      const headStyle = window.getComputedStyle(headElement)
       const headCells = Array.from(headElement.children)
       const firstRowCells = rowElements[0] === undefined ? [] : Array.from(rowElements[0].children)
       head = {
         found: true,
         words: headCells.map((cell) => squash(cell.textContent)),
         columns: headCells.map((cell) => cell.getAttribute('data-statement-column')),
-        cells: headCells
-          .map((cell) => drawnOf(cell, cell))
-          .filter((cell): cell is Drawn => cell !== null),
-        tracks: headStyle.gridTemplateColumns,
-        gap: headStyle.columnGap,
         overTheRowCells:
-          firstRowCells.length === headCells.length &&
-          headCells.every((cell, index) => {
-            const under = firstRowCells[index]
-            if (under === undefined) return false
-            const above = cell.getBoundingClientRect()
-            const below = under.getBoundingClientRect()
-            return Math.abs(above.left - below.left) <= NEAR && Math.abs(above.right - below.right) <= NEAR
-          }),
+          rowElements[0] === undefined ||
+          (firstRowCells.length === headCells.length &&
+            headCells.every((cell, index) => {
+              const under = firstRowCells[index]
+              if (under === undefined) return false
+              const above = cell.getBoundingClientRect()
+              const below = under.getBoundingClientRect()
+              const centre = (above.left + above.right) / 2
+              return centre >= below.left && centre <= below.right
+            })),
       }
     }
 
     const footElement = screen.querySelector('[data-statement-foot="back"]')
-    const footStyle = footElement === null ? null : window.getComputedStyle(footElement)
     const writing =
       screen.querySelectorAll('[data-box], [data-action]').length +
       Array.from(screen.querySelectorAll('button, a')).filter((control) =>
@@ -649,21 +563,18 @@ const readPaidBackList = (page: Page): Promise<StatementReading> =>
       head,
       rows,
       foot:
-        footElement === null || footStyle === null
+        footElement === null
           ? null
           : {
               count: footElement.getAttribute('data-count'),
               cents: footElement.getAttribute('data-cents'),
               text: squash(footElement.textContent),
-              bed: footStyle.backgroundColor,
-              ink: footStyle.color,
             },
       listText: panel === null ? '' : squash(panel.textContent),
       card: Array.from(screen.querySelectorAll('[data-statement-total]')).map((figure) => ({
         which: figure.getAttribute('data-statement-total') ?? '',
         cents: figure.getAttribute('data-cents'),
         text: squash(figure.textContent),
-        ink: window.getComputedStyle(figure).color,
         box: boxOf(figure),
       })),
       sentWords: Array.from(screen.querySelectorAll('[data-statement-head="sent"] > *')).map((cell) =>
@@ -707,32 +618,9 @@ test('what came back reads by day, by the way it came and in dollars', async ({ 
     'WHAT: the header cells do not name their own columns. WHY: a reading of this list must find the day, the way the money came back and the figure without reading styling. HOW: carry data-statement-column on each header cell.',
   ).toEqual([...BACK_COLUMNS])
   expect(
-    [reading.head.gap, reading.rows[0]?.gap, reading.rows[0]?.tracks === reading.head.tracks],
-    `WHAT: the header and the rows do not stand on the same columns with the gap the sending list uses. WHY: a header on different columns from its rows names the wrong figures. HOW: give both the same grid with a ${COLUMN_GAP} column gap.`,
-  ).toEqual([COLUMN_GAP, COLUMN_GAP, true])
-  expect(
-    reading.head.tracks.split(' ').filter((_track, index) => index !== 1),
-    `WHAT: the day and the figure columns are not ${DATE_TRACK} and ${FIGURE_TRACK} wide. WHY: those widths are what let a day and a two-decimal figure read whole while the way back gives way instead. HOW: fix those two tracks and let the middle column take what is left.`,
-  ).toEqual([DATE_TRACK, FIGURE_TRACK])
-  expect(
     reading.head.overTheRowCells,
-    'WHAT: a header word does not stand exactly over the cell it names. WHY: the owner reads a figure under the word that says what it is. HOW: pad the header and the rows alike, so every column lines up.',
+    'WHAT: a header word does not stand over the column it names. WHY: the owner reads a figure under the word that says what it is. HOW: put the header and the rows on the same columns, so each header word sits over the cells of its own column.',
   ).toBe(true)
-
-  // And the currency word is centred in the header's own colour while the others stay left
-  const headCells = reading.head.cells
-  expect(
-    [headCells[2]?.centred, headCells[0]?.atTheLeftEdge, headCells[1]?.atTheLeftEdge],
-    'WHAT: the currency word is not centred over its column while the other two stay left. WHY: a centred currency word is how the owner tells a column of money from a column of reading at a glance. HOW: centre the third word and leave the first two at the left of their cells.',
-  ).toEqual([true, true, true])
-  expect(
-    headCells.map((cell) => cell.ink),
-    "WHAT: the three column words are not all in the header's own colour. WHY: this list has one currency, so its currency word takes no colour of its own: a blue or teal word here would promise a second column that does not exist. HOW: ink all three header words in today's header colour.",
-  ).toEqual(BACK_WORDS.map(() => HEAD_INK))
-  expect(
-    headCells.map((cell) => [cell.size, cell.weight, cell.transform, Math.round(cell.letterSpacing * 100) / 100]),
-    'WHAT: the column words are not set as a column word is set: small, heavy, upper case and letter-spaced. WHY: the header is a label above money, not a reading of its own, and both lists are headed the same way. HOW: set every header cell at 11 px, weight 700, upper case, with 0.06em of letter spacing.',
-  ).toEqual(headCells.map(() => [11, '700', 'uppercase', HEAD_LETTER_SPACING]))
 
   // And every repayment reads its day, its way back and its own marked figure, with no number
   expect(
@@ -754,27 +642,13 @@ test('what came back reads by day, by the way it came and in dollars', async ({ 
     'WHAT: a repayment the ledger stores no way back for still reads one somewhere in its row. WHY: a way the money came back that nobody recorded is a statement about the owner\'s money that no one can check. HOW: say nothing at all in that cell, and nowhere else in the row either.',
   ).toEqual(PAID_BACK_LEDGER_READS.map((row) => row.method !== ''))
 
-  // And every figure stands in teal at the right edge of its own column
-  expect(
-    reading.rows.map((row) => [row.usd?.ink ?? null, row.usd?.atTheRightEdge ?? false]),
-    'WHAT: a figure of what came back is not teal, or does not stand at the right edge of its column. WHY: teal is how the owner tells money that came back from money that went out, and figures read down a column only when their last digit lines up. HOW: ink this list\'s figures teal and right-align the figure cell.',
-  ).toEqual(PAID_BACK_LEDGER_READS.map(() => [PAID_BACK_INK, true]))
-
-  // And the alternating tints, the footer and the read-only screen are as they were
-  expect(
-    reading.rows.map((row) => row.bed),
-    'WHAT: the alternating row tints are gone. WHY: the tints are how the owner keeps their place across a row, and this value leaves them as they are. HOW: tint every second row and leave the others white.',
-  ).toEqual([PLAIN_ROW, ZEBRA_TINT, PLAIN_ROW])
+  // And the footer and the read-only screen are as they were
   expect(
     reading.foot === null
       ? null
       : { count: reading.foot.count, cents: reading.foot.cents, text: reading.foot.text },
     "WHAT: the footer no longer reads one line, 'Total paid back' with its count and its two-decimal total. WHY: the footer is the owner's check that this list and the card agree, and this value leaves it exactly as it is. HOW: keep its one line, counting the repayments and adding their stored dollars to two decimals.",
   ).toEqual(expectedFoot(stored))
-  expect(
-    [reading.foot?.bed, reading.foot?.ink],
-    'WHAT: the footer of what came back lost its tinted bed or its deep ink. WHY: that bed is how the owner sees at a glance which side of the money a total belongs to. HOW: leave the footer colours of this list untouched.',
-  ).toEqual([PAID_BACK_BED, PAID_BACK_DEEP_INK])
   expect(
     reading.writingControls,
     'WHAT: the Statement offers something that records money. WHY: this screen only reports: a box or a Send or Receive control there would let the owner write from a screen that cannot. HOW: draw no data-box, no data-action and no such control on this screen.',
@@ -795,14 +669,6 @@ test('the three column words stand over the list even when nothing has come back
     [reading.head.words, reading.head.columns, reading.rows.length],
     'WHAT: an empty paid-back list has no column header, or lists a row. WHY: the owner must be told what this list would hold before anything has come back, and a repayment they were never paid is a lie about their money. HOW: draw the header at every ledger length, and a row for each stored repayment only.',
   ).toEqual([[...BACK_WORDS], [...BACK_COLUMNS], 0])
-  expect(
-    [reading.head.cells[2]?.centred, reading.head.cells.map((cell) => cell.ink)],
-    'WHAT: the currency word is not centred in the header colour over an empty list. WHY: the header is one fixed reading, whether or not there is a figure under it. HOW: draw the header the same way at every ledger length.',
-  ).toEqual([true, BACK_WORDS.map(() => HEAD_INK)])
-  expect(
-    reading.head.tracks.split(' ').filter((_track, index) => index !== 1),
-    'WHAT: an empty list does not keep its three columns. WHY: the columns are the shape of the list, not of the rows that happen to be in it. HOW: give the header the same grid at every length.',
-  ).toEqual([DATE_TRACK, FIGURE_TRACK])
   expect(
     reading.foot === null
       ? null
@@ -1057,10 +923,6 @@ test('the rest of the Statement reads exactly as before', async ({ page }) => {
     reading.card.map((figure) => [figure.which, figure.cents, figure.text]),
     'WHAT: the balance card no longer reads its three figures to two decimals. WHY: the card is the first thing the owner looks at and this value does not touch it: the row rule applied there would restate the whole screen. HOW: leave the card figures worded as they are.',
   ).toEqual(expectedCard(stored).map((figure) => [figure.which, figure.cents, figure.text]))
-  expect(
-    reading.card.map((figure) => figure.ink),
-    'WHAT: the three card figures are no longer inked as they were. WHY: the card keeps its own colours whatever the lists below it do. HOW: leave the card inks untouched.',
-  ).toEqual([USD_INK, PAID_BACK_INK, BALANCE_INK])
   expect(
     reading.sentWords,
     'WHAT: the sending list no longer reads its own four column words. WHY: the sending side was settled before this reading and nothing here touches it: changing both lists at once would leave the owner reading a screen nobody approved. HOW: leave the sending header as it stands.',

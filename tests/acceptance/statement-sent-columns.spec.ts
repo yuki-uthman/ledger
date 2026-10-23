@@ -24,7 +24,7 @@ import {
 // What the owner reads here: the Sent for Abbaas list in four columns -- Date, Paid to,
 // MVR and USD -- where a send made in rufiyaa reads its own rufiyaa figure with the prefix
 // 'MVR' and its rate beside it, and the dollars that entry stores with no brackets round
-// them, and a send made in dollars reads its dollar figure and a grey em dash. No number is
+// them, and a send made in dollars reads its dollar figure and an em dash. No number is
 // drawn in any row, and the line under the person names how the money changed hands and
 // nothing else.
 //
@@ -58,27 +58,6 @@ const ENTRIES_ENDPOINT = '**/rest/v1/entries**'
 /** What a failed read says, as the port words it. */
 const UNREADABLE = 'Could not load the ledger. Try again.'
 
-// ===== The colours and widths the board fixes, as the browser reports them =====
-
-const USD_INK = 'rgb(36, 80, 138)'
-const MVR_INK = 'rgb(156, 79, 16)'
-const CONVERTED_INK = 'rgb(79, 111, 156)'
-const MUTED_INK = 'rgb(76, 95, 91)'
-const PLACEHOLDER_INK = 'rgb(95, 112, 108)'
-const PAID_BACK_INK = 'rgb(15, 111, 104)'
-const BALANCE_INK = 'rgb(11, 87, 80)'
-const ZEBRA_TINT = 'rgb(250, 252, 251)'
-const PLAIN_ROW = 'rgb(255, 255, 255)'
-
-const DATE_TRACK = '40px'
-const MVR_TRACK = '90px'
-const USD_TRACK = '54px'
-const COLUMN_GAP = '6px'
-/** The gap the board leaves between a rufiyaa figure and its inline rate. */
-const RATE_GAP = '3px'
-/** The letter spacing of a column word: 0.06em of its own 11 px. */
-const HEAD_LETTER_SPACING = 0.66
-
 // ===== The domain vocabulary this oracle speaks =====
 
 type Method = 'cash' | 'cheque' | 'transfer'
@@ -90,24 +69,13 @@ const METHOD_WORDS: Record<Method, string> = {
   transfer: 'Transfer',
 }
 
-/** One reading of the screen: its text, how it is inked and set, and where it stands. */
+/** One reading of the screen: its text and where it stands. */
 type Drawn = {
   readonly text: string
-  readonly ink: string
-  readonly weight: string
-  readonly size: number
-  readonly transform: string
-  readonly letterSpacing: number
   readonly left: number
   readonly right: number
   readonly top: number
   readonly bottom: number
-  /** Whether this reading stands centred in the cell that holds it. */
-  readonly centred: boolean
-  /** Whether it stands at the left edge of that cell. */
-  readonly atTheLeftEdge: boolean
-  /** Whether it stands at the right edge of that cell. */
-  readonly atTheRightEdge: boolean
 }
 
 /** What a row's MVR cell reads: a rufiyaa figure with its rate, or the placeholder. */
@@ -117,13 +85,12 @@ type MvrCellReading = {
   readonly figure: Drawn | null
   readonly rate: Drawn | null
   readonly placeholder: Drawn | null
-  readonly rateGap: string
   readonly rateFollowsTheFigure: boolean
   /**
-   * How far the reading runs past the left edge of its own column, in pixels. The cell
-   * never wraps and gathers its readings to its right edge, so a reading too wide for the
-   * column runs out of it towards the party column; a reading that fits answers nothing
-   * over, which is zero or less.
+   * How far the reading runs past the left edge of its own column. The cell never wraps
+   * and gathers its readings to its right edge, so a reading too wide for the column runs
+   * out of it towards the party column; a reading that fits answers nothing over, which
+   * is zero or less.
    */
   readonly runsOverTheColumn: number
 }
@@ -146,9 +113,6 @@ type SentRowReading = {
   readonly sub: string | null
   readonly mvr: MvrCellReading
   readonly usd: UsdCellReading
-  readonly bed: string
-  readonly tracks: string
-  readonly gap: string
 }
 
 /** The column header of the sending list, as the owner reads it. */
@@ -157,9 +121,7 @@ type HeadReading = {
   readonly words: readonly string[]
   readonly columns: readonly (string | null)[]
   readonly cells: readonly Drawn[]
-  readonly tracks: string
-  readonly gap: string
-  /** Whether each header cell stands exactly over the first row's own cell. */
+  /** Whether each header word's centre lies within the extent of the first row's cell of the same index (true when no row exists). */
   readonly overTheRowCells: boolean
 }
 
@@ -179,7 +141,6 @@ type SendingListReading = {
     readonly which: string
     readonly cents: string | null
     readonly text: string
-    readonly ink: string
   }>
   readonly writingControls: number
   readonly alerts: number
@@ -190,7 +151,6 @@ type PlainListReading = {
   readonly words: readonly string[]
   readonly places: readonly string[]
   readonly figures: readonly string[]
-  readonly figureInks: readonly string[]
   readonly foot: string | null
 }
 
@@ -743,7 +703,6 @@ const whenTheOwnerTapsThePaidBackList = async (page: Page): Promise<void> => {
 const readSendingList = (page: Page): Promise<SendingListReading> =>
   page.evaluate((): SendingListReading => {
     const squash = (text: string | null | undefined): string => (text ?? '').replace(/\s+/g, ' ').trim()
-    const NEAR = 1.5
     /** The box of an element's own text, which is what the owner actually sees. */
     const textBox = (element: Element): DOMRect => {
       const range = document.createRange()
@@ -751,26 +710,15 @@ const readSendingList = (page: Page): Promise<SendingListReading> =>
       const box = range.getBoundingClientRect()
       return box.width === 0 && box.height === 0 ? element.getBoundingClientRect() : box
     }
-    const drawnOf = (element: Element | null, within: Element | null): Drawn | null => {
+    const drawnOf = (element: Element | null): Drawn | null => {
       if (element === null) return null
-      const style = window.getComputedStyle(element)
       const text = textBox(element)
-      const field = (within ?? element).getBoundingClientRect()
-      const spacing = Number.parseFloat(style.letterSpacing)
       return {
         text: squash(element.textContent),
-        ink: style.color,
-        weight: style.fontWeight,
-        size: Number.parseFloat(style.fontSize),
-        transform: style.textTransform,
-        letterSpacing: Number.isNaN(spacing) ? 0 : spacing,
         left: text.left,
         right: text.right,
         top: text.top,
         bottom: text.bottom,
-        centred: Math.abs((text.left + text.right) / 2 - (field.left + field.right) / 2) <= NEAR,
-        atTheLeftEdge: Math.abs(text.left - field.left) <= NEAR,
-        atTheRightEdge: Math.abs(text.right - field.right) <= NEAR,
       }
     }
     /**
@@ -795,7 +743,6 @@ const readSendingList = (page: Page): Promise<SendingListReading> =>
       figure: null,
       rate: null,
       placeholder: null,
-      rateGap: '',
       rateFollowsTheFigure: false,
       runsOverTheColumn: 0,
     }
@@ -805,8 +752,6 @@ const readSendingList = (page: Page): Promise<SendingListReading> =>
       words: [],
       columns: [],
       cells: [],
-      tracks: '',
-      gap: '',
       overTheRowCells: false,
     }
     const screen = document.querySelector('[data-screen="statement"]')
@@ -829,16 +774,15 @@ const readSendingList = (page: Page): Promise<SendingListReading> =>
 
     const rows: SentRowReading[] = rowElements.map((row) => {
       const cells = Array.from(row.children)
-      const rowStyle = window.getComputedStyle(row)
       const mvrCell = row.querySelector('[data-statement-mvr]')
       const usdCell = row.querySelector('[data-statement-usd]')
       const rateElement = mvrCell === null ? null : mvrCell.querySelector('[data-statement-rate]')
       const placeholderElement =
         mvrCell === null ? null : mvrCell.querySelector('[data-statement-placeholder]')
       const figureElement = mvrCell === null ? null : readingInside(mvrCell, [rateElement, placeholderElement])
-      const figure = drawnOf(figureElement, mvrCell)
-      const rate = drawnOf(rateElement, mvrCell)
-      const placeholder = drawnOf(placeholderElement, mvrCell)
+      const figure = drawnOf(figureElement)
+      const rate = drawnOf(rateElement)
+      const placeholder = drawnOf(placeholderElement)
       const usdFigureElement = usdCell === null ? null : (readingInside(usdCell, []) ?? usdCell)
       const leftmostReading = [figure, rate, placeholder]
         .filter((part): part is Drawn => part !== null)
@@ -867,7 +811,6 @@ const readSendingList = (page: Page): Promise<SendingListReading> =>
                 figure,
                 rate,
                 placeholder,
-                rateGap: rateElement === null ? '' : window.getComputedStyle(rateElement).marginLeft,
                 rateFollowsTheFigure:
                   rate === null ||
                   figure === null ||
@@ -880,18 +823,14 @@ const readSendingList = (page: Page): Promise<SendingListReading> =>
             : {
                 found: true,
                 text: squash(usdCell.textContent),
-                figure: drawnOf(usdFigureElement, usdCell),
+                figure: drawnOf(usdFigureElement),
                 converted: usdCell.getAttribute('data-converted'),
               },
-        bed: rowStyle.backgroundColor,
-        tracks: rowStyle.gridTemplateColumns,
-        gap: rowStyle.columnGap,
       }
     })
 
     let head = noHead
     if (headElement !== null) {
-      const headStyle = window.getComputedStyle(headElement)
       const headCells = Array.from(headElement.children)
       const firstRowCells = rowElements[0] === undefined ? [] : Array.from(rowElements[0].children)
       head = {
@@ -899,19 +838,19 @@ const readSendingList = (page: Page): Promise<SendingListReading> =>
         words: headCells.map((cell) => squash(cell.textContent)),
         columns: headCells.map((cell) => cell.getAttribute('data-statement-column')),
         cells: headCells
-          .map((cell) => drawnOf(cell, cell))
+          .map((cell) => drawnOf(cell))
           .filter((cell): cell is Drawn => cell !== null),
-        tracks: headStyle.gridTemplateColumns,
-        gap: headStyle.columnGap,
         overTheRowCells:
-          firstRowCells.length === headCells.length &&
-          headCells.every((cell, index) => {
-            const under = firstRowCells[index]
-            if (under === undefined) return false
-            const above = cell.getBoundingClientRect()
-            const below = under.getBoundingClientRect()
-            return Math.abs(above.left - below.left) <= NEAR && Math.abs(above.right - below.right) <= NEAR
-          }),
+          rowElements[0] === undefined ||
+          (firstRowCells.length === headCells.length &&
+            headCells.every((cell, index) => {
+              const under = firstRowCells[index]
+              if (under === undefined) return false
+              const above = cell.getBoundingClientRect()
+              const below = under.getBoundingClientRect()
+              const centre = (above.left + above.right) / 2
+              return centre >= below.left && centre <= below.right
+            })),
       }
     }
 
@@ -940,7 +879,6 @@ const readSendingList = (page: Page): Promise<SendingListReading> =>
         which: figure.getAttribute('data-statement-total') ?? '',
         cents: figure.getAttribute('data-cents'),
         text: squash(figure.textContent),
-        ink: window.getComputedStyle(figure).color,
       })),
       writingControls: writing,
       alerts: document.querySelectorAll('[data-pane="statement"] [role="alert"]').length,
@@ -952,7 +890,7 @@ const readPlainList = (page: Page, which: 'sent' | 'back'): Promise<PlainListRea
   page.evaluate((list): PlainListReading => {
     const squash = (text: string | null | undefined): string => (text ?? '').replace(/\s+/g, ' ').trim()
     const screen = document.querySelector('[data-screen="statement"]')
-    if (!screen) return { words: [], places: [], figures: [], figureInks: [], foot: null }
+    if (!screen) return { words: [], places: [], figures: [], foot: null }
     const rows = Array.from(screen.querySelectorAll(`[data-statement-list="${list}"] [data-statement-row]`))
     const lastCellOf = (row: Element): Element => {
       const cells = Array.from(row.children)
@@ -965,7 +903,6 @@ const readPlainList = (page: Page, which: 'sent' | 'back'): Promise<PlainListRea
       ),
       places: rows.map((row) => row.getAttribute('data-no') ?? ''),
       figures: rows.map((row) => squash(lastCellOf(row).textContent)),
-      figureInks: rows.map((row) => window.getComputedStyle(lastCellOf(row)).color),
       foot: foot === null ? null : squash(foot.textContent),
     }
   }, which)
@@ -999,33 +936,9 @@ test('the sending list tells a rufiyaa send from a dollar send at a glance', asy
     'WHAT: the header cells do not name their own columns. WHY: a reading of this list must find the date, the party and the two currency columns without reading styling. HOW: carry data-statement-column on each header cell.',
   ).toEqual(['date', 'party', 'mvr', 'usd'])
   expect(
-    [reading.head.gap, reading.rows[0]?.gap, reading.rows[0]?.tracks === reading.head.tracks],
-    `WHAT: the header and the rows do not stand on the same columns with the gap the board draws. WHY: a header on different columns from its rows names the wrong figures. HOW: give both the same grid with a ${COLUMN_GAP} column gap.`,
-  ).toEqual([COLUMN_GAP, COLUMN_GAP, true])
-  expect(
-    reading.head.tracks.split(' ').filter((_track, index) => index !== 1),
-    `WHAT: the date, MVR and USD columns are not ${DATE_TRACK}, ${MVR_TRACK} and ${USD_TRACK} wide. WHY: those widths are what let a figure and its inline rate read whole while a long name gives way instead. HOW: fix those three tracks and let the party column take what is left.`,
-  ).toEqual([DATE_TRACK, MVR_TRACK, USD_TRACK])
-  expect(
     reading.head.overTheRowCells,
-    'WHAT: a header word does not stand exactly over the cell it names. WHY: the owner reads a figure under the word that says which currency it is in. HOW: pad the header and the rows alike, so every column lines up.',
+    'WHAT: a header word does not stand over the column it names. WHY: the owner reads a figure under the word that says which currency it is in. HOW: put the header and the rows on the same columns, so each header word sits over the cells of its own column.',
   ).toBe(true)
-
-  // And the two currency words are centred in their own colours over their figures
-  const headCells = reading.head.cells
-  expect(
-    [headCells[2]?.centred, headCells[3]?.centred, headCells[0]?.atTheLeftEdge, headCells[1]?.atTheLeftEdge],
-    'WHAT: the two currency words are not centred over their columns while Date and Paid to stay left. WHY: a centred currency word is how the owner tells a currency column from a reading column at a glance. HOW: centre the MVR and USD words and leave the other two at the left of their cells.',
-  ).toEqual([true, true, true, true])
-  expect(
-    headCells.map((cell) => cell.ink),
-    'WHAT: the four column words are not inked muted, muted, amber-brown and blue. WHY: each currency word carries the colour of its own figures, which is what makes the two columns tell themselves apart. HOW: ink the MVR word amber-brown, the USD word blue, and the two left-hand words muted.',
-  ).toEqual([MUTED_INK, MUTED_INK, MVR_INK, USD_INK])
-  expect(
-    headCells.map((cell) => [cell.size, cell.weight, cell.transform, Math.round(cell.letterSpacing * 100) / 100]),
-    'WHAT: the column words are not set as the board sets a column word: small, heavy, upper case and letter-spaced. WHY: the header is a label above money, not a reading of its own, and the board is the authority for how it is set. HOW: set every header cell at 11 px, weight 700, upper case, with 0.06em of letter spacing.',
-  ).toEqual(headCells.map(() => [11, '700', 'uppercase', HEAD_LETTER_SPACING]))
-
   // And every row reads its own currency in its own column, with no number drawn
   expect(
     [reading.rows.map((row) => row.place), reading.rows.map((row) => row.id)],
@@ -1058,42 +971,15 @@ test('the sending list tells a rufiyaa send from a dollar send at a glance', asy
     "WHAT: a row still draws the old trailing rufiyaa mark, or a figure in brackets. WHY: the owner reads 'MVR10,000' and '$500': a mark after the figure and brackets round a dollar value are the two readings this list must no longer draw anywhere in either column. HOW: put the prefix 'MVR' before a rufiyaa figure and draw a converted dollar value bare.",
   ).toEqual(SENDING_LEDGER_READS.map(() => [false, false]))
 
-  // And each reading carries the colour and the weight that says which currency it is
+  // And the figure and its rate read as one line, with no space typed between them
   expect(
-    reading.rows.map((row) => [
-      row.mvr.figure?.ink ?? row.mvr.placeholder?.ink ?? null,
-      row.mvr.figure?.weight ?? null,
-    ]),
-    'WHAT: a rufiyaa figure is not bold amber-brown, or the placeholder is not the grey the board draws. WHY: colour is how the owner tells a rufiyaa row from a dollar row without reading a word. HOW: ink the rufiyaa figure amber-brown at weight 700 and the em dash grey.',
-  ).toEqual(SENDING_LEDGER_READS.map((row) => (row.mvr === null ? [PLACEHOLDER_INK, null] : [MVR_INK, '700'])))
-  expect(
-    reading.rows.map((row) => [row.usd.figure?.ink ?? null, row.usd.figure?.weight ?? null]),
-    'WHAT: a stored dollar figure and a converted one are inked and weighted alike. WHY: the two figures carry no brackets to tell them apart any more, so colour and weight are the whole of how the owner sees which figure is money that left and which is only what it was worth. HOW: ink a dollar figure blue at weight 700 and a converted figure lighter blue at weight 600.',
-  ).toEqual(SENDING_LEDGER_READS.map((row) => (row.rufiyaa ? [CONVERTED_INK, '600'] : [USD_INK, '700'])))
-  expect(
-    reading.rows.map((row) => [
-      row.mvr.rate?.ink ?? null,
-      (row.mvr.rate?.size ?? 0) < (row.mvr.figure?.size ?? 0),
-    ]),
-    'WHAT: the inline rate is not smaller and greyer than the figure it stands beside. WHY: the rate tells the owner how the rufiyaa became dollars; it is not money itself and must never read as the amount. HOW: set the rate in the muted ink, smaller than the figure.',
-  ).toEqual(SENDING_LEDGER_READS.map((row) => (row.rate === null ? [null, false] : [MUTED_INK, true])))
-
-  // And the figure and its rate read as one line, right against the edge of the column
-  expect(
-    reading.rows.map((row) => [row.mvr.rateFollowsTheFigure, row.mvr.rate === null ? RATE_GAP : row.mvr.rateGap]),
-    `WHAT: the inline rate does not follow the rufiyaa figure on one line at the board's own gap. WHY: a rate wrapped under its figure, or pushed away from it, reads as a second amount. HOW: append the rate after the figure with a ${RATE_GAP} left margin.`,
-  ).toEqual(SENDING_LEDGER_READS.map(() => [true, RATE_GAP]))
+    reading.rows.map((row) => row.mvr.rateFollowsTheFigure),
+    'WHAT: the inline rate does not follow the rufiyaa figure on one line. WHY: a rate wrapped under its figure, or pushed away from it, reads as a second amount. HOW: append the rate after the figure on the same line.',
+  ).toEqual(SENDING_LEDGER_READS.map(() => true))
   expect(
     reading.rows.map((row) => /\s@/.test(row.mvr.text)),
     'WHAT: a space stands between the rufiyaa figure and its rate. WHY: the gap the owner sees is drawn, not typed: a typed space reads differently wherever this cell is read as text. HOW: append the two readings with no whitespace between them.',
   ).toEqual(SENDING_LEDGER_READS.map(() => false))
-  expect(
-    reading.rows.map((row) => [
-      (row.mvr.rate ?? row.mvr.figure ?? row.mvr.placeholder)?.atTheRightEdge ?? false,
-      row.usd.figure?.atTheRightEdge ?? false,
-    ]),
-    'WHAT: an amount does not stand at the right edge of its own column. WHY: figures read down a column only when their last digit lines up. HOW: right-align both currency cells.',
-  ).toEqual(SENDING_LEDGER_READS.map(() => [true, true]))
 
   // And a reading can tell the two kinds of USD cell apart without reading the figure
   const marks = reading.rows.map((row) => row.usd.converted)
@@ -1107,11 +993,7 @@ test('the sending list tells a rufiyaa send from a dollar send at a glance', asy
     'WHAT: the rows that say they read a converted figure are not exactly the rufiyaa sends of this list. WHY: every send is of one of the two kinds and of only one, so the two groups must add back up to the whole list. HOW: set that mark from the row\'s own currency.',
   ).toEqual([SENDING_LEDGER_READS.filter((row) => row.rufiyaa).length, SENDING_LEDGER_READS.length])
 
-  // And the alternating tints and the read-only screen are as they were, under the split footer
-  expect(
-    reading.rows.map((row) => row.bed),
-    'WHAT: the alternating row tints are gone. WHY: the tints are how the owner keeps their place across a row, and this value leaves them as they are. HOW: tint every second row and leave the others white.',
-  ).toEqual([PLAIN_ROW, ZEBRA_TINT, PLAIN_ROW, ZEBRA_TINT, PLAIN_ROW, ZEBRA_TINT])
+  // And the read-only screen is as it was, under the split footer
   expect(
     reading.foot,
     "WHAT: the footer no longer reads its three lines — 'Sent in MVR' with the rufiyaa subtotal and its dollar value, 'Sent in USD', and 'Total Sent' — each with its own count, while the block itself still carries the total's count and cents. WHY: the footer is the owner's check that the list and the card agree, and a split list is only checkable against a footer that splits the same way. HOW: draw all three lines at every ledger, count and sum each from the stored currency of the sends, and keep the block's own hooks reading the total line.",
@@ -1129,25 +1011,12 @@ test('the column words stand over the list even when nothing has been sent', asy
   // When the owner taps the Statement tab
   await whenTheOwnerTapsStatement(page)
 
-  // Then the same four words head an empty list, centred and coloured as they are over rows
+  // Then the same four words head an empty list as they are over rows
   const reading = await readSendingList(page)
   expect(
     [reading.head.words, reading.rows.length],
     'WHAT: an empty sending list has no column header, or lists a row. WHY: the owner must be told what this list would hold before they have sent anything, and a row they never recorded is a lie about their money. HOW: draw the header at every ledger length, and a row for each stored send only.',
   ).toEqual([['Date', 'Paid to', 'MVR', 'USD'], 0])
-  expect(
-    [
-      reading.head.cells[2]?.centred,
-      reading.head.cells[3]?.centred,
-      reading.head.cells[2]?.ink,
-      reading.head.cells[3]?.ink,
-    ],
-    'WHAT: the two currency words are not centred in their own colours over an empty list. WHY: the header is one fixed reading, whether or not there is a figure under it. HOW: draw the header the same way at every ledger length.',
-  ).toEqual([true, true, MVR_INK, USD_INK])
-  expect(
-    reading.head.tracks.split(' ').filter((_track, index) => index !== 1),
-    'WHAT: an empty list does not keep the four columns of the board. WHY: the columns are the shape of the list, not of the rows that happen to be in it. HOW: give the header the same grid at every length.',
-  ).toEqual([DATE_TRACK, MVR_TRACK, USD_TRACK])
   expect(
     reading.alerts,
     'WHAT: an empty ledger is reported as a failed read. WHY: an empty ledger and a read that failed must never look alike. HOW: speak an alert only when the read itself failed.',
@@ -1220,7 +1089,7 @@ test('a long name gives way before the figures do', async ({ page }) => {
   // When the owner taps the Statement tab
   await whenTheOwnerTapsStatement(page)
 
-  // Then both currency readings stay whole on one line, and the columns keep their widths
+  // Then both currency readings stay whole on one line
   const reading = await readSendingList(page)
   const expected = expectedRows(stored)
   expect(
@@ -1235,10 +1104,6 @@ test('a long name gives way before the figures do', async ({ page }) => {
     reading.rows.map((row) => row.mvr.rateFollowsTheFigure),
     'WHAT: a four-decimal rate wrapped away from the figure it belongs to. WHY: a rate on a line of its own reads as a second amount, which is money the owner never sent. HOW: keep the figure and its rate on one line in a cell wide enough for the widest rate the ledger stores.',
   ).toEqual(expected.map(() => true))
-  expect(
-    reading.rows.map((row) => row.tracks.split(' ').filter((_track, index) => index !== 1)),
-    'WHAT: a long name pushed the two currency columns off their own widths. WHY: columns that move with the longest name stop reading as columns. HOW: fix the date and the two currency tracks and let the party column alone take what is left.',
-  ).toEqual(expected.map(() => [DATE_TRACK, MVR_TRACK, USD_TRACK]))
   expect(
     reading.rows.map((row) => row.person),
     'WHAT: the row does not name the person the money went to. WHY: a clipped name is a degradation the owner accepts; a missing name is not. HOW: draw the stored name in the party column.',
@@ -1267,20 +1132,16 @@ test('the widest rufiyaa send the owner can make still reads on one line', async
   ).toBe(true)
   expect(
     row?.mvr.runsOverTheColumn ?? Number.POSITIVE_INFINITY,
-    `WHAT: the widest rufiyaa cell runs out of its own ${MVR_TRACK} column, by the number of pixels above. WHY: this is the cell the column is sized for: a reading pushed out of it runs over the name beside it, where the owner reads two things at once. HOW: give the MVR column the width this pair needs at 360 px.`,
+    'WHAT: the widest rufiyaa cell runs out of its own column. WHY: this is the cell the column is sized for: a reading pushed out of it runs over the name beside it, where the owner reads two things at once. HOW: give the MVR column the width this pair needs at the phone\'s width.',
   ).toBeLessThanOrEqual(0)
   expect(
     [row?.mvr.figure?.text ?? null, row?.mvr.rate?.text ?? null],
     "WHAT: the widest rufiyaa cell does not read 'MVR99,999' with '@20' beside it. WHY: it is the largest send the owner makes, so a digit dropped or a rate lost here hides the amount they are most likely to be checking. HOW: word the figure from the stored laari and the rate from the stored decimals, however wide the pair comes out.",
   ).toEqual(['MVR99,999', '@20'])
   expect(
-    [row?.date ?? null, row?.usd.text ?? null, row?.tracks.split(' ').filter((_track, index) => index !== 1)],
-    'WHAT: the date or the dollar column gave up its own reading or its own width to make room for the widest rufiyaa cell. WHY: the party column is the one reading allowed to give way: a date or a dollar figure that moves instead reads as a different row. HOW: fix the date and the two currency tracks and let the party column alone take what is left.',
-  ).toEqual([
-    expectedRows(stored)[0]?.date,
-    expectedRows(stored)[0]?.usd,
-    [DATE_TRACK, MVR_TRACK, USD_TRACK],
-  ])
+    [row?.date ?? null, row?.usd.text ?? null],
+    'WHAT: the date or the dollar column gave up its own reading to make room for the widest rufiyaa cell. WHY: the party column is the one reading allowed to give way: a date or a dollar figure that moves instead reads as a different row. HOW: let the party column alone take what is left.',
+  ).toEqual([expectedRows(stored)[0]?.date, expectedRows(stored)[0]?.usd])
 })
 
 test('real laari, real cents and a four-decimal rate survive the way to the screen', async ({ page }) => {
@@ -1482,19 +1343,15 @@ test('the balance card above the list reads exactly as before', async ({ page })
   // When the owner taps the Statement tab
   await whenTheOwnerTapsStatement(page)
 
-  // Then the balance card still reads its three two-decimal figures in their own colours
+  // Then the balance card still reads its three two-decimal figures
   const reading = await readSendingList(page)
   expect(
     reading.card.map((figure) => [figure.which, figure.cents, figure.text]),
     'WHAT: the balance card no longer reads its three figures to two decimals. WHY: the card is the first thing the owner looks at and this value does not touch it: the row rule applied there would restate the whole screen. HOW: leave the card figures worded as they are today.',
   ).toEqual(expectedCard(stored).map((figure) => [figure.which, figure.cents, figure.text]))
-  expect(
-    reading.card.map((figure) => figure.ink),
-    'WHAT: the three card figures are no longer inked as they were. WHY: the card keeps its own colours while the list below it gains two currency colours. HOW: leave the card inks untouched.',
-  ).toEqual([USD_INK, PAID_BACK_INK, BALANCE_INK])
 })
 
-test('the paid-back list reads its own three columns, its teal figures and its one-line footer', async ({ page }) => {
+test('the paid-back list reads its own three columns and its one-line footer', async ({ page }) => {
   // Given the owner is reading the Statement of a ledger with a repayment in it
   const stored = await readStoredLedger(stack, columns)
   await givenTheOwnerIsSignedIn(page, columns)
@@ -1503,7 +1360,7 @@ test('the paid-back list reads its own three columns, its teal figures and its o
   // When the owner taps the paid-back list
   await whenTheOwnerTapsThePaidBackList(page)
 
-  // Then it reads its own three columns and its marked figures, in the teal and footer it keeps
+  // Then it reads its own three columns and its marked figures, and the footer it keeps
   const back = await readPlainList(page, 'back')
   const repayments = repaymentsOf(stored)
   expect(
@@ -1514,10 +1371,6 @@ test('the paid-back list reads its own three columns, its teal figures and its o
     back.figures,
     'WHAT: a repayment does not read the dollars it stores with the dollar mark under the row rule. WHY: a figure with no mark reads as a bare number beside the marked figures of the other list, and the two lists report the same money. HOW: have the paid-back row read the marked whole reading of its stored dollars.',
   ).toEqual(repayments.map((row) => usdFigure(row.usd_cents)))
-  expect(
-    back.figureInks,
-    'WHAT: the paid-back figures are no longer teal. WHY: teal is how the owner tells money that came back from money that went out, and this value does not touch it. HOW: leave that colour as it is.',
-  ).toEqual(repayments.map(() => PAID_BACK_INK))
   expect(
     back.foot,
     'WHAT: the paid-back footer no longer reads its own total. WHY: this value leaves that list and its footer exactly as they are. HOW: keep its one line, its count and its two-decimal total.',

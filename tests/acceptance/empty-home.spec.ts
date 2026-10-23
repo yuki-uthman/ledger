@@ -13,12 +13,11 @@ import { createAccount, type Account } from '../support/accounts.js'
 //
 // Judged only through the stable attribute contract the design fixes for the
 // balance card (data-box, data-state, data-amount, data-square, data-empty-hint,
-// data-action) plus accessible names and geometry, so later values may restyle
+// data-action) plus accessible names and the order of things on screen, so later values may restyle
 // freely without breaking this oracle.
 
 const PASSWORD_FIELD = 'input[type="password"]'
 const VIEWPORT = { width: 360, height: 780 } as const
-const BOTTOM_BAND = 120
 
 // An account of its own, created with no people and no entries.
 const EMPTY_ACCOUNT = {
@@ -101,7 +100,7 @@ test('an empty ledger shows both boxes empty, All square, the hint and the two b
   await expect(hint).toContainText('Send')
   await expect(hint).toContainText('Receive')
 
-  // --- The bottom buttons: named, on their own half, near the bottom. ---
+  // --- The bottom buttons: named, on their own half, in the lower half of Home's pane. ---
   const send = page.locator('[data-action="send"]')
   const receive = page.locator('[data-action="receive"]')
   await expect(send).toHaveCount(1)
@@ -121,21 +120,21 @@ test('an empty ledger shows both boxes empty, All square, the hint and the two b
   expect(sendCentre.x).toBeLessThan(VIEWPORT.width / 2)
   expect(receiveCentre.x).toBeGreaterThan(VIEWPORT.width / 2)
 
-  // The band is measured against the foot of Home's OWN pane, not the foot of the
-  // phone: the bottom buttons keep their place inside that pane, which now ends above
-  // the bottom bar. The observation is unchanged - each button is near the foot of the
-  // area it lives in, on its own half - and only the edge it is measured from moved.
+  // Measured against Home's OWN pane, not the whole phone: the bottom buttons keep
+  // their place inside that pane, which ends above the bottom bar. Each button sits in
+  // the lower half of the area it lives in, on its own half.
   const pane = page.locator('[data-pane="entries"]')
   await expect(
     pane,
-    'WHAT: Home has no pane of its own to be measured in. WHY: the buttons are near the foot of the area Home occupies, which is no longer the whole phone. HOW: give Home its own pane.',
+    'WHAT: Home has no pane of its own to be measured in. WHY: the buttons sit in the lower half of the area Home occupies, which is no longer the whole phone. HOW: give Home its own pane.',
   ).toHaveCount(1)
   const paneRect = await pane.boundingBox()
   if (!paneRect) throw new Error('Home\'s pane has no layout box')
   const paneFoot = paneRect.y + paneRect.height
+  const paneMiddle = paneRect.y + paneRect.height / 2
 
   for (const centre of [sendCentre, receiveCentre]) {
-    expect(centre.y).toBeGreaterThan(paneFoot - BOTTOM_BAND)
+    expect(centre.y).toBeGreaterThan(paneMiddle)
     expect(centre.y).toBeLessThanOrEqual(paneFoot)
   }
 })

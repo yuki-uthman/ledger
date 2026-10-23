@@ -12,8 +12,8 @@ import { createAccount, readEntries, seedUsdSend, type Account } from '../suppor
 // Travelling cards value 2: a payment rests on the owner's side.
 //
 // Judged through the declared public port only: the built bundle's DOM (Home's
-// Receive button and balance boxes, the teal receive form with its frame,
-// currency switch, Amount received field, date chip and white Receive button,
+// Receive button and balance boxes, the receive form with its frame,
+// currency switch, Amount received field, date chip and Receive button,
 // and Home's centre-line cards) and, outside the browser, the rows the app
 // stored. The receive form, the storage and the balances are asserted exactly
 // as the refined board's oracle did. What changes is the resting side: a card
@@ -134,7 +134,7 @@ const openReceiveForm = async (page: Page): Promise<Locator> => {
   return form
 }
 
-/** The board's white save button names itself after the worked-out dollars. */
+/** The board's save button names itself after the worked-out dollars. */
 const saveButton = (page: Page): Locator => page.getByRole('button', { name: /^Receive · / })
 
 /** A payment carries data-entry and no data-person, so it is found by its party. */
@@ -152,7 +152,7 @@ const sendEntry = (page: Page): Locator =>
 
 /**
  * A card rests on the side of whoever received the money, and the page is one
- * centred column filling this 390 px phone, so the centre line is the middle of
+ * centred column filling the phone, so the centre line is the middle of
  * the viewport. A send's card lies wholly right of it: Abbaas received it.
  */
 const expectWhollyInRightHalf = async (element: Locator): Promise<void> => {
@@ -200,7 +200,6 @@ test('the receive form records a payment left of the line, clears the balance, a
   // ===== First payment: $300, less than he holds. =====
   const form = await openReceiveForm(page)
   await expect(page).toHaveURL(/#receive$/)
-  await expect(form).toHaveCSS('background-color', 'rgb(15, 111, 104)')
 
   // ----- The board's frame: Close, the balance line, eyebrow and title. -----
   await expect(form.getByRole('button', { name: 'Close' })).toBeVisible()
@@ -208,7 +207,7 @@ test('the receive form records a payment left of the line, clears the balance, a
   await expect(form).toContainText('New entry · Receive')
   await expect(form.getByRole('heading', { name: 'Payment from Abbaas' })).toBeVisible()
 
-  // ----- The currency switch: USD pressed with the white pill over it. -----
+  // ----- The currency switch: USD pressed with the pill over it. -----
   const usdButton = page.getByRole('button', { name: 'USD', exact: true })
   const mvrButton = page.getByRole('button', { name: 'MVR', exact: true })
   await expect(usdButton).toHaveAttribute('aria-pressed', 'true')
@@ -218,7 +217,6 @@ test('the receive form records a payment left of the line, clears the balance, a
   // ----- The large amount field with its prefix. -----
   const amount = page.getByLabel('Amount received')
   await expect(amount).toBeVisible()
-  await expect(amount).toHaveCSS('font-size', '44px')
   await expect(page.locator('[data-prefix]')).toHaveText('$')
 
   // ----- The date chip: today, over a transparent date input. -----
@@ -238,7 +236,7 @@ test('the receive form records a payment left of the line, clears the balance, a
   await amount.fill('900')
   await expectNoVersionOneExtras(page)
 
-  // ----- $300, saved by the white button that names its dollars. -----
+  // ----- $300, saved by the button that names its dollars. -----
   await amount.fill('300')
   const save = page.getByRole('button', { name: 'Receive · $300.00', exact: true })
   await expect(save).toBeEnabled()
@@ -342,7 +340,7 @@ test('the receive form records a payment left of the line, clears the balance, a
   expect(sends[0]!.usd_cents).toBe(SEEDED_SEND_CENTS)
 })
 
-test('in rufiyaa the receive form opens the rate card beside the white In dollars card', async ({
+test('in rufiyaa the receive form opens the rate card beside the In dollars card', async ({
   page,
 }) => {
   await signIn(page)
@@ -352,7 +350,7 @@ test('in rufiyaa the receive form opens the rate card beside the white In dollar
   await mvrButton.click()
   await expect(mvrButton).toHaveAttribute('aria-pressed', 'true')
 
-  // The pill slides under MVR over 300 ms and the rate row rises in; the pill's
+  // The pill slides under MVR and the rate row rises in; the pill's
   // arrival is polled rather than guessed from equal frames.
   await settle(page)
   await expectPillOver(page, mvrButton)
@@ -363,13 +361,15 @@ test('in rufiyaa the receive form opens the rate card beside the white In dollar
   await expect(rate).toBeVisible()
   const inDollars = form.getByText('In dollars', { exact: true })
   await expect(inDollars).toBeVisible()
-  // Side by side: both cards' labels sit on one row, In dollars to the right.
+  // Side by side: both cards' labels sit on one row, In dollars to the right and
+  // clear of the rate card.
   const rateLabel = form.getByText('Rate · MVR per $1', { exact: true })
   const rateRect = await rateLabel.boundingBox()
   const dollarsRect = await inDollars.boundingBox()
   if (!rateRect || !dollarsRect) throw new Error('The rate row has no layout box')
   expect(dollarsRect.x).toBeGreaterThan(rateRect.x + rateRect.width)
-  expect(Math.abs(dollarsRect.y - rateRect.y)).toBeLessThanOrEqual(8)
+  expect(dollarsRect.y).toBeLessThan(rateRect.y + rateRect.height)
+  expect(rateRect.y).toBeLessThan(dollarsRect.y + dollarsRect.height)
 
   // The worked-out dollars drive the output and the button's name.
   await page.getByLabel('Amount received').fill('1,540')

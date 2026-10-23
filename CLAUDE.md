@@ -38,6 +38,10 @@ A Vite + TypeScript + Supabase web app (a PWA) for the owner and Abbaas. `main` 
 - **One Playwright run at a time.** All runs share one stack, so serialise them with a mkdir lock.
 - The DES oracle command is `node tests/support/oracle-observation.mjs <spec>`. It runs `npm ci` itself when `node_modules` is missing.
 - The shell may be zsh, so list paths explicitly. Never rely on unquoted `$VAR` word-splitting.
+- **Specs assert content, behaviour and the layout invariants, never a design value.** Design is judged on the owner's phone.
+  - Never assert: colours; font size, weight, letter-spacing or case; px widths, heights, gaps, paddings, radii or grid tracks; motion durations, delays, curves or stagger.
+  - Always assert: what a screen reads, which element is shown, aria state, and what a tap, a sheet or an undo does.
+  - Layout invariants may be asserted, worded without px: no horizontal page scroll; a figure is never cut off or overlapped; a motion ends in its resting state; reduced motion shows the end state. Home's last entry being reachable clear of the Send and Receive buttons is also an invariant to keep, but no spec asserts it yet.
 
 ## Phone check (the stop point)
 

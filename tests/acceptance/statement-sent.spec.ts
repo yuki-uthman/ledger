@@ -22,7 +22,7 @@ import {
 } from '../support/accounts.js'
 
 // The Statement the owner reads: a bottom bar with two tabs, and a read-only screen
-// starting at the mint balance card, with the Sent for Abbaas list below it, pinned so
+// starting at the balance card, with the Sent for Abbaas list below it, pinned so
 // that only its rows scroll.
 //
 // Judged only through the declared public port: the BUILT bundle as Chrome loads it
@@ -47,8 +47,7 @@ import {
 //     where the send was made in dollars, while the USD column holds the dollars the
 //     entry stores, marked, with no brackets round them. The MVR
 //     cell appends its figure and its rate with NO whitespace between them, so the
-//     cell's own text reads 'MVR10,000@20' while the owner sees the gap the board
-//     draws; a row read as one line of text therefore holds that one token.
+//     cell's own text reads 'MVR10,000@20'; a row read as one line of text therefore holds that one token.
 //   - The footer of this list now reads three lines in one block: what went in rufiyaa
 //     with its stored dollars beside them, what went in dollars, and the total of both,
 //     each with its own count. Read as one text here, those lines stand in that order;
@@ -63,8 +62,6 @@ const DOT = '·'
 /** The mark that stands where a rufiyaa figure is absent: an em dash, not a hyphen. */
 const EM_DASH = '—'
 
-/** The bar's own height, which is what the panes end above. */
-const BAR_HEIGHT = 84
 /** Sub-pixel layout rounding: a box that "has not moved" may still differ by a whisker. */
 const PIXEL = 1
 /** The endpoint the bundle reads the ledger from, as the browser sees it. */
@@ -591,59 +588,28 @@ const readStatement = (page: Page): Promise<StatementReading> =>
 
 // ===== The balance card, as the board draws it and the owner reads it =====
 
-/** The card's own colours, corners and line, as the board fixes them. */
-const SENT_FIGURE_INK = 'rgb(36, 80, 138)'
-const PAID_FIGURE_INK = 'rgb(15, 111, 104)'
-const BALANCE_INK = 'rgb(11, 87, 80)'
-const CARD_BED = 'rgb(224, 240, 237)'
-const CARD_RADIUS = '24px'
-const DIVIDER_INK = 'rgb(201, 228, 223)'
 /** The sign the card draws before what came back: a minus, not a hyphen. */
 const MINUS = '\u2212'
 
-/** The card as the owner reads it: its words, its sign, its line, its colours and its type. */
+/** The card as the owner reads it: its words and its sign. */
 type CardReading = {
   readonly present: boolean
-  readonly bed: string
-  readonly radius: string
   readonly labels: readonly string[]
   readonly signs: readonly string[]
-  readonly signInks: readonly string[]
-  readonly figureInks: readonly string[]
-  readonly divider: {
-    readonly found: boolean
-    readonly ink: string
-    readonly thickness: number
-    readonly spans: boolean
-    readonly above: boolean
-  }
-  readonly balanceLabel: { family: string; weight: string; size: string; ink: string } | null
-  readonly balanceFigure: { family: string; weight: string; size: string; ink: string } | null
+  /** Whether a drawn line stands between the first two rows and the Balance row, above that row. */
+  readonly dividerAboveBalance: boolean
 }
 
 /**
  * Reads the balance card as the owner sees it, found from the figures it holds rather than
  * from any hook the design does not declare: the card is the nearest thing around all three
- * figures. Answers its bed and corners, the three labels in order, whatever stands between
- * each label and its own figure, the ink of each sign and figure, the line above the Balance
- * row, and the type of the Balance row itself.
+ * figures. Answers the three labels in order, whatever stands between each label and its
+ * own figure, and whether a line is drawn above the Balance row.
  */
 const readBalanceCard = (page: Page): Promise<CardReading> =>
   page.evaluate((): CardReading => {
     const squash = (text: string | null | undefined): string => (text ?? '').replace(/\s+/g, ' ').trim()
-    const nothing = { found: false, ink: '', thickness: 0, spans: false, above: false }
-    const absent: CardReading = {
-      present: false,
-      bed: '',
-      radius: '',
-      labels: [],
-      signs: [],
-      signInks: [],
-      figureInks: [],
-      divider: nothing,
-      balanceLabel: null,
-      balanceFigure: null,
-    }
+    const absent: CardReading = { present: false, labels: [], signs: [], dividerAboveBalance: false }
     const screen = document.querySelector('[data-screen="statement"]')
     if (!screen) return absent
     const figures = Array.from(screen.querySelectorAll('[data-statement-total]'))
@@ -670,42 +636,22 @@ const readBalanceCard = (page: Page): Promise<CardReading> =>
       const at = cells.findIndex((cell) => cell.contains(figure))
       return cells.slice(1, at < 0 ? cells.length : at)
     }
-    const typeOf = (element: Element | null): { family: string; weight: string; size: string; ink: string } | null => {
-      if (element === null) return null
-      const style = window.getComputedStyle(element)
-      return { family: style.fontFamily, weight: style.fontWeight, size: style.fontSize, ink: style.color }
+    /** Whether a line is drawn above the Balance row: a part of its own before it, or its own top edge. */
+    const dividerAbove = (): boolean => {
+      const balanceAt = figures.findIndex((figure) => figure.getAttribute('data-statement-total') === 'balance')
+      const balanceRow = balanceAt < 0 ? null : (rows[balanceAt] ?? null)
+      if (balanceRow === null) return false
+      const before = balanceRow.previousElementSibling
+      if (before !== null && !rows.includes(before)) {
+        const line = before.getBoundingClientRect()
+        // One pixel of slack is sub-pixel layout rounding only.
+        return line.width > 0 && line.height > 0 && line.bottom <= balanceRow.getBoundingClientRect().top + 1
+      }
+      return Number.parseFloat(window.getComputedStyle(balanceRow).borderTopWidth) > 0
     }
 
-    const balanceAt = figures.findIndex((figure) => figure.getAttribute('data-statement-total') === 'balance')
-    const balanceFigure = balanceAt < 0 ? null : (figures[balanceAt] ?? null)
-    const balanceRow = balanceAt < 0 ? null : (rows[balanceAt] ?? null)
-    const before = balanceRow?.previousElementSibling ?? null
-    const line = before !== null && !rows.includes(before) ? before : null
-    const cardBox = card.getBoundingClientRect()
-    let divider = nothing
-    if (line !== null && balanceRow !== null) {
-      const lineBox = line.getBoundingClientRect()
-      divider = {
-        found: true,
-        ink: window.getComputedStyle(line).backgroundColor,
-        thickness: Math.round(lineBox.height * 10) / 10,
-        spans: lineBox.width >= cardBox.width / 2,
-        above: lineBox.bottom <= balanceRow.getBoundingClientRect().top + 1,
-      }
-    } else if (balanceRow !== null) {
-      // A line drawn as the row's own edge rather than as a part of its own.
-      const edge = window.getComputedStyle(balanceRow)
-      const thickness = Number.parseFloat(edge.borderTopWidth)
-      if (thickness > 0) {
-        divider = { found: true, ink: edge.borderTopColor, thickness, spans: true, above: true }
-      }
-    }
-
-    const cardStyle = window.getComputedStyle(card)
     return {
       present: true,
-      bed: cardStyle.backgroundColor,
-      radius: cardStyle.borderTopLeftRadius,
       labels: rows.map((row) => squash(row.firstElementChild?.textContent)),
       signs: rows.map((row, index) =>
         cellsBeforeTheFigure(row, figures[index] as Element)
@@ -713,16 +659,7 @@ const readBalanceCard = (page: Page): Promise<CardReading> =>
           .join(' ')
           .trim(),
       ),
-      signInks: rows.map((row, index) => {
-        const spoken = cellsBeforeTheFigure(row, figures[index] as Element).find(
-          (cell) => squash(cell.textContent) !== '',
-        )
-        return spoken === undefined ? '' : window.getComputedStyle(spoken).color
-      }),
-      figureInks: figures.map((figure) => window.getComputedStyle(figure).color),
-      divider,
-      balanceLabel: typeOf(balanceRow?.firstElementChild ?? null),
-      balanceFigure: typeOf(balanceFigure),
+      dividerAboveBalance: dividerAbove(),
     }
   })
 
@@ -757,19 +694,15 @@ test("the bottom bar offers Entries and Statement, and the Entries tab still sho
   // When the owner looks at the bar they arrived on
   const bar = page.getByRole('navigation', { name: 'Views' })
 
-  // Then both tabs stand on it, 84 px tall, with the Entries tab the active one
+  // Then both tabs stand on it, with the Entries tab the active one
   await expect(
     bar,
     'WHAT: there is no bottom bar named Views. WHY: the bar is how the owner moves between their entries and the Statement. HOW: draw a navigation bar with that accessible name.',
   ).toBeVisible()
   const barBox = await boxOf(bar, 'the bottom bar')
   expect(
-    Math.round(barBox.height),
-    'WHAT: the bottom bar is not 84 px tall. WHY: the board fixes that height, and the panes end exactly above it. HOW: give the bar the height the board draws.',
-  ).toBe(BAR_HEIGHT)
-  expect(
     Math.round(barBox.y + barBox.height),
-    'WHAT: the bottom bar does not sit on the foot of the phone. WHY: the owner reaches it with their thumb, and the panes are measured above it. HOW: pin the bar to the bottom of the viewport.',
+    'WHAT: the bottom bar does not sit on the foot of the phone. WHY: the owner reaches it with their thumb. HOW: pin the bar to the bottom of the viewport.',
   ).toBe(VIEWPORT.height)
 
   await expect(
@@ -789,14 +722,14 @@ test("the bottom bar offers Entries and Statement, and the Entries tab still sho
     'WHAT: the Statement tab claims to be current while Entries is showing. WHY: exactly one tab is the current one. HOW: carry aria-current=false on the tab that is not showing.',
   ).toHaveAttribute('aria-current', 'false')
 
-  // And the mint pill lies under the active tab, on its own half of the bar
+  // And the pill lies under the active tab, on its own half of the bar
   const pill = bar.locator('[aria-hidden="true"]').first()
-  const pillBox = await boxOf(pill, 'the mint pill')
+  const pillBox = await boxOf(pill, 'the pill')
   const entriesBox = await boxOf(entriesTab(page), 'the Entries tab')
   expect(
-    Math.abs(pillBox.x + pillBox.width / 2 - (entriesBox.x + entriesBox.width / 2)),
-    'WHAT: the mint pill is not centred under the active tab. WHY: the pill is what tells the owner, at a glance, which view they are in. HOW: rest the pill at zero or one half of the bar, under the showing tab.',
-  ).toBeLessThanOrEqual(6)
+    [pillBox.x + pillBox.width / 2 >= entriesBox.x, pillBox.x + pillBox.width / 2 <= entriesBox.x + entriesBox.width],
+    'WHAT: the pill does not rest under the active tab. WHY: the pill is what tells the owner, at a glance, which view they are in. HOW: rest the pill at zero or one half of the bar, under the showing tab.',
+  ).toEqual([true, true])
   expect(
     pillBox.x + pillBox.width,
     'WHAT: the pill crosses into the other tab\'s half. WHY: a pill under both tabs names neither. HOW: keep the pill inside the half of the bar it rests on.',
@@ -882,40 +815,20 @@ test('a tap on Statement starts at the balance card, reads the three figures and
     ['balance', String(figures.balance), usdWithSign(figures.balance)],
   ])
 
-  // And the card itself reads as the board draws it: its words, its minus, its line,
-  // its colours and its type, none of which a hook token can stand in for.
+  // And the card itself reads its words and its minus, which a hook token cannot stand in for.
   const card = await readBalanceCard(page)
   expect(
     card.labels,
     "WHAT: the balance card's three rows do not read 'Total Sent', 'Paid Back' and 'Balance', in that order. WHY: a figure with no word beside it tells the owner nothing about what it counts, and the order is what makes the third the sum of the first two. HOW: label the three rows with those words, top to bottom.",
   ).toEqual(['Total Sent', 'Paid Back', 'Balance'])
   expect(
-    [card.signs, card.signInks[1]],
-    `WHAT: the Paid Back row does not read a teal '${MINUS}' between its words and its figure, or another row reads a sign. WHY: the minus is what tells the owner that this money came back against what went out, rather than adding to it. HOW: draw the minus before the Paid Back figure, in the same teal, and nowhere else.`,
-  ).toEqual([['', MINUS, ''], PAID_FIGURE_INK])
+    card.signs,
+    `WHAT: the Paid Back row does not read a '${MINUS}' between its words and its figure, or another row reads a sign. WHY: the minus is what tells the owner that this money came back against what went out, rather than adding to it. HOW: draw the minus before the Paid Back figure and nowhere else.`,
+  ).toEqual(['', MINUS, ''])
   expect(
-    card.figureInks,
-    'WHAT: the three figures are not inked blue, teal and deep teal. WHY: the colours are how the owner tells money sent from money back, and both from the balance, at a glance. HOW: ink the figures as the board inks them.',
-  ).toEqual([SENT_FIGURE_INK, PAID_FIGURE_INK, BALANCE_INK])
-  expect(
-    [card.divider.found, card.divider.ink, card.divider.thickness <= 2, card.divider.spans, card.divider.above],
-    "WHAT: there is no thin pale-teal line across the card above the Balance row. WHY: the line is what separates the two figures the balance is made of from the balance itself, so the owner reads a sum and not a third amount. HOW: draw a one-pixel line of that colour across the card, above the Balance row.",
-  ).toEqual([true, DIVIDER_INK, true, true, true])
-  expect(
-    [
-      card.balanceLabel?.weight,
-      card.balanceLabel?.size,
-      card.balanceLabel?.ink,
-      card.balanceFigure?.weight,
-      card.balanceFigure?.size,
-      card.balanceFigure?.ink,
-    ],
-    'WHAT: the Balance row is not set in heavy type at 15 px and 22 px in deep teal. WHY: the balance is the one figure the owner opens this screen for, so it is the one that must stand out from the two it is made of. HOW: set the Balance label and figure as the board sets them.',
-  ).toEqual(['800', '15px', BALANCE_INK, '800', '22px', BALANCE_INK]);
-  expect(
-    [card.balanceLabel?.family.includes('Manrope'), card.balanceFigure?.family.includes('Manrope'), card.bed, card.radius],
-    "WHAT: the card is not the board's card: its own heavy face, its pale teal bed and its 24 px corners. WHY: the board is the authority for this screen, and the card is the first thing the owner looks at. HOW: draw the card as the board draws it.",
-  ).toEqual([true, true, CARD_BED, CARD_RADIUS])
+    card.dividerAboveBalance,
+    'WHAT: there is no line across the card above the Balance row. WHY: the line is what separates the two figures the balance is made of from the balance itself, so the owner reads a sum and not a third amount. HOW: draw a line across the card, above the Balance row.',
+  ).toBe(true)
 
   await expect(
     statement(page).locator('[data-statement-list="sent"]'),

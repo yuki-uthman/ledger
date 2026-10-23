@@ -248,7 +248,7 @@ const boxOf = async (locator: Locator, what: string) => {
 type Box = { x: number; y: number; width: number; height: number }
 
 /**
- * Whether the card's box holds a line's box whole, within a pixel of rounding:
+ * Whether the card's box holds a line's box whole, allowing for sub-pixel rounding:
  * this is what 'nothing overflows the card' means when the owner looks at it.
  */
 const contains = (card: Box, line: Box): boolean =>

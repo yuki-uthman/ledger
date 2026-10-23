@@ -116,7 +116,7 @@ const openSendForm = async (page: Page): Promise<Locator> => {
   return form
 }
 
-/** The white save button, whatever dollar value it currently names. */
+/** The save button, whatever dollar value it currently names. */
 const saveButton = (page: Page): Locator => page.getByRole('button', { name: /^Send · \$/ })
 
 /**

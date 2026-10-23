@@ -18,7 +18,7 @@ import {
 // Travelling cards value 1: a send rests on Abbaas's side.
 //
 // Judged through the declared public port only: the built bundle's DOM (the Send
-// button, the blue form's labelled fields and contract attributes, Home's centre
+// button, the form's labelled fields and contract attributes, Home's centre
 // line and balance boxes) and, outside the browser, the rows the app stored.
 //
 // Everything this oracle said about the form, the storage and the balances is
@@ -98,7 +98,7 @@ const openSendForm = async (page: Page): Promise<Locator> => {
   return form
 }
 
-/** The board's white save button: its name carries the USD value. */
+/** The board's save button: its name carries the USD value. */
 const sendButton = (page: Page, dollars: string): Locator =>
   page.getByRole('button', { name: `Send · ${dollars}`, exact: true })
 
@@ -140,13 +140,13 @@ const expectBox = async (
   await expect(box).toHaveAttribute('data-amount', cents)
 }
 
-test("the blue send form records a USD send to a saved and to a new person, resting right of the centre line on Abbaas's side", async ({
+test("the send form records a USD send to a saved and to a new person, resting right of the centre line on Abbaas's side", async ({
   page,
 }) => {
   await signIn(page)
   await expect(page.locator('[data-entry]')).toHaveCount(0)
 
-  // ----- The form opens on the board's blue screen with USD already chosen. -----
+  // ----- The form opens with USD already chosen. -----
   const form = await openSendForm(page)
   await expect(form).toContainText('New entry · Send')
   await expect(
@@ -163,7 +163,7 @@ test("the blue send form records a USD send to a saved and to a new person, rest
     'false',
   )
 
-  // The white pill sits under the pressed half of the switch.
+  // The pill sits under the pressed half of the switch.
   const pill = form.locator('[data-pill]')
   await expect(pill).toHaveCount(1)
   const pillRect = await pill.boundingBox()
@@ -173,13 +173,10 @@ test("the blue send form records a USD send to a saved and to a new person, rest
   expect(pillCentre).toBeGreaterThanOrEqual(usdRect.x)
   expect(pillCentre).toBeLessThanOrEqual(usdRect.x + usdRect.width)
 
-  // ----- The amount is the board's large field, prefixed with a dollar sign. -----
+  // ----- The amount field is prefixed with a dollar sign. -----
   await expect(form.locator('[data-prefix]')).toHaveText('$')
   const amount = page.getByLabel('Amount sent')
   await expect(amount).toHaveAttribute('inputmode', 'decimal')
-  expect(
-    await amount.evaluate((node) => window.getComputedStyle(node).fontSize),
-  ).toBe('44px')
 
   // In USD no rate is asked for, and the form says so.
   await expect(form).toContainText('Dollars go straight onto the balance. No rate needed.')
@@ -214,13 +211,7 @@ test("the blue send form records a USD send to a saved and to a new person, rest
   await savedChip.click()
   await expect(savedChip).toHaveAttribute('aria-pressed', 'true')
 
-  // The chosen chip turns white with blue ink and shows its tick.
-  expect(
-    await savedChip.evaluate((node) => window.getComputedStyle(node).backgroundColor),
-  ).toBe('rgb(255, 255, 255)')
-  expect(await savedChip.evaluate((node) => window.getComputedStyle(node).color)).toBe(
-    'rgb(27, 63, 110)',
-  )
+  // The chosen chip shows its tick.
   await expect(savedChip.locator('svg').first()).toBeVisible()
 
   await expect(save).toBeEnabled()
