@@ -1,0 +1,542 @@
+diff --git a/src/ui/home.ts b/src/ui/home.ts
+index c5476ea..297dcf3 100644
+--- a/src/ui/home.ts
++++ b/src/ui/home.ts
+@@ -472,7 +472,11 @@ const renderEntriesArea = (list: HTMLElement): HTMLElement => {
+   spine.setAttribute('aria-hidden', 'true')
+ 
+   area.append(spine, list)
+-  return area
++  // The one thing on Home that scrolls: the card and the heading above it stay put.
++  const scroller = document.createElement('div')
++  scroller.className = 'entries-scroll'
++  scroller.append(area)
++  return scroller
+ }
+ 
+ const renderEmptyHint = (): HTMLElement => {
+diff --git a/src/ui/statement.ts b/src/ui/statement.ts
+index 6d927b1..a94a5a9 100644
+--- a/src/ui/statement.ts
++++ b/src/ui/statement.ts
+@@ -75,7 +75,7 @@ const FIGURE_LABELS: Readonly<Record<StatementFigureName, string>> = {
+ /** The sign that stands before a figure: only a repayment takes one off. */
+ const FIGURE_SIGNS: Readonly<Record<StatementFigureName, string>> = {
+   sent: '',
+-  paid: MINUS,
++  paid: '',
+   balance: '',
+ }
+ 
+@@ -272,18 +272,16 @@ const renderParty = (row: StatementRow): HTMLElement => {
+ const renderMvrCell = (reading: StatementMvrCell): HTMLElement => {
+   const mvr = element('span', 'statement-mvr')
+   mvr.dataset.statementMvr = ''
+-  if (reading.currency === 'USD') {
+-    const absent = cell('statement-mvr-absent', NO_RUFIYAA)
+-    absent.dataset.statementPlaceholder = ''
+-    mvr.append(absent)
+-    return mvr
+-  }
++  if (reading.currency === 'USD') return mvr
+   mvr.append(cell('statement-mvr-figure', reading.figure))
++  const detail = element('span', 'statement-mvr-detail')
+   if (reading.rateText !== null) {
+     const rate = cell('statement-mvr-rate', reading.rateText)
+     rate.dataset.statementRate = ''
+-    mvr.append(rate)
++    detail.append(rate, cell('statement-mvr-arrow', '→'))
+   }
++  detail.append(cell('statement-mvr-converted', reading.convertedText))
++  mvr.append(detail)
+   return mvr
+ }
+ 
+@@ -295,7 +293,7 @@ const renderMvrCell = (reading: StatementMvrCell): HTMLElement => {
+  */
+ const usdReadingOf = (row: StatementRow): { readonly text: string; readonly converted: boolean } =>
+   row.mvrCell.currency === 'MVR'
+-    ? { text: row.mvrCell.convertedText, converted: true }
++    ? { text: '', converted: true }
+     : { text: row.usdFigure, converted: false }
+ 
+ /**
+@@ -378,7 +376,10 @@ const footLabel = (label: string, countLabel: string): string =>
+ const renderFootFigure = (figure: SentFootFigure): HTMLElement => {
+   const drawn = cell('statement-foot-figure', figure.text)
+   drawn.dataset.reads = figure.reads
+-  return drawn
++  if (figure.reads !== 'converted') return drawn
++  const detail = element('span', 'statement-foot-detail')
++  detail.append(cell('statement-mvr-arrow', '→'), drawn)
++  return detail
+ }
+ 
+ /**
+diff --git a/src/ui/theme.css b/src/ui/theme.css
+index 3ce7dcd..d075700 100644
+--- a/src/ui/theme.css
++++ b/src/ui/theme.css
+@@ -41,7 +41,7 @@
+   --you-rule: #cfdbea;
+ 
+   --side: 16px;
+-  --bottom-gap: 20px;
++  --bottom-gap: 4px;
+   --button-height: 60px;
+ 
+   /* The reading column. The app fills a phone's width but for its side margins,
+@@ -138,6 +138,15 @@ body {
+   transform: translateX(0);
+ }
+ 
++/* The browser keeps the vertical scroll; a sideways move is the swipe's. Set on
++   every element of the strip, because each scrolling list inside it is a scroll
++   container of its own, and a scroll container answers only to its own rule. */
++.views-track,
++.views-track * {
++  touch-action: pan-y;
++  overscroll-behavior-x: none;
++}
++
+ .screen.views[data-shown='statement'] .views-track {
+   transform: translateX(-50%);
+ }
+@@ -184,10 +193,32 @@ body {
+   overflow-y: auto;
+ }
+ 
+-/* Home carries no title at all: the box row is the top of the screen, 24 px
++/* Home carries no title at all: the box row is the top of the screen, 4 px
+    below its edge and clear of whatever notch the device claims. */
+ .home {
+-  padding-top: calc(24px + env(safe-area-inset-top));
++  padding-top: calc(4px + env(safe-area-inset-top));
++}
++
++/* Home in its pane holds still: the card and the heading are pinned, and only
++   the list below them scrolls, in a box that fills the rest of the pane. */
++.pane > .screen.home {
++  display: flex;
++  flex-direction: column;
++  overflow: clip;
++  padding-bottom: 0;
++}
++
++.pane > .screen.home > * {
++  flex: 0 0 auto;
++}
++
++.pane > .screen.home > .entries-scroll {
++  flex: 1 1 auto;
++  min-height: 0;
++  overflow-x: hidden;
++  overflow-y: auto;
++  /* The list's room for the bottom buttons, moved here from the screen. */
++  padding-bottom: calc(var(--button-height) + var(--bottom-safe) + var(--bottom-gap) + 24px);
+ }
+ 
+ /* --- The two boxes: You on the left, Abbaas on the right, each with its name
+@@ -336,7 +367,7 @@ body {
+   display: flex;
+   justify-content: space-between;
+   gap: 16px;
+-  margin: 14px 0 0;
++  margin: 4px 0 0;
+   font-size: 13px;
+   color: var(--muted);
+ }
+@@ -369,7 +400,7 @@ body {
+   align-items: baseline;
+   justify-content: space-between;
+   gap: 12px;
+-  margin-top: 22px;
++  margin-top: 4px;
+ }
+ 
+ .entries-header h2 {
+@@ -2365,10 +2396,9 @@ body {
+ .views-nav {
+   flex: 0 0 auto;
+   position: relative;
+-  height: 84px;
+-  /* The board's own padding: the 20 px below is the room Android's gesture bar
+-     takes, which is why the tabs sit high in the bar rather than centred. */
+-  padding: 8px 0 20px;
++  height: 64px;
++  /* Tightened from the board's 8 px above and 20 px below, on the owner's phone. */
++  padding: 4px 0 4px;
+   display: grid;
+   grid-template-columns: 1fr 1fr;
+   background: #ffffff;
+@@ -2382,13 +2412,15 @@ body {
+    every other width it is still one half. */
+ .views-pill-holder {
+   position: absolute;
+-  top: 8px;
+-  bottom: 20px;
++  top: 4px;
++  bottom: 4px;
+   left: 0;
+   width: 50%;
+   display: flex;
+-  align-items: center;
++  align-items: flex-start;
+   justify-content: center;
++  /* The pill lies centred around the icon, 2px inside the icon's 34px slot. */
++  padding-top: 2px;
+   /* Behind the words, and never the thing a thumb lands on. */
+   pointer-events: none;
+   transform: translateX(0);
+@@ -2411,14 +2443,44 @@ body {
+   border: 0;
+   padding: 0;
+   background: transparent;
+-  display: inline-flex;
++  display: flex;
++  flex-direction: column;
+   align-items: center;
+-  justify-content: center;
++  justify-content: flex-start;
++  gap: 4px;
+   font-family: var(--title-font);
+-  font-size: 13px;
+-  font-weight: 700;
++  font-size: 12px;
++  font-weight: 800;
+   color: var(--muted);
+   cursor: pointer;
++  /* The browser's own tap box covers the whole half of the bar; the press is
++     shown on the icon and the word alone instead. */
++  -webkit-tap-highlight-color: transparent;
++  /* The ink crosses over the same 420 ms and curve as the pill, so the two arrive together. */
++  transition:
++    opacity 120ms ease-out,
++    color 420ms var(--curve);
++}
++
++/* Under a finger the ink is drawn at each move, so it must not lag behind it. */
++.screen.views[data-dragging] .views-tab {
++  transition: none;
++}
++
++@media (prefers-reduced-motion: reduce) {
++  .views-tab {
++    transition: none;
++  }
++}
++
++.views-tab:active {
++  opacity: 0.5;
++}
++
++.views-tab-icon {
++  height: 34px;
++  display: flex;
++  align-items: center;
+ }
+ 
+ .views-tab[aria-current='page'] {
+@@ -2437,8 +2499,8 @@ body {
+   min-height: 0;
+   display: flex;
+   flex-direction: column;
+-  gap: 16px;
+-  padding: calc(24px + env(safe-area-inset-top)) var(--side) var(--side);
++  gap: 4px;
++  padding: calc(4px + env(safe-area-inset-top)) var(--side) 4px;
+   /* Clipped, not hidden, for the reason given on .screen.views above. */
+   overflow: clip;
+ }
+@@ -2642,6 +2704,14 @@ body {
+ 
+ /* The hairline that tells the owner the last line is the total of the two above
+    it and not a third currency, which is why it stands above THAT line alone. */
++/* Ends where the MVR column ends: inset by the USD track (60px) and the gap (6px). */
++.statement-foot-line[data-statement-foot-line='mvr'] .statement-foot-figures {
++  display: flex;
++  flex-direction: column;
++  align-items: flex-end;
++  margin-right: 66px;
++}
++
+ .statement-foot-line[data-statement-foot-line='total'] {
+   padding-top: 6px;
+   border-top: 1px solid var(--you-rule);
+@@ -2655,9 +2725,21 @@ body {
+ }
+ 
+ .statement-foot-figure[data-reads='converted'] {
++  font-size: 11.5px;
+   color: var(--you-soft);
+ }
+ 
++.statement-foot-detail {
++  display: flex;
++  align-items: baseline;
++  gap: 3px;
++  font-size: 11.5px;
++}
++
++.statement-foot-detail > .statement-mvr-arrow {
++  font-weight: 400;
++}
++
+ .statement-foot-figure[data-reads='usd'] {
+   color: var(--you);
+ }
+@@ -2674,7 +2756,7 @@ body {
+    down, where the rest of that list is drawn. */
+ .statement-panel[data-statement-list='sent'] .statement-head-row,
+ .statement-panel[data-statement-list='sent'] .statement-row {
+-  grid-template-columns: 40px minmax(0, 1fr) 90px 54px;
++  grid-template-columns: 40px minmax(0, 1fr) 90px 60px;
+   column-gap: 6px;
+ }
+ 
+@@ -2753,12 +2835,31 @@ body {
+ /* The rate tells the owner how the rufiyaa became dollars; it is not money
+    itself, so it is smaller and greyer than the figure it stands beside and is
+    held off it by the gap the board draws rather than by a typed space. */
++.statement-mvr {
++  flex-direction: column;
++  align-items: flex-end;
++}
++
++.statement-mvr-detail {
++  display: flex;
++  align-items: baseline;
++  gap: 3px;
++  font-size: 10px;
++}
++
+ .statement-mvr-rate {
+-  margin-left: 3px;
+-  font-size: 11.5px;
+   color: var(--muted);
+ }
+ 
++.statement-mvr-arrow {
++  color: var(--muted);
++}
++
++.statement-mvr-converted {
++  font-weight: 600;
++  color: var(--you-soft);
++}
++
+ .statement-mvr-absent {
+   color: var(--absent);
+ }
+diff --git a/src/ui/views.ts b/src/ui/views.ts
+index bb9e06c..9dd3887 100644
+--- a/src/ui/views.ts
++++ b/src/ui/views.ts
+@@ -50,6 +50,19 @@ const VIEWS = ['entries', 'statement'] as const
+ 
+ type View = (typeof VIEWS)[number]
+ 
++/** How far a finger moves before the swipe decides it is sideways or a scroll. */
++const SWIPE_SLOP_PX = 8
++
++/** A finger leaving faster than this switches the view whatever the distance. */
++const SWIPE_FLICK_PX_PER_MS = 0.4
++
++/** A slow drag past this share of the width switches the view; short of it, stays. */
++const SWIPE_COMMIT = 0.3
++
++/** A tab's ink part-way through a swipe: the active ink at 1, the muted ink at 0. */
++const inkAt = (on: number): string =>
++  `color-mix(in srgb, var(--abbaas-deep) ${(on * 100).toFixed(1)}%, var(--muted))`
++
+ /** What each view is called, on its pane and on its tab alike. */
+ const VIEW_NAMES: Readonly<Record<View, string>> = {
+   entries: 'Entries',
+@@ -79,13 +92,53 @@ const renderPane = (name: View, screen: HTMLElement): HTMLElement => {
+   return pane
+ }
+ 
++const SVG_NS = 'http://www.w3.org/2000/svg'
++
++/** The board's drawing for each tab, as the shapes of a 24-unit square. */
++const TAB_ICONS: Readonly<Record<View, readonly (readonly [string, Record<string, string>])[]>> = {
++  entries: [
++    ['path', { d: 'M12 3v18' }],
++    ['rect', { x: '3', y: '5', width: '7', height: '5', rx: '1.5' }],
++    ['rect', { x: '14', y: '13', width: '7', height: '5', rx: '1.5' }],
++  ],
++  statement: [
++    ['rect', { x: '3.5', y: '4', width: '17', height: '16', rx: '2.5' }],
++    ['path', { d: 'M3.5 9h17M3.5 14.5h17M10 9v11' }],
++  ],
++}
++
++/** A tab's icon in its own slot, hidden from anything that reads the page aloud. */
++const renderTabIcon = (name: View): HTMLElement => {
++  const slot = document.createElement('span')
++  slot.className = 'views-tab-icon'
++  const svg = document.createElementNS(SVG_NS, 'svg')
++  for (const [key, value] of Object.entries({
++    width: '22',
++    height: '22',
++    viewBox: '0 0 24 24',
++    fill: 'none',
++    stroke: 'currentColor',
++    'stroke-width': '2.2',
++    'stroke-linecap': 'round',
++    'stroke-linejoin': 'round',
++    'aria-hidden': 'true',
++  })) svg.setAttribute(key, value)
++  for (const [tag, attributes] of TAB_ICONS[name]) {
++    const shape = document.createElementNS(SVG_NS, tag)
++    for (const [key, value] of Object.entries(attributes)) shape.setAttribute(key, value)
++    svg.append(shape)
++  }
++  slot.append(svg)
++  return slot
++}
++
+ /** One tab of the bar: the whole of the way into its view. */
+ const renderTab = (name: View): HTMLButtonElement => {
+   const tab = document.createElement('button')
+   tab.type = 'button'
+   tab.className = 'views-tab'
+   tab.dataset.view = name
+-  tab.textContent = VIEW_NAMES[name]
++  tab.append(renderTabIcon(name), VIEW_NAMES[name])
+   return tab
+ }
+ 
+@@ -120,7 +173,11 @@ export const renderViews = (panes: Panes): HTMLElement => {
+ 
+   const track = document.createElement('div')
+   track.className = 'views-track'
+-  track.append(renderPane('entries', panes.entries), renderPane('statement', panes.statement))
++  const paneOf: Readonly<Record<View, HTMLElement>> = {
++    entries: renderPane('entries', panes.entries),
++    statement: renderPane('statement', panes.statement),
++  }
++  track.append(paneOf.entries, paneOf.statement)
+ 
+   const bar = document.createElement('nav')
+   bar.className = 'views-nav'
+@@ -159,6 +216,119 @@ export const renderViews = (panes: Panes): HTMLElement => {
+   for (const name of VIEWS) {
+     tabs[name].addEventListener('click', () => switchTo(name))
+   }
++
++  // --- The swipe: the same switch, carried by the owner's finger. ---
++
++  /** The strip, the pill, the two fades and the two inks, drawn at `at` (0 Entries, 1 Statement). */
++  const drawAt = (at: number): void => {
++    const shown = Math.min(1, Math.max(0, at))
++    track.style.transform = `translateX(${-50 * at}%)`
++    pill.style.transform = `translateX(${100 * at}%)`
++    paneOf.entries.style.opacity = String(1 - 0.6 * shown)
++    paneOf.statement.style.opacity = String(0.4 + 0.6 * shown)
++    tabs.entries.style.color = inkAt(1 - shown)
++    tabs.statement.style.color = inkAt(shown)
++  }
++
++  /** Hands every part back to the resting state the stylesheet draws. */
++  const undraw = (): void => {
++    for (const part of [track, pill, paneOf.entries, paneOf.statement, tabs.entries, tabs.statement]) {
++      part.style.removeProperty('transform')
++      part.style.removeProperty('opacity')
++      part.style.removeProperty('color')
++    }
++  }
++
++  /** Where the strip stands now, even part-way through a slide. */
++  const strip = (): number => {
++    const width = track.offsetWidth / 2
++    return width === 0 ? 0 : -new DOMMatrix(getComputedStyle(track).transform).m41 / width
++  }
++
++  type Drag = {
++    readonly id: number
++    readonly x: number
++    readonly y: number
++    readonly from: number
++    moving: boolean
++    at: number
++    lastX: number
++    lastT: number
++    speed: number
++  }
++  let drag: Drag | null = null
++
++  track.addEventListener('pointerdown', (event) => {
++    if (!event.isPrimary || event.pointerType === 'mouse') return
++    drag = {
++      id: event.pointerId,
++      x: event.clientX,
++      y: event.clientY,
++      from: shell.dataset.shown === 'statement' ? 1 : 0,
++      moving: false,
++      at: 0,
++      lastX: event.clientX,
++      lastT: event.timeStamp,
++      speed: 0,
++    }
++  })
++
++  track.addEventListener('pointermove', (event) => {
++    if (drag === null || event.pointerId !== drag.id) return
++    const dx = event.clientX - drag.x
++    if (!drag.moving) {
++      const dy = event.clientY - drag.y
++      if (Math.abs(dy) > SWIPE_SLOP_PX && Math.abs(dy) >= Math.abs(dx)) {
++        drag = null
++        return
++      }
++      if (Math.abs(dx) <= SWIPE_SLOP_PX) return
++      drag.moving = true
++      track.setPointerCapture(event.pointerId)
++      // Caught mid-slide, the strip is taken from where it stands, not where it was going.
++      const now = strip()
++      delete track.dataset.motion
++      delete pill.dataset.motion
++      shell.dataset.dragging = ''
++      drag = { ...drag, x: event.clientX + (now - drag.from) * (track.offsetWidth / 2) }
++    }
++    const raw = drag.from - (event.clientX - drag.x) / (track.offsetWidth / 2)
++    // Past either end the strip gives a quarter of the way, so the edge is felt.
++    drag.at = raw < 0 ? raw / 4 : raw > 1 ? 1 + (raw - 1) / 4 : raw
++    const dt = event.timeStamp - drag.lastT
++    if (dt > 0) drag.speed = (event.clientX - drag.lastX) / dt
++    drag.lastX = event.clientX
++    drag.lastT = event.timeStamp
++    drawAt(drag.at)
++  })
++
++  const release = (event: PointerEvent): void => {
++    if (drag === null || event.pointerId !== drag.id) return
++    const ended = drag
++    drag = null
++    if (!ended.moving) return
++    // A flick decides by its direction; a slow drag by how far it went.
++    const flick = Math.abs(ended.speed) > SWIPE_FLICK_PX_PER_MS
++    const to = flick
++      ? ended.speed < 0 ? 1 : 0
++      : Math.abs(ended.at - ended.from) > SWIPE_COMMIT ? 1 - ended.from : ended.from
++    const shown: View = to === 1 ? 'statement' : 'entries'
++    const changed = shell.dataset.shown !== shown
++    slideViews(track, pill)
++    delete shell.dataset.dragging
++    undraw()
++    show(shown)
++    if (changed) panes[shown].dispatchEvent(new CustomEvent(VIEW_SHOWN))
++    // The finger lifted off a drag, not a tap: nothing under it is clicked.
++    const swallow = (click: Event): void => {
++      click.stopPropagation()
++      click.preventDefault()
++    }
++    shell.addEventListener('click', swallow, { capture: true, once: true })
++    window.setTimeout(() => shell.removeEventListener('click', swallow, { capture: true }), 300)
++  }
++  track.addEventListener('pointerup', release)
++  track.addEventListener('pointercancel', release)
+   // The shell opens on the entries, which is the view the owner arrives at.
+   show('entries')
+ 
