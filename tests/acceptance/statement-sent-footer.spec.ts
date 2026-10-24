@@ -829,7 +829,12 @@ test('a rufiyaa subtotal with real laari keeps them while every dollar figure ke
     "WHAT: the footer does not read a rufiyaa subtotal with real laari beside dollar figures at two decimals. WHY: the rufiyaa subtotal is written the way a rufiyaa amount is written, while every total in dollars keeps its two decimals: one rule applied to both would misstate one of them. HOW: word the rufiyaa subtotal as a rufiyaa amount, with its laari only when they are real, and keep two decimals on every dollar figure.",
   ).toEqual(linesMeant(stored))
   expect(
-    reading.lines.flatMap((line) => line.leaves.slice(1).map((figure) => figure.text)),
+    // The figures of each line, found by what each says it reads: the arrow the screen draws
+    // between the subtotal and the dollars those rufiyaa were worth is a leaf of its own and
+    // no figure, so it is not read as one.
+    reading.lines.flatMap((line) =>
+      line.leaves.filter((leaf) => leaf.says !== null).map((figure) => figure.text),
+    ),
     "WHAT: a footer figure does not keep its two decimals, or the rufiyaa subtotal was given two decimals it does not have. WHY: a total that drops its decimals reads as a round figure the owner does not hold, and a rufiyaa subtotal padded to two decimals reads unlike every other rufiyaa figure on the screen. HOW: keep '.00' on every dollar figure of the footer and on no rufiyaa subtotal of whole rufiyaa.",
   ).toEqual([
     mvrFigure(laariOf(sendsOf(stored).filter((row) => row.currency === 'MVR'))),

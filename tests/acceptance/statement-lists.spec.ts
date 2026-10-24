@@ -1047,10 +1047,10 @@ test('an owner with nothing recorded reads both lists empty, and neither counts 
   ).toEqual([0, 0])
   expect(
     [reading.back.foot?.text, reading.sent.foot?.text],
-    `WHAT: the two footers of an empty ledger do not read 'Total paid back ${DOT} No entries $0.00' and the sending list's three lines all at zero. WHY: 'No entries' is how this app words a count of none, both sides of an empty ledger are empty in the same way, and a currency line hidden at zero would read as a currency the owner cannot send in. HOW: word each count from the rows of its own list, and draw all three sent lines whatever the ledger holds.`,
+    `WHAT: the two footers of an empty ledger do not read 'Total paid back ${DOT} No entries $0.00' and the sending list's three lines all at zero, the rufiyaa line reading 'MVR0 → $0.00'. WHY: 'No entries' is how this app words a count of none, both sides of an empty ledger are empty in the same way, a currency line hidden at zero would read as a currency the owner cannot send in, and the arrow is drawn from what a figure says it reads and from nothing about its value, so no ledger may drop it. HOW: word each count from the rows of its own list, draw all three sent lines whatever the ledger holds, and keep the arrow before the dollar value of the rufiyaa line at every ledger.`,
   ).toEqual([
     `Total paid back ${DOT} No entries $0.00`,
-    `Sent in MVR ${DOT} No entries MVR0 $0.00` +
+    `Sent in MVR ${DOT} No entries MVR0 → $0.00` +
       ` Sent in USD ${DOT} No entries $0.00` +
       ` Total Sent ${DOT} No entries $0.00`,
   ])

@@ -1024,9 +1024,9 @@ test('an owner with nothing recorded still reads the whole statement, with no ro
   ).toEqual([])
   expect(
     reading.foot?.text,
-    `WHAT: the footer of an empty list does not read all three of its lines at zero: 'Sent in MVR ${DOT} No entries MVR0 $0.00', 'Sent in USD ${DOT} No entries $0.00' and 'Total Sent ${DOT} No entries $0.00'. WHY: 'No entries' is how this app words a count of none, and a currency line hidden at zero would read as a currency the owner cannot send in. HOW: draw all three lines whatever the ledger holds, wording each count from the sends stored in that currency.`,
+    `WHAT: the footer of an empty list does not read all three of its lines at zero: 'Sent in MVR ${DOT} No entries MVR0 → $0.00', 'Sent in USD ${DOT} No entries $0.00' and 'Total Sent ${DOT} No entries $0.00'. WHY: 'No entries' is how this app words a count of none, a currency line hidden at zero would read as a currency the owner cannot send in, and the arrow is drawn from what a figure says it reads and from nothing about its value, so no ledger may drop it. HOW: draw all three lines whatever the ledger holds, word each count from the sends stored in that currency, and keep the arrow before the dollar value of the rufiyaa line at every ledger.`,
   ).toBe(
-    `Sent in MVR ${DOT} No entries MVR0 $0.00` +
+    `Sent in MVR ${DOT} No entries MVR0 → $0.00` +
       ` Sent in USD ${DOT} No entries $0.00` +
       ` Total Sent ${DOT} No entries $0.00`,
   )
