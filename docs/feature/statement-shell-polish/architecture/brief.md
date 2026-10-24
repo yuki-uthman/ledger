@@ -8840,12 +8840,14 @@ npm run test:acceptance
   installs what is missing and prints the one observation line, so it is reused
   unchanged for this value's touch spec and nothing new is written to report an
   observation.
-- V5-r-touch-project: The touch-enabled project and its scan directory are
-  already fixed for the batch, so this value writes its spec into that directory
-  and adds no project, no flag and no second configuration.
-- V5-r-unit-discovery: The unit discovery and the unit script are already fixed
-  for the batch, so the rule's unit test is written into the directory they name
-  and no runner setting is touched here.
+- V5-r-touch-project: The acceptance configuration already keeps its device
+  setup as a list of projects, and a project may name the directory it scans for
+  itself, so the touch project is appended beside the existing one and the
+  existing entry needs no edit at all.
+- V5-r-unit-discovery: The unit script already runs the pinned runner, so the
+  script itself is reused exactly as it stands and what this value adds is only
+  the discovery that script needs: the directory to look in, the name to collect
+  and the empty run that passes.
 - V5-pf-na: No preserving move is made before this behaviour changes. The
   gesture does not exist in the committed source, and the module the rule moves
   into is created by this value itself, so there is nothing to move out of a
@@ -8914,12 +8916,15 @@ npm run test:acceptance
 - V5-ic-theme: The stylesheet is changed by this value: the gesture rule on the
   track and on every element inside it, and the suspension of the transitions
   while a drag is live.
-- V5-ic-playwright: The acceptance configuration is not changed by this value:
-  the touch project and its scan directory are already there, and this value
-  only writes a spec into that directory.
-- V5-ic-vitest: The unit discovery is not changed by this value: it already
-  confines the runner to the unit directory and the test name this value's unit
-  test uses.
+- V5-ic-playwright: The acceptance configuration is changed by this value, by
+  addition alone: the one touch project, with its own scan directory and
+  collected name, appended to the list. The existing project's own block is
+  unchanged, and the file is carried in this value's candidate so the second
+  project exists wherever the gate runs.
+- V5-ic-vitest: The unit runner's discovery is created by this value and carried
+  in its candidate: it bounds the runner to the unit directory and the test name
+  there, passes an empty run, and leaves the build configuration untouched.
+  Without it in the candidate the unit gate collects the acceptance specs.
 - V5-b-driving: The driving port of this value is the mounted page of the built
   bundle, served over the loopback origin and driven as a finger would drive it:
   a touch drag dispatched through a DevTools session as a start, several moves
@@ -9211,11 +9216,12 @@ npm run test:acceptance
   same one observation line, with the configuration that support already reads
   from its environment pointed at an acceptance-owned witness configuration
   inside the touch directory. This is a deviation from the batch's plain vector
-  wording, and its reason is that the configuration holding the touch project is
-  a craft target: at the Request's baseline that configuration scans the
-  acceptance directory alone, so the touch spec is not collected and the run can
-  report nothing but a setup failure. The support's own bytes are not edited,
-  because the other oracles of this Request are recorded against them.
+  wording, and its reason is the order of the steps: the configuration that
+  holds the touch project is this value's own craft target, so at the Request's
+  baseline it still scans the acceptance directory alone, the touch spec is not
+  collected and the run can report nothing but a setup failure. The support's
+  own bytes are not edited, because the other oracles of this Request are
+  recorded against them.
 - V5-d-witness-config: The witness configuration of this value holds exactly one
   project, the touch project the batch names: the same viewport of 360 by 780,
   touch offered, the mobile emulation left off, the same reporters and the same
@@ -9232,15 +9238,44 @@ npm run test:acceptance
   build refuses it if it stops compiling.
 - V5-d-unit-vector: The rule's own port is observed at the baseline through the
   repository's own pinned unit runner, invoked by path on the one unit test,
-  because the discovery that confines that runner is a craft target and is not
-  there yet; the batch's unit script stays the gate that is run at the end over
-  the same test. Both reach the same file and the same public import, so what
-  the vector witnesses and what the gate protects are one obligation, and
-  neither reaches for a runner installed outside this checkout.
+  because the discovery that confines that runner is this value's own craft
+  target and is not there at the baseline; the batch's unit script stays the
+  gate that is run at the end over the same test, and with the discovery in the
+  candidate that gate collects the unit directory alone. Both reach the same
+  file and the same public import, so what the vector witnesses and what the
+  gate protects are one obligation, and neither reaches for a runner installed
+  outside this checkout.
 - V5-ic-oracle-config: The witness configuration inside the touch directory is
   new and acceptance-owned: it is written before craft together with the touch
   spec, it is read by no module of the product, and no craft target depends on
   it.
+- V5-t-playwright: This value owns the one addition to the acceptance
+  configuration, because this value is the only one whose behaviour is driven by
+  a finger: one touch-enabled project is appended to the list of projects,
+  naming the touch directory as the only directory it scans and the touch spec
+  name as the only name it collects, with the same viewport of 360 by 780 and
+  the mobile emulation left off. The block of the existing project is left byte
+  for byte as it stands, so no spec of the acceptance directory is collected
+  twice and no reading of the existing device changes.
+- V5-t-vitest: This value owns the unit runner's own discovery, because this
+  value brings the first unit test. It confines the runner to the unit directory
+  and the test name used there, and lets a run with no test pass, so the unit
+  gate is valid from the first value of the batch onwards. Without it the
+  runner's default pattern reaches the acceptance specs and they fail on the
+  fixture call a browser runner alone may make. It is a file of its own rather
+  than a setting inside the build configuration, so a test setting can never
+  reach the bundle that every push deploys.
+- V5-a-unit-collection: The acceptance specs are read by the browser runner
+  alone. With the unit runner's discovery confined to the unit directory their
+  bytes keep their meaning exactly; with no such confinement the unit runner
+  collects them and every one of them fails on the fixture call that only a
+  browser runner may make, which is a failure of collection and not of the
+  product.
+- V5-at-runner-scope: Each runner collects only what it owns: the unit gate
+  collects the unit directory alone, so it reports the unit tests of the batch
+  and nothing else, and the acceptance run collects each spec of the two test
+  directories exactly once. The gate itself is the falsifier: a discovery that
+  reached the acceptance specs would make the unit gate report them and fail.
 
 ### Targets (Value 5)
 
@@ -9249,6 +9284,8 @@ npm run test:acceptance
 | `src/ui/swipe.ts` | CREATE_NEW | V5-t-swipe-module |
 | `src/ui/views.ts` | EXTEND | V5-t-views-drag |
 | `src/ui/theme.css` | EXTEND | V5-t-theme-gesture |
+| `tests/playwright.config.ts` | EXTEND | V5-t-playwright |
+| `vitest.config.ts` | CREATE_NEW | V5-t-vitest |
 
 ### Paradigm (Value 5)
 
@@ -9422,6 +9459,14 @@ X-view-index
       },
       "oracle": "tests/unit/swipe-outcome.test.ts",
       "verification_index": 2
+    },
+    {
+      "id": "V5-AT-runner-scope",
+      "obligation": {
+        "ref": "V5-at-runner-scope"
+      },
+      "oracle": "tests/unit/swipe-outcome.test.ts",
+      "verification_index": 3
     }
   ],
   "applicability": "applicable"
@@ -9468,6 +9513,9 @@ X-view-index
 | V5-c-back-columns-tab | the shown view and its one current tab | consumer | `tests/acceptance/statement-back-columns.spec.ts:388` | UNCHANGED_COMPATIBLE | V5-a-mouse |
 | V5-c-entry-sheet-tap | a lift that opens what was under the finger | consumer | `tests/acceptance/entry-sheet.spec.ts:181` | UNCHANGED_COMPATIBLE | V5-a-mouse |
 | V5-c-layout-shown | the shown view and its one current tab | consumer | `tests/acceptance/layout-and-install.spec.ts:132` | UNCHANGED_COMPATIBLE | V5-a-shown-string |
+| V5-p-discovery | which runner collects which test file | producer | `vitest.config.ts:1` | MIGRATED | V5-t-vitest |
+| V5-p-projects | which runner collects which test file | producer | `tests/playwright.config.ts:17` | MIGRATED | V5-t-playwright |
+| V5-c-unit-collection | which runner collects which test file | consumer | `tests/acceptance/undo.spec.ts:1` | UNCHANGED_COMPATIBLE | V5-a-unit-collection |
 
 ### Reuse analysis (Value 5)
 
@@ -9483,8 +9531,9 @@ X-view-index
 | the switch-or-stay answer over the gesture's own numbers, held inside the release handler | `src/ui/views.ts:158` | CREATE_NEW | V5-r-rule |
 | .views-track | `src/ui/theme.css:133` | EXTEND | V5-r-track-rule |
 | observe | `tests/support/oracle-observation.mjs:39` | REUSE | V5-r-vector |
-| projects | `tests/playwright.config.ts:17` | REUSE | V5-r-touch-project |
+| projects | `tests/playwright.config.ts:17` | EXTEND | V5-r-touch-project |
 | test:unit | `package.json:10` | REUSE | V5-r-unit-discovery |
+| defineConfig | `vite.config.ts:5` | CREATE_NEW | V5-t-vitest |
 
 ### Impact closure (Value 5)
 
@@ -9518,7 +9567,7 @@ X-view-index
     {
       "kind": "discovery",
       "locator": "tests/playwright.config.ts",
-      "decision": "UNCHANGED_COMPATIBLE",
+      "decision": "CHANGED",
       "reason": {
         "ref": "V5-ic-playwright"
       }
@@ -9526,7 +9575,7 @@ X-view-index
     {
       "kind": "discovery",
       "locator": "vitest.config.ts",
-      "decision": "UNCHANGED_COMPATIBLE",
+      "decision": "CHANGED",
       "reason": {
         "ref": "V5-ic-vitest"
       }
@@ -9617,6 +9666,14 @@ X-view-index
       "decision": "CHANGED",
       "reason": {
         "ref": "V5-ic-oracle-config"
+      }
+    },
+    {
+      "kind": "test",
+      "locator": "tests/acceptance/undo.spec.ts:1",
+      "decision": "UNCHANGED_COMPATIBLE",
+      "reason": {
+        "ref": "V5-a-unit-collection"
       }
     }
   ],
