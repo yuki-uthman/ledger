@@ -54,8 +54,14 @@ const ENTRIES_ENDPOINT = '**/rest/v1/entries**'
 /** What a failed read says, as the port words it. */
 const UNREADABLE = 'Could not load the ledger. Try again.'
 
-/** The mark that stands where a rufiyaa figure is absent in a row: an em dash, not a hyphen. */
+/**
+ * The mark that USED to stand where a rufiyaa figure is absent in a row: an em dash, not a
+ * hyphen. No cell of either currency draws it any more, absence being carried by the empty
+ * cell alone, so no reading of this spec expects it; the sending list's own oracle is where
+ * that absence is asserted.
+ */
 const EM_DASH = '—'
+void EM_DASH
 
 // ===== The domain vocabulary this oracle speaks =====
 
@@ -70,9 +76,15 @@ const LINE_LABELS: Record<WhichLine, string> = {
   total: 'Total Sent',
 }
 
-/** One reading of the screen: its text. */
+/**
+ * One reading of the screen: its text, and what it says it is a reading OF where it says
+ * anything. A leaf that says nothing is a label or a mark the screen draws itself -- the
+ * arrow before the converted total is one -- so a figure of a line is found by its saying
+ * and never by its place among the leaves.
+ */
 type Drawn = {
   readonly text: string
+  readonly says: string | null
 }
 
 /** One line of the sent footer, as the owner reads it across the line. */
@@ -211,14 +223,20 @@ const expectedFootLines = (stored: readonly StoredLedgerRow[]): readonly Expecte
   ]
 }
 
-/** One drawn line, read down to the fields the three lines are judged on. */
+/**
+ * One drawn line, read down to the fields the three lines are judged on. Its figures are the
+ * leaves that say what they read, so a leaf the screen draws itself -- the arrow standing
+ * between the rufiyaa subtotal and the dollars those rufiyaa were worth -- is not read as a
+ * figure of the line, and a figure that the arrow replaced instead of joining is still
+ * missing from this reading.
+ */
 const linesRead = (reading: SentFootReading): ReadonlyArray<Record<string, unknown>> =>
   reading.lines.map((line) => ({
     which: line.which,
     label: line.leaves[0]?.text ?? null,
     count: line.count === null ? null : Number(line.count),
     cents: line.cents === null ? null : Number(line.cents),
-    figures: line.leaves.slice(1).map((figure) => figure.text),
+    figures: line.leaves.filter((leaf) => leaf.says !== null).map((figure) => figure.text),
   }))
 
 /** The same shape, meant by the stored sends. */
@@ -244,16 +262,29 @@ const expectedCard = (
   ]
 }
 
-/** What the two currency cells of each sent row read, which this value does not touch. */
+/**
+ * What the two currency cells of each sent row read, which this value does not touch: a
+ * rufiyaa send reads its figure and, under it, its rate and the dollars it stores, while
+ * its dollar cell reads nothing at all; a dollar send reads its dollar figure with an
+ * empty rufiyaa cell, and no mark stands in its place. The mark the screen draws between
+ * the rate and the stored dollars is the screen's own and is not read here.
+ */
 const expectedRowCells = (stored: readonly StoredLedgerRow[]): ReadonlyArray<readonly string[]> =>
   sendsOf(stored).map((row) =>
     row.currency === 'MVR'
       ? [
-          `${mvrFigure(row.amount_minor)}${row.rate === null ? '' : inlineRate(row.rate)}`,
-          usdRowFigure(row.usd_cents),
+          `${mvrFigure(row.amount_minor)}${row.rate === null ? '' : inlineRate(row.rate)}${usdRowFigure(row.usd_cents)}`,
+          '',
         ]
-      : [EM_DASH, usdRowFigure(row.usd_cents)],
+      : ['', usdRowFigure(row.usd_cents)],
   )
+
+/**
+ * One drawn currency cell with every character that states no money taken out, so the mark
+ * the screen draws between two readings of one cell is never read as a reading of its own
+ * and the gaps the board draws are not compared as typed text.
+ */
+const moneyRead = (cell: string): string => cell.replace(/[^0-9A-Za-z.,$@]/g, '')
 
 /**
  * The currency marks a module writes itself, read out of its own string literals: a dollar
@@ -570,12 +601,19 @@ const readSentFoot = (page: Page): Promise<SentFootReading> =>
     const lineElements = Array.from(screen.querySelectorAll('[data-statement-foot-line]'))
     const rowsArea = screen.querySelector('[data-statement-rows="sent"]')
 
-    /** The readings of one line: its leaf elements, in the order they are drawn. */
+    /**
+     * The readings of one line: its leaf elements, in the order they are drawn, each with
+     * what it says it is a reading of. A leaf that says nothing is the line's label or a mark
+     * the screen draws itself.
+     */
     const leavesOf = (line: Element): readonly Drawn[] => {
       const leaves = Array.from(line.querySelectorAll('*')).filter(
         (part) => part.children.length === 0 && squash(part.textContent) !== '',
       )
-      return (leaves.length === 0 ? [line] : leaves).map((part) => ({ text: squash(part.textContent) }))
+      return (leaves.length === 0 ? [line] : leaves).map((part) => ({
+        text: squash(part.textContent),
+        says: part.getAttribute('data-reads'),
+      }))
     }
 
     /** The width of the line standing above this one: a border of its own, or a thin part before it. */
@@ -698,7 +736,10 @@ test('a currency nobody sent this month still reads its own line at zero', async
     "WHAT: a month with no rufiyaa send does not read its rufiyaa line at zero. WHY: a hidden line reads as a currency split the owner cannot see at all, and they cannot tell 'nothing went out in rufiyaa' from 'this footer forgot about rufiyaa'. HOW: draw all three lines at every ledger, reading the missing currency at none and at zero.",
   ).toEqual(linesMeant(stored))
   expect(
-    [reading.lines[0]?.leaves[0]?.text, reading.lines[0]?.leaves.slice(1).map((figure) => figure.text)],
+    [
+      reading.lines[0]?.leaves[0]?.text,
+      reading.lines[0]?.leaves.filter((leaf) => leaf.says !== null).map((figure) => figure.text),
+    ],
     "WHAT: the rufiyaa line of a dollars-only month does not read 'No entries' with 'MVR0' and '$0.00'. WHY: those are the readings that tell the owner nothing went out in rufiyaa this month. HOW: word a count of none the way this app words it, and read a subtotal of nothing as zero in both figures.",
   ).toEqual(['Sent in MVR · No entries', ['MVR0', '$0.00']])
 })
@@ -999,8 +1040,8 @@ test('the card above reads the same money as the total line, and the rows read a
     'WHAT: the balance card no longer reads its three figures to two decimals. WHY: the card is the first thing the owner looks at and this value does not touch it. HOW: leave the card figures worded as they are today.',
   ).toEqual(expectedCard(stored).map((figure) => [figure.which, figure.cents, figure.text]))
   expect(
-    reading.rows,
-    'WHAT: the rows above the footer no longer read their two currency cells as they do today. WHY: this value adds lines to the footer and changes no row: a row that changed with it would restate money the owner has already read. HOW: leave each row\'s rufiyaa and dollar cells exactly as they are.',
+    reading.rows.map((cells) => cells.map(moneyRead)),
+    'WHAT: the rows above the footer no longer read the money their two currency cells hold. WHY: this value adds lines to the footer and decides nothing about a row: a rufiyaa send reads its figure with its rate and its stored dollars under it and nothing in its dollar cell, and a dollar send reads its dollar figure with an empty rufiyaa cell. HOW: leave each row\'s two currency cells reading the money the ledger stores, wherever that row keeps it.',
   ).toEqual(expectedRowCells(stored))
   expect(
     reading.card[0]?.cents,
@@ -1242,7 +1283,12 @@ const judgeTheCurrencySplit: Judge = async (page: Page): Promise<readonly string
       `the lines hold ${centsOnLine('mvr')} and ${centsOnLine('usd')} cents, stored ${centsOf(inRufiyaa)} and ${centsOf(inDollars)}`,
     )
   }
-  const rufiyaaFigure = reading.lines.find((line) => line.which === 'mvr')?.leaves[1]?.text ?? ''
+  // Found by what the figure says it reads, never by its place: the arrow the screen draws
+  // between the subtotal and the converted total is a leaf of its own with no figure in it.
+  const rufiyaaFigure =
+    reading.lines
+      .find((line) => line.which === 'mvr')
+      ?.leaves.find((leaf) => leaf.says === 'mvr')?.text ?? ''
   if (rufiyaaFigure !== mvrFigure(laariOf(inRufiyaa))) {
     reasons.push(`'${rufiyaaFigure}' is not the ${laariOf(inRufiyaa)} laari the rufiyaa sends store`)
   }
@@ -1275,7 +1321,7 @@ const judgeTheTotalAddsUp: Judge = async (page: Page): Promise<readonly string[]
   if (totalCount !== sends.length) {
     reasons.push(`the total line counts ${totalCount} of the ${sends.length} stored sends`)
   }
-  const totalFigure = total?.leaves[1]?.text ?? ''
+  const totalFigure = total?.leaves.find((leaf) => leaf.says === 'sent')?.text ?? ''
   if (totalFigure !== twoDecimalFigure(centsOf(sends))) {
     reasons.push(`'${totalFigure}' is not ${twoDecimalFigure(centsOf(sends))}`)
   }

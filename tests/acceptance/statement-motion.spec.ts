@@ -1238,9 +1238,18 @@ test('switching lists leaves the balance card exactly where it was', async ({
 /**
  * Law V3-L-reduced, the refusal V3-b-f3 and the reduced-motion stressor: a phone that asks
  * for reduced motion runs no transition and no rise at all, nothing ever declares a motion,
- * no part is ever displaced, and the end screen reads exactly as it does with motion
- * allowed. Both cases the design names are played: the four single taps, and a navigation
- * tap and a pill tap inside one slide.
+ * no part is displaced at any frame of a switch the owner TAPPED, and the end screen reads
+ * exactly as it does with motion allowed. Both cases the design names are played: the four
+ * single taps, and a navigation tap and a pill tap inside one slide.
+ *
+ * WHY the claim about displacement is made of a TAPPED switch. A sideways swipe displaces
+ * the two screens under the finger deliberately, on a quiet phone as on any other, because
+ * that movement is the owner's own hand rather than a motion of the app; what a quiet phone
+ * owes them there is an arrival the moment they let go. Everything this reading drives is a
+ * tap, made with the pointer type the swipe ignores, so no drag can begin inside it and the
+ * claim is exactly: a switch the owner asked for with a tap displaces no part, at any frame.
+ * The swipe's own following of the finger, and its instant arrival at the lift, are read by
+ * the swipe's own touch spec instead.
  */
 const REDUCED_CASES = [
   {
@@ -1274,7 +1283,8 @@ for (const reduced of REDUCED_CASES) {
     const quietFrames = await playFrom(quiet.page, nine, reduced.taps)
     const livelyFrames = await playFrom(lively.page, nine, reduced.taps)
 
-    // Then nothing on the quiet phone ever claimed to move, and nothing was ever displaced
+    // Then nothing on the quiet phone ever claimed to move, and the tapped switches
+    // displaced no part
     const claimed = quietFrames.flatMap((frame) => frame.motions)
     expect(
       Array.from(new Set(claimed)),
@@ -1283,7 +1293,7 @@ for (const reduced of REDUCED_CASES) {
     const displaced = quietFrames.flatMap((frame) => frame.undeclared)
     expect(
       Array.from(new Set(displaced)),
-      `WHAT: parts were displaced on the quiet phone: ${Array.from(new Set(displaced)).slice(0, 5).join(', ')}. WHY: with reduced motion asked for, every part is read in its final place from the first frame. HOW: skip the start states altogether rather than running them with no transition.`,
+      `WHAT: parts were displaced on the quiet phone by a switch it was TAPPED into: ${Array.from(new Set(displaced)).slice(0, 5).join(', ')}. WHY: with reduced motion asked for, a switch the owner tapped is simply done, so every part is read in its final place from the first frame; only a movement of their own finger may displace anything on such a phone. HOW: skip the start states altogether rather than running them with no transition.`,
     ).toEqual([])
 
     // And both phones come to rest reading exactly the same screen
@@ -1487,9 +1497,18 @@ test('switching back and forth changes nothing the owner was reading', async ({ 
   const { context, page } = await givenAPhoneThatRecordsEveryFrame(browser, 'allowed')
   await givenTheOwnerIsSignedIn(page, nine)
   await givenTheOwnerIsReadingTheirEntries(page)
+  // The owner's place is held by the one box of the entries pane that carries the
+  // entries-scroll hook: that box is where a place is left and where it is read back.
+  const hookedBoxes = await page.evaluate(
+    () => document.querySelectorAll('[data-pane="entries"] [data-entries-scroll]').length,
+  )
+  expect(
+    hookedBoxes,
+    `WHAT: the entries pane offers ${hookedBoxes} box(es) carrying the entries-scroll hook. WHY: the place the owner scrolled to lives on that one box, so with none there is no place to keep and with two a reading judges whichever it meets first. HOW: let the entries list live in one box carrying that hook, which takes the vertical scroll.`,
+  ).toBe(1)
   const scrolledTo = await page.evaluate(() => {
-    const scroller = Array.from(document.querySelectorAll<HTMLElement>('[data-pane="entries"] *')).find(
-      (element) => element.scrollHeight > element.clientHeight + 1,
+    const scroller = document.querySelector<HTMLElement>(
+      '[data-pane="entries"] [data-entries-scroll]',
     )
     if (!scroller) return 0
     scroller.scrollTop = 120
@@ -1538,9 +1557,8 @@ test('switching back and forth changes nothing the owner was reading', async ({ 
   await thenEveryPartHasComeToRest(page)
   const scrolledBack = await page.evaluate(
     () =>
-      Array.from(document.querySelectorAll<HTMLElement>('[data-pane="entries"] *')).find(
-        (element) => element.scrollHeight > element.clientHeight + 1,
-      )?.scrollTop ?? 0,
+      document.querySelector<HTMLElement>('[data-pane="entries"] [data-entries-scroll]')?.scrollTop ??
+      0,
   )
   expect(
     scrolledBack,

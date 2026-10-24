@@ -59,8 +59,13 @@ const VIEWPORT = { width: 360, height: 780 } as const
 
 /** The separator the board draws between the parts of a line. */
 const DOT = '·'
-/** The mark that stands where a rufiyaa figure is absent: an em dash, not a hyphen. */
+/**
+ * The mark that USED to stand where a rufiyaa figure is absent: an em dash, not a hyphen.
+ * No row draws it any more, absence being carried by the empty cell alone, so no reading of
+ * this spec expects it; the sending list's own oracle is where that absence is asserted.
+ */
 const EM_DASH = '—'
+void EM_DASH
 
 /** Sub-pixel layout rounding: a box that "has not moved" may still differ by a whisker. */
 const PIXEL = 1
@@ -202,19 +207,34 @@ const expectedSentRows = (rows: readonly StoredLedgerRow[]): readonly SentRowRea
 /**
  * The whole row as one line of text, in the order the cells stand: the date, the person
  * with their sub-line, the MVR cell and the USD cell. No place is drawn in the row at all.
- * The MVR cell's own figure and rate carry no whitespace between them, so they stand here
- * as one token, and a dollar send reads the em dash that stands for the figure it has not.
+ * A send made in rufiyaa reads its figure, its rate and the dollars it stores in the MVR
+ * cell, appended with no whitespace between them, so they stand here as one token, and its
+ * USD cell reads nothing at all; a send made in dollars reads its dollar figure alone, and
+ * nothing stands for the rufiyaa figure it has not. The mark the screen draws between the
+ * rate and the stored dollars is the screen's own and is not worded here: the drawn line is
+ * compared through `moneyRead`, which takes it out.
  */
 const asRowText = (row: SentRowReading): string =>
   [
     row.date,
     row.party,
     row.sub,
-    row.mvr === null ? EM_DASH : `${row.mvr}${row.rate ?? ''}`,
-    row.usd,
+    row.mvr === null ? '' : `${row.mvr}${row.rate ?? ''}${row.usd}`,
+    row.mvr === null ? row.usd : '',
   ]
     .filter((cell) => cell !== null && cell !== '')
     .join(' ')
+
+/**
+ * One drawn row line with the marks that state no money taken out: the mark standing
+ * between a rate and the dollars that rufiyaa came to is the screen's own, and this reading
+ * is of the money and the words a row states, never of which character joins two readings.
+ */
+const moneyRead = (line: string): string =>
+  line
+    .replace(/[^0-9A-Za-z.,$@' -]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
 
 /** The three figures of the balance card, in cents. */
 const expectedFigures = (
@@ -237,8 +257,15 @@ const convertedTotal = (cents: number): string => usdWithSign(cents)
  * the rufiyaa subtotal, which reads like a rufiyaa amount, and the block's own count and
  * cents are still the total line's, so a reader that knew only the old hooks still reads
  * the total. All three lines stand at every ledger, the empty one included.
+ *
+ * On the rufiyaa line the screen draws its own arrow between the subtotal and the dollars
+ * those same rufiyaa were worth, so this block reads 'MVR14,000 → $700.00' down that line at
+ * every ledger, the empty one included, where it reads 'MVR0 → $0.00'. The arrow is a leaf
+ * the screen draws itself and no word of either amount.
  */
 const expectedFoot = (rows: readonly StoredLedgerRow[]): { count: string; cents: string; text: string } => {
+  /** The screen's own mark before the converted total: a rightwards arrow, not a hyphen pair. */
+  const ARROW = '→'
   const sends = rows.filter((row) => row.kind === 'send')
   const centsOf = (group: readonly StoredLedgerRow[]): number =>
     group.reduce((sum, row) => sum + row.usd_cents, 0)
@@ -249,7 +276,7 @@ const expectedFoot = (rows: readonly StoredLedgerRow[]): { count: string; cents:
     count: String(sends.length),
     cents: String(centsOf(sends)),
     text: [
-      `Sent in MVR ${DOT} ${countLabel(inRufiyaa.length)} ${mvrFigure(laari)} ${convertedTotal(centsOf(inRufiyaa))}`,
+      `Sent in MVR ${DOT} ${countLabel(inRufiyaa.length)} ${mvrFigure(laari)} ${ARROW} ${convertedTotal(centsOf(inRufiyaa))}`,
       `Sent in USD ${DOT} ${countLabel(inDollars.length)} ${usdWithSign(centsOf(inDollars))}`,
       `Total Sent ${DOT} ${countLabel(sends.length)} ${usdWithSign(centsOf(sends))}`,
     ].join(' '),
@@ -588,10 +615,7 @@ const readStatement = (page: Page): Promise<StatementReading> =>
 
 // ===== The balance card, as the board draws it and the owner reads it =====
 
-/** The sign the card draws before what came back: a minus, not a hyphen. */
-const MINUS = '\u2212'
-
-/** The card as the owner reads it: its words and its sign. */
+/** The card as the owner reads it: its words and whatever stands before its figures. */
 type CardReading = {
   readonly present: boolean
   readonly labels: readonly string[]
@@ -705,14 +729,16 @@ test("the bottom bar offers Entries and Statement, and the Entries tab still sho
     'WHAT: the bottom bar does not sit on the foot of the phone. WHY: the owner reaches it with their thumb. HOW: pin the bar to the bottom of the viewport.',
   ).toBe(VIEWPORT.height)
 
+  // Each tab is asked for its NAME, not for its text: a tab holds a drawing as well
+  // as its word now, and the word alone is what names a view.
   await expect(
     entriesTab(page),
-    'WHAT: no tab named Entries. WHY: the owner must be able to name where they are going. HOW: label the first tab Entries.',
-  ).toHaveText(/Entries/)
+    'WHAT: the first tab is not named exactly Entries. WHY: the owner must be able to name where they are going, and the word alone names a view. HOW: name the first tab Entries and keep everything else it holds out of that name.',
+  ).toHaveAccessibleName('Entries')
   await expect(
     statementTab(page),
-    'WHAT: no tab named Statement. WHY: that tab is the only way into the Statement. HOW: label the second tab Statement.',
-  ).toHaveText(/Statement/)
+    'WHAT: the second tab is not named exactly Statement. WHY: that tab is the only way into the Statement, and the word alone names a view. HOW: name the second tab Statement and keep everything else it holds out of that name.',
+  ).toHaveAccessibleName('Statement')
   await expect(
     entriesTab(page),
     'WHAT: the Entries tab does not say it is the current one. WHY: the owner must be able to see which view they are in. HOW: carry aria-current=page on the active tab.',
@@ -722,8 +748,10 @@ test("the bottom bar offers Entries and Statement, and the Entries tab still sho
     'WHAT: the Statement tab claims to be current while Entries is showing. WHY: exactly one tab is the current one. HOW: carry aria-current=false on the tab that is not showing.',
   ).toHaveAttribute('aria-current', 'false')
 
-  // And the pill lies under the active tab, on its own half of the bar
-  const pill = bar.locator('[aria-hidden="true"]').first()
+  // And the pill lies under the active tab, on its own half of the bar.
+  // The pill is the bar's OWN hidden child: the tabs now hold hidden drawings too, so
+  // being hidden no longer names one thing in the bar.
+  const pill = bar.locator(':scope > [aria-hidden="true"]')
   const pillBox = await boxOf(pill, 'the pill')
   const entriesBox = await boxOf(entriesTab(page), 'the Entries tab')
   expect(
@@ -815,7 +843,8 @@ test('a tap on Statement starts at the balance card, reads the three figures and
     ['balance', String(figures.balance), usdWithSign(figures.balance)],
   ])
 
-  // And the card itself reads its words and its minus, which a hook token cannot stand in for.
+  // And the card itself reads its words, with nothing between any of them and its own figure,
+  // which a hook token cannot stand in for.
   const card = await readBalanceCard(page)
   expect(
     card.labels,
@@ -823,8 +852,8 @@ test('a tap on Statement starts at the balance card, reads the three figures and
   ).toEqual(['Total Sent', 'Paid Back', 'Balance'])
   expect(
     card.signs,
-    `WHAT: the Paid Back row does not read a '${MINUS}' between its words and its figure, or another row reads a sign. WHY: the minus is what tells the owner that this money came back against what went out, rather than adding to it. HOW: draw the minus before the Paid Back figure and nowhere else.`,
-  ).toEqual(['', MINUS, ''])
+    'WHAT: a row of the balance card reads a mark between its words and its own figure: the Paid Back row reads a minus, or another row reads a sign. WHY: the card reads three sums, each under its own word, so a mark before a figure reads as a figure made negative rather than as a direction. HOW: read no mark before any of the three figures.',
+  ).toEqual(['', '', ''])
   expect(
     card.dividerAboveBalance,
     'WHAT: there is no line across the card above the Balance row. WHY: the line is what separates the two figures the balance is made of from the balance itself, so the owner reads a sum and not a third amount. HOW: draw a line across the card, above the Balance row.',
@@ -851,8 +880,8 @@ test('a tap on Statement starts at the balance card, reads the three figures and
     'WHAT: the rows do not carry their place, 1 upward in document order. WHY: the number is no longer drawn, but each row still knows where it stands in the oldest-first order, which is what a reader of this list checks the order by. HOW: carry each send\'s own place on its row, 1 upward in the oldest-first order, and draw no number in the row.',
   ).toEqual(rows.map((row) => row.no))
   expect(
-    reading.rowTexts,
-    'WHAT: the sent rows do not read, oldest first, their date, the person paid with the sub-line, their rufiyaa column and their dollar column, with no number drawn anywhere. WHY: this list IS the statement: a drawn number, a wrong order, a wrong date, a wrong sub-line or a wrong figure in either currency misstates what the owner sent. HOW: build each row from its own stored entry, oldest first by date, then by the instant it was saved, then by its id, with the rufiyaa figure and its rate in the MVR cell and the stored dollars in the USD cell.',
+    reading.rowTexts.map(moneyRead),
+    'WHAT: the sent rows do not read, oldest first, their date, the person paid with the sub-line, their rufiyaa column and their dollar column, with no number drawn anywhere. WHY: this list IS the statement: a drawn number, a wrong order, a wrong date, a wrong sub-line or a wrong figure in either currency misstates what the owner sent. HOW: build each row from its own stored entry, oldest first by date, then by the instant it was saved, then by its id, with a rufiyaa send reading its figure, its rate and the dollars it stores in the MVR cell and nothing in its dollar cell, and a dollar send reading its figure in the dollar cell and nothing in its MVR cell.',
   ).toEqual(rows.map(asRowText))
   expect(
     reading.rows.map((row) => row.sub),
@@ -1105,20 +1134,17 @@ test('the owner comes back from the statement to the same place in the entries',
     entriesPane(page).locator('[data-entry]'),
     'WHAT: Home did not list the long ledger. WHY: the owner must have something to scroll before they can come back to it. HOW: list the stored entries on Home.',
   ).toHaveCount(LONG_LEDGER_ROWS)
+  // The place is left on the one box of the entries pane that carries the entries-scroll
+  // hook: that box is what scrolls there, so that box is where the place lives.
   const scrolledTo = await page.evaluate(() => {
-    const pane = document.querySelector('[data-pane="entries"]')
-    if (!pane) return -1
-    const areas = [pane, ...Array.from(pane.querySelectorAll('*'))].filter(
-      (element) => element.scrollHeight > element.clientHeight + 1,
-    )
-    const area = areas[0]
+    const area = document.querySelector<HTMLElement>('[data-pane="entries"] [data-entries-scroll]')
     if (!area) return -1
     area.scrollTop = 600
     return area.scrollTop
   })
   expect(
     scrolledTo,
-    'WHAT: Home has no scrolling area to leave a place in. WHY: Home\'s pane is the only scrolling area of its screen, and the claim is that a tab switch keeps its place. HOW: give Home a pane of its own that scrolls.',
+    'WHAT: Home offered no hooked box to leave a scroll place in. WHY: the owner\'s place lives on the one box the entries list scrolls in, and the claim is that a tab switch keeps it. HOW: let the entries list live in one box carrying the entries-scroll hook, which takes the vertical scroll.',
   ).toBeGreaterThan(0)
   const readsBefore = entryReads
 
@@ -1127,14 +1153,11 @@ test('the owner comes back from the statement to the same place in the entries',
   await whenTheOwnerTapsEntries(page)
 
   // Then their entries are where they left them, read no second time
-  const scrolledBack = await page.evaluate(() => {
-    const pane = document.querySelector('[data-pane="entries"]')
-    if (!pane) return -1
-    const areas = [pane, ...Array.from(pane.querySelectorAll('*'))].filter(
-      (element) => element.scrollHeight > element.clientHeight + 1,
-    )
-    return areas[0]?.scrollTop ?? -1
-  })
+  const scrolledBack = await page.evaluate(
+    () =>
+      document.querySelector<HTMLElement>('[data-pane="entries"] [data-entries-scroll]')?.scrollTop ??
+      -1,
+  )
   expect(
     scrolledBack,
     'WHAT: Home lost the place the owner had scrolled to. WHY: looking at the statement and coming back must not throw away where they were reading. HOW: keep the same Home mounted and switch the shown pane, rather than painting Home again.',
@@ -1505,8 +1528,9 @@ const readLedgerAndJudge = async (
   if (reading.rows.map((row) => row.no).join(',') !== expectedRows.map((row) => row.no).join(',')) {
     reasons.push(`numbers read ${reading.rows.map((row) => row.no).join(',')} not ${expectedRows.map((row) => row.no).join(',')}`)
   }
-  if (reading.rowTexts.join(' / ') !== expectedTexts.join(' / ')) {
-    reasons.push(`rows read '${reading.rowTexts.join(' / ')}' not '${expectedTexts.join(' / ')}'`)
+  const drawnTexts = reading.rowTexts.map(moneyRead)
+  if (drawnTexts.join(' / ') !== expectedTexts.join(' / ')) {
+    reasons.push(`rows read '${drawnTexts.join(' / ')}' not '${expectedTexts.join(' / ')}'`)
   }
   const figures = expectedFigures(stored)
   const expectedTotals = [

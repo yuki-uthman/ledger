@@ -189,10 +189,12 @@ const minorFigure = (minor: number): string => {
 
 /**
  * What one stored send reads in the USD column of the sending list: the marked whole
- * reading of the dollars it stores, with no brackets round it whichever currency the send
- * was made in.
+ * reading of the dollars it stores, with no brackets round it, for a send made in dollars.
+ * A send made in rufiyaa reads the dollars it stores inside its own rufiyaa cell, under the
+ * figure, so its last cell reads nothing at all.
  */
-const sentFigureOf = (row: StoredLedgerRow): string => `$${minorFigure(row.usd_cents)}`
+const sentFigureOf = (row: StoredLedgerRow): string =>
+  row.currency === 'MVR' ? '' : `$${minorFigure(row.usd_cents)}`
 
 /**
  * What one stored repayment reads in the USD column of the paid-back list: the same
@@ -242,15 +244,22 @@ const expectedNumbers = (count: number): readonly string[] =>
  * rufiyaa line reads the laari the sends stored in MVR add up to with the dollars those
  * same sends store beside them, the dollar line reads the sends stored in USD, and the
  * total line reads every send whatever its currency. All three stand at every ledger.
+ *
+ * On the rufiyaa line the screen draws its own arrow between the subtotal and the dollars
+ * those same rufiyaa were worth, so that line reads 'MVR14,000 → $700.00' at every ledger,
+ * the empty one included, where it reads 'MVR0 → $0.00'. The arrow is a leaf the screen
+ * draws itself and no word of either amount.
  */
 const sentFootText = (sends: readonly StoredLedgerRow[]): string => {
+  /** The screen's own mark before the converted total: a rightwards arrow, not a hyphen pair. */
+  const ARROW = '→'
   const centsOf = (group: readonly StoredLedgerRow[]): number =>
     group.reduce((sum, row) => sum + row.usd_cents, 0)
   const inRufiyaa = sends.filter((row) => row.currency === 'MVR')
   const inDollars = sends.filter((row) => row.currency === 'USD')
   const laari = inRufiyaa.reduce((sum, row) => sum + row.amount_minor, 0)
   return [
-    `Sent in MVR ${DOT} ${countLabel(inRufiyaa.length)} MVR${minorFigure(laari)} ${usdWithSign(centsOf(inRufiyaa))}`,
+    `Sent in MVR ${DOT} ${countLabel(inRufiyaa.length)} MVR${minorFigure(laari)} ${ARROW} ${usdWithSign(centsOf(inRufiyaa))}`,
     `Sent in USD ${DOT} ${countLabel(inDollars.length)} ${usdWithSign(centsOf(inDollars))}`,
     `Total Sent ${DOT} ${countLabel(sends.length)} ${usdWithSign(centsOf(sends))}`,
   ].join(' ')
@@ -1518,15 +1527,30 @@ const readBothListsAndJudge = async (
     if (JSON.stringify(seenFoot) !== JSON.stringify([foot.count, foot.cents, foot.text])) {
       reasons.push(`the ${which} footer reads ${JSON.stringify(seenFoot)} not ${JSON.stringify(foot)}`)
     }
-    // Each list words its own figure under the one row rule: a send reads its stored
-    // dollars marked, whichever currency it was sent in, while a repayment reads the
-    // same marked dollars.
+    // Each list words its own figure under the one row rule: a send made in dollars reads
+    // its stored dollars marked in the last cell, a send made in rufiyaa reads them inside
+    // its own rufiyaa cell and leaves that last cell empty, and a repayment reads the same
+    // marked dollars as before.
     const figureOf = (row: StoredLedgerRow): string =>
       which === 'sent' ? sentFigureOf(row) : backFigureOf(row)
     if (seen.rows.map((row) => row.usd).join(',') !== expectedRows.map(figureOf).join(',')) {
       reasons.push(
         `the ${which} figures read ${seen.rows.map((row) => row.usd).join(',')} not ${expectedRows.map(figureOf).join(',')}`,
       )
+    }
+    if (which === 'sent') {
+      // The dollars a rufiyaa send stores are still read on its row, now inside its own
+      // rufiyaa cell: a row that lost them states only what went out and never what it
+      // came to.
+      expectedRows.forEach((row, index) => {
+        if (row.currency !== 'MVR') return
+        const mvr = seen.rows[index]?.mvr ?? ''
+        if (!mvr.includes(`$${minorFigure(row.usd_cents)}`)) {
+          reasons.push(
+            `the rufiyaa send of ${row.entry_date} reads '${mvr}' in its rufiyaa cell, without the $${minorFigure(row.usd_cents)} it stores`,
+          )
+        }
+      })
     }
   }
 
