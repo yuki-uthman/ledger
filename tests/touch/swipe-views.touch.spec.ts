@@ -302,8 +302,18 @@ const installReader = async (page: Page): Promise<void> => {
       const shown = shell()?.getAttribute('data-shown') ?? 'entries'
       const pane = paneOf(shown)
       if (!pane) return []
+      // A box takes the owner's scroll when it holds more content than fits it
+      // AND its own overflow lets that content be scrolled. A figure whose text
+      // merely measures taller than its line box by a rounding clips nothing and
+      // moves nothing, so counting it as a box that scrolls would let a drag that
+      // moved nothing at all read as a drag that moved something.
+      const takesAScroll = (element: HTMLElement): boolean => {
+        if (element.scrollHeight - element.clientHeight <= 1) return false
+        const overflow = window.getComputedStyle(element).overflowY
+        return overflow === 'auto' || overflow === 'scroll' || overflow === 'overlay'
+      }
       return [pane, ...Array.from(pane.querySelectorAll<HTMLElement>('*'))]
-        .filter((element) => element.scrollHeight - element.clientHeight > 1)
+        .filter(takesAScroll)
         .map((element) => ({ name: nameOf(element), top: element.scrollTop }))
     }
 
@@ -347,10 +357,19 @@ const givenTheOwnerIsReadingTheirEntries = async (page: Page): Promise<void> => 
   await expect(page.locator('[data-shown]')).toHaveAttribute('data-shown', 'entries')
 }
 
+/**
+ * The Statement reached by tapping its tab, waited for in that order on purpose:
+ * the screen says it is the one being read BEFORE its slide is over, and before
+ * it says so nothing is moving at all - so waiting for rest first would be
+ * satisfied by a switch that had not begun. The screen is therefore waited for
+ * with an assertion that retries, and only then is the slide let finish.
+ */
 const givenTheOwnerIsOnTheStatement = async (page: Page): Promise<void> => {
   await page.getByRole('button', { name: 'Statement' }).tap()
+  await expect(page.locator('[data-shown]')).toHaveAttribute('data-shown', 'statement', {
+    timeout: REST_BOUND_MS + 1000,
+  })
   await thenEverythingHasComeToRest(page)
-  await expect(page.locator('[data-shown]')).toHaveAttribute('data-shown', 'statement')
 }
 
 const givenAPhoneThatAsksForLessMotion = async (browser: Browser): Promise<Page> => {
@@ -380,12 +399,53 @@ const thenEverythingHasComeToRest = async (page: Page): Promise<void> => {
   await expect(page.locator('[data-motion]')).toHaveCount(0, { timeout: REST_BOUND_MS + 1000 })
 }
 
+/**
+ * A sheet the owner asked for, waited for and then read at rest.
+ *
+ * WHY the wait, and why it cannot be the rest wait alone. A tap on a card is
+ * answered on the page's own hash, so the sheet is painted a moment after the
+ * finger leaves - and the rise it then declares is what the rest wait watches
+ * for. Waiting for rest first therefore proves nothing: before the sheet exists
+ * nothing is moving, so that wait is already satisfied and a reading taken
+ * straight after it can run before the sheet was ever built. So the sheet itself
+ * is waited for, with an assertion that retries until it is there, and only then
+ * is the screen read at rest. This is about WHEN the reading is taken, never
+ * about what it may say.
+ */
+const thenTheSheetHasOpened = async (page: Page): Promise<void> => {
+  await expect(
+    page.locator('[data-entry-sheet]'),
+    'WHAT: no sheet was ever built for the card that was tapped, however long the reading waited. WHY: a tap on an entry is the owner asking to see it, and this reading is only evidence about the swipe if an ordinary tap does open one. HOW: keep the card tap opening its own sheet.',
+  ).toHaveCount(1, { timeout: REST_BOUND_MS + 1000 })
+  await thenEverythingHasComeToRest(page)
+}
+
+/** A sheet the owner has closed, waited for and gone from the page. */
+const thenTheSheetHasGone = async (page: Page): Promise<void> => {
+  await expect(
+    page.locator('[data-entry-sheet]'),
+    'WHAT: the sheet the owner closed was still on the page, however long the reading waited. WHY: the swipe that follows is only read honestly from a screen with nothing over it. HOW: keep Close taking the sheet off the page.',
+  ).toHaveCount(0, { timeout: REST_BOUND_MS + 1000 })
+  await thenEverythingHasComeToRest(page)
+}
+
 const theScreenAtRest = async (page: Page): Promise<SwipeRest> => {
   await thenEverythingHasComeToRest(page)
   return page.evaluate(() => window.__readSwipeRest())
 }
 
 const thenTheScreenBeingReadIs = async (page: Page, view: View): Promise<SwipeRest> => {
+  // The screen the gesture settled on is waited for before anything is read at
+  // rest: a switch is announced on the shell the moment it is decided and its
+  // slide runs afterwards, so a reading taken straight after the rest wait could
+  // be taken before the switch had begun, when nothing was moving yet and that
+  // wait was already satisfied. The same claim is then read again off one
+  // snapshot below, together with the tabs and the place of the strip, so the
+  // page and that snapshot cannot disagree unnoticed.
+  await expect(
+    page.locator('[data-shown]'),
+    `WHAT: the shell never came to read ${view}, however long the reading waited. WHY: a swipe is only a way of changing screens, so the screen it leaves behind is the whole of what the owner gets for it. HOW: hand the release to the rule and show the screen it answers.`,
+  ).toHaveAttribute('data-shown', view, { timeout: REST_BOUND_MS + 1000 })
   const rest = await theScreenAtRest(page)
   expect(
     rest.shown,
@@ -616,14 +676,14 @@ test('the lift that ends a swipe over a card opens nothing, while a tap still op
   // Given the owner reading their entries, where a tap on a card opens its sheet
   await givenTheOwnerIsReadingTheirEntries(page)
   await whenTheOwnerTapsTheCard(page)
-  await thenEverythingHasComeToRest(page)
+  await thenTheSheetHasOpened(page)
   const opened = await page.evaluate(() => window.__readSwipeRest())
   expect(
     opened.sheets,
     'WHAT: tapping an entry card opened no sheet, so this reading cannot say the swipe is what kept one shut. WHY: a swallowed click is only evidence if an unswallowed one opens something. HOW: keep the card tap opening its own sheet.',
   ).toBe(1)
   await page.getByRole('button', { name: 'Close' }).tap()
-  await thenEverythingHasComeToRest(page)
+  await thenTheSheetHasGone(page)
 
   // When they swipe from that same card and lift their finger on it
   await whenTheOwnerSwipes(page, 'card', A_FLICK_TO_THE_STATEMENT)
@@ -637,7 +697,7 @@ test('the lift that ends a swipe over a card opens nothing, while a tap still op
   await thenTheScreenBeingReadIs(page, 'entries')
   await page.waitForTimeout(AFTER_THE_SWALLOW_MS)
   await whenTheOwnerTapsTheCard(page)
-  await thenEverythingHasComeToRest(page)
+  await thenTheSheetHasOpened(page)
   const again = await page.evaluate(() => window.__readSwipeRest())
   expect(
     again.sheets,
@@ -739,11 +799,25 @@ test('a drag made with a desktop pointer switches nothing', async ({ page }) => 
     'WHAT: no entry card could be found to drag a pointer across. WHY: this reading is only evidence if the pointer really was dragged over the screens. HOW: seed the entries the drag begins on.',
   ).not.toBeNull()
 
+  // The pointer starts near the card's own right edge, so the whole drag stays on
+  // the page: a pointer carried off the glass is delivered to nothing, and this
+  // reading is about the KIND of pointer, never about where the screen ends.
+  const glass = await page.evaluate(() => ({ width: window.innerWidth, height: window.innerHeight }))
+  const across = 200
+  const from = {
+    x: Math.min(box!.x + box!.width - 4, glass.width - 1),
+    y: Math.min(box!.y + box!.height / 2, glass.height - 1),
+  }
+  expect(
+    from.x - across >= 0,
+    `WHAT: a drag of ${across} across would carry the pointer off a screen ${glass.width} wide from ${Math.round(from.x)}. WHY: a pointer off the glass is delivered to nothing, so the reading would say the gesture was ignored when it was never made. HOW: begin the drag far enough in for the whole of it to stay on the page.`,
+  ).toBe(true)
+
   // When that pointer is pressed, dragged right across the screen and let go
-  await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2)
+  await page.mouse.move(from.x, from.y)
   await page.mouse.down()
   for (let step = 1; step <= 8; step += 1) {
-    await page.mouse.move(box!.x + box!.width / 2 - 25 * step, box!.y + box!.height / 2)
+    await page.mouse.move(from.x - (across * step) / 8, from.y)
   }
   await page.mouse.up()
 

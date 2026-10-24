@@ -816,8 +816,15 @@ const mvrFigure = (laari: number): string => {
  * with the dollars those sends store beside them, what went in dollars, and the total of
  * both - read here as the one block of text they stand in, which is what a motion must
  * leave untouched. The paid-back list keeps its one line.
+ *
+ * On the rufiyaa line the screen draws its own arrow between the subtotal and the dollars
+ * those same rufiyaa were worth, so that line reads 'MVR10,000 → $500.00' at every ledger,
+ * the empty one included, where it reads 'MVR0 → $0.00'. The arrow is a leaf the screen
+ * draws itself and no word of either amount.
  */
 const expectedFoot = (rows: readonly StoredLedgerRow[], which: Which): string => {
+  /** The screen's own mark before the converted total: a rightwards arrow, not a hyphen pair. */
+  const ARROW = '→'
   if (which === 'back') {
     const count = countOfKind(rows, 'receive')
     return `Total paid back · ${countLabel(count)} ${usd(centsOfKind(rows, 'receive'))}`
@@ -829,7 +836,7 @@ const expectedFoot = (rows: readonly StoredLedgerRow[], which: Which): string =>
   const inDollars = sends.filter((row) => row.currency === 'USD')
   const laari = inRufiyaa.reduce((sum, row) => sum + row.amount_minor, 0)
   return [
-    `Sent in MVR · ${countLabel(inRufiyaa.length)} ${mvrFigure(laari)} ${usd(centsOf(inRufiyaa))}`,
+    `Sent in MVR · ${countLabel(inRufiyaa.length)} ${mvrFigure(laari)} ${ARROW} ${usd(centsOf(inRufiyaa))}`,
     `Sent in USD · ${countLabel(inDollars.length)} ${usd(centsOf(inDollars))}`,
     `Total Sent · ${countLabel(sends.length)} ${usd(centsOf(sends))}`,
   ].join(' ')

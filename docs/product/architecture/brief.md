@@ -2502,6 +2502,7 @@ Verification command: `npm run test:acceptance -- tests/acceptance/entry-method.
   radius 999 px; the active tab's ink is #0b5750 and the inactive tab's is
   #4c5f5b; the active tab carries aria-current=page and the other
   aria-current=false.
+  Amended by statement-shell-polish (docs/feature/statement-shell-polish/architecture/brief.md): each tab now draws an icon above its word and the mint pill stands around the active tab's icon, not around the whole tab; a press dims only that icon and that word. The bar's height, its padding and the pill's size and place are approved design values of that batch's prototype that no spec reads, and the two aria-current values stay the only asserted state of the bar.
 - F-c-pill-offset: The board moves the navigation pill 195 px on a frame 390 px
   wide, which is one half of the bar; the shell keeps the half-of-the-bar rule
   at every width, so the offset is 180 px on the 360 px phone the acceptance run
@@ -2519,6 +2520,7 @@ Verification command: `npm run test:acceptance -- tests/acceptance/entry-method.
   data-after, data-after-holder, data-total, data-fade, data-spine,
   data-box-amount, data-cents and data-side are all still rendered, with the
   same accessible names and the same texts.
+  Amended by statement-shell-polish (docs/feature/statement-shell-polish/architecture/brief.md): every one of those hooks keeps its name, its accessible name and its text, but Home's DOM is no longer unchanged: the entries area is wrapped in one box carrying data-entries-scroll, which is the only part of Entries that scrolls, so the You and Abbaas card and the Entries heading keep their place while the list scrolls. The page itself still never scrolls.
 - F-c-read-only: The Statement holds no You or Abbaas box, no Send or Receive
   button and no control that writes anything, and it opens no entry sheet in
   this Request.
@@ -2541,6 +2543,7 @@ Verification command: `npm run test:acceptance -- tests/acceptance/entry-method.
   the column is headed USD and every figure on this screen is in US dollars; the
   balance card keeps its '$' and shows every figure unsigned.
   Superseded by the statement-currency-columns feature (docs/feature/statement-currency-columns/architecture/brief.md): every row figure now carries its mark ('$1,500', 'MVR10,000', and a rufiyaa send's converted value '$500' with no brackets) and drops a trailing '.00'; totals keep two decimals.
+  Amended by statement-shell-polish (docs/feature/statement-shell-polish/architecture/brief.md): a rufiyaa send's USD cell now reads nothing at all, while still carrying data-converted; the dollars that send stores are read in its MVR cell instead, on the line under the rufiyaa figure, after the rate and the arrow the screen draws.
 - F-c-no-top: The Statement pane draws nothing above the balance card: no
   heading and no period line, at any ledger length, the empty one included. The
   pane keeps the accessible name Statement, so a screen reader still names the
@@ -2593,12 +2596,14 @@ Verification command: `npm run test:acceptance -- tests/acceptance/entry-method.
   sets it and the two aria-current values and nothing else. Nothing is re-read,
   re-rendered or unmounted, so Home keeps its scroll offset, its listeners and
   any motion already running.
+  Amended by statement-shell-polish (docs/feature/statement-shell-polish/architecture/brief.md): a sideways touch swipe also switches the shown tab: its release writes the same data-shown and the same two aria-current values and nothing else, so nothing is re-read, re-rendered or unmounted there either. While a finger is down the shell draws the strip at the share the pure swipe rule answers and writes no tab.
 - F-d-track: The track is 200 per cent wide and holds the two panes at 50 per
   cent each; its resting transform is translateX(0) for entries and
   translateX(-50%) for statement, the navigation pill rests at an offset of zero
   or one half of the bar, and the pane that is not shown rests at opacity 0.4.
   The resting states are drawn from data-shown alone, so the value that adds
   motion adds transitions over these same states and reworks nothing.
+  Amended by statement-shell-polish (docs/feature/statement-shell-polish/architecture/brief.md): the two resting states and their one source are unchanged, but they are no longer the only states drawn: during a touch drag the track, the navigation pill, the two panes and the two tab inks are drawn live at the banded share the pure swipe rule answers, with a quarter of the travel given past either end, and the release returns the track to one of the two resting states.
 - F-d-pane-containing-block: Each pane is the containing block for the fixed
   furniture of the screen inside it: the entries pane carries a transform of its
   own, so Home's bottom bar and its fade anchor to the pane and not to the
@@ -2705,6 +2710,7 @@ Verification command: `npm run test:acceptance -- tests/acceptance/entry-method.
   back}, with four states and four transitions, each transition one attribute
   write; its intended safety is that the shown pane and the current tab always
   agree and that the shown panel and the selected pill tab always agree.
+  Amended by statement-shell-polish (docs/feature/statement-shell-polish/architecture/brief.md): the tab transition is now reached by a tap or by the release of a sideways touch swipe; the four states, the four transitions, the one attribute write per transition and the safety claim are otherwise unchanged. A live drag is a transient internal state of the shell, marked data-dragging, which writes no tab and which no spec reads.
 - F-d-stress-read: Stressor, negating the assumption that the read succeeds: the
   read fails. Preserved: a spoken alert on the pane in view and no rows.
   Allowed: no figures at all. Forbidden: $0.00 figures and empty lists, which
@@ -2728,12 +2734,14 @@ Verification command: `npm run test:acceptance -- tests/acceptance/entry-method.
   motion: prefers-reduced-motion is set. Preserved: the same end screens,
   readable from the first frame. Forbidden: any element carrying data-motion,
   and any part left displaced.
+  Amended by statement-shell-polish (docs/feature/statement-shell-polish/architecture/brief.md): with prefers-reduced-motion set the two screens still follow the finger through a touch drag, because that movement is the owner's own, and the release shows the result at once. A part displaced by a live drag is therefore allowed; what stays forbidden is any element carrying data-motion and any part left displaced once the finger is lifted.
 - F-d-stress-taps: Stressor, negating the assumption that one switch is tapped
   at a time: both navigation tabs and both pill tabs tapped inside one slide.
   Preserved: the end state is the last tap's, with exactly one tab current and
   exactly one panel shown. Allowed: an interrupted slide. Forbidden: a pane
   resting half-way, or two tabs current. Residue: the two attributes, which are
   the whole of the state.
+  Amended by statement-shell-polish (docs/feature/statement-shell-polish/architecture/brief.md): a sideways touch swipe is a second way to switch, so the stressor also covers taps interleaved with a drag and a release, and the end state is the last input's, whether that was a tap or a release. A pane resting half-way stays forbidden at rest; a pane standing between the two views while a finger is down is the gesture itself.
 - F-d-stress-rate: Stressor, negating the assumption that an MVR row carries a
   rate: a row written before the rate constraint. Preserved: the sub-line names
   the rufiyaa figure with no rate clause. Forbidden: the text NaN, the text '@
@@ -4361,10 +4369,12 @@ npm run build
   at all, no element carries data-motion at any frame, no part is ever
   displaced, and every reading of the end screen is the same as on a phone that
   allows motion.
+  Amended by statement-shell-polish (docs/feature/statement-shell-polish/architecture/brief.md): this holds for a tap, and for a sideways touch swipe it is narrowed: with prefers-reduced-motion set the two screens follow the finger through the drag and carry an inline transform while it lasts, and the release shows the settled view at once, with no slide, no spring back and no rise. After the lift no element carries data-motion and no part is left displaced.
 - V3-c-rest-bound: Every part of a switch rests within 1200 ms of the tap,
   because the slowest part is a row at index 14 whose rise ends 788 ms after the
   tap; nothing carries data-motion and no part carries an inline transform after
   that.
+  Amended by statement-shell-polish (docs/feature/statement-shell-polish/architecture/brief.md): the same bound now runs from the tap or from the lift of a sideways touch swipe, whichever began the switch, and the inline transform a live drag writes is cleared by that release.
 - V3-d-motion-owner: src/ui/motion.ts gains the two switches beside the motions
   it already owns, built the same way as its existing entrance: a part is put in
   its start state while it is held, declares which kind of part it is, travels

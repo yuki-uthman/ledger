@@ -1377,6 +1377,14 @@ test('the statement modules depend inward only', async () => {
         importsOf(module.source).some((name) => name.includes('adapters') || name.includes('supabase')),
     )
     .map((module) => module.file)
+  // The two modules of the screens' own folder that decide nothing about where
+  // data comes from, and that a screen may therefore name: the motion, which owns
+  // how a part travels, and the pure rule of the swipe, which owns the decision
+  // over a gesture's own numbers and names no element at all. The dependency
+  // still points one way - the rule imports nothing, and the shell imports the
+  // rule - so every other sibling a screen names is still refused.
+  const INWARD_SIBLINGS = ['./motion', './swipe'] as const
+  const swipeRule = read('src/ui/swipe.ts')
   const uiOffenders = filesIn('src/ui')
     .map((file) => ({ file, source: read(file) ?? '' }))
     .filter((module) =>
@@ -1384,10 +1392,12 @@ test('the statement modules depend inward only', async () => {
         (name) =>
           name.includes('adapters') ||
           name.includes('supabase') ||
-          (name.startsWith('./') && !name.startsWith('./motion')),
+          (name.startsWith('./') &&
+            !INWARD_SIBLINGS.some((inward) => name.startsWith(inward))),
       ),
     )
     .map((module) => module.file)
+  const whatTheRuleNames = importsOf(swipeRule ?? '')
   const composers = [...filesIn('src/domain'), ...filesIn('src/ui'), 'src/main.ts']
     .filter((file) => importsOf(read(file) ?? '').some((name) => name.includes('adapters/supabase')))
     .filter((file) => file !== 'src/main.ts')
@@ -1407,7 +1417,11 @@ test('the statement modules depend inward only', async () => {
   ).toEqual([])
   expect(
     uiOffenders,
-    'WHAT: a screen module imports something other than the ports, the meaning modules and the motion. WHY: a screen that reaches an adapter decides where its data comes from, which is the composition root\'s job alone. HOW: pass the read outcome in.',
+    'WHAT: a screen module imports something other than the ports, the meaning modules, the motion and the pure rule of the swipe. WHY: a screen that reaches an adapter decides where its data comes from, which is the composition root\'s job alone. HOW: pass the read outcome in.',
+  ).toEqual([])
+  expect(
+    whatTheRuleNames,
+    `WHAT: the pure rule of the swipe names ${whatTheRuleNames.join(', ')}. WHY: it is the one module a screen is allowed to reach sideways, and that is only true while it depends on nothing itself: a rule that imported a screen, a port or an adapter would turn the one inward edge into a circle. HOW: decide over the gesture's own numbers alone and import nothing.`,
   ).toEqual([])
   expect(
     composers,

@@ -34,6 +34,7 @@
   The board draws 84 px for the MVR column, so this design is 6 px wider there
   and the party column is 6 px narrower: the deviation buys room for the widest
   rufiyaa reading the owner's ledger can hold.
+  Amended by statement-shell-polish (docs/feature/statement-shell-polish/architecture/brief.md): the grid's own measures, the MVR track among them, are re-tuned by that batch's approved prototype, and a rufiyaa send's MVR cell now stands two lines high. Every measure named here is a design value that no spec reads, the owner's phone being its only check.
 - S-c-board-colours: The colours are #24508a for dollars, #9c4f10 for rufiyaa,
   #4f6f9c at weight 600 for the converted dollar value of a rufiyaa send, which
   carries no brackets, #4c5f5b for the inline rate and the left-hand header
@@ -56,6 +57,7 @@
   its three figures, Home and Entries, the entry form and its sheets, the pill,
   the bottom bar, every motion timing, the zebra tints, the panel shape, the
   Supabase schema and the stored data are unchanged.
+  Amended by statement-shell-polish (docs/feature/statement-shell-polish/architecture/brief.md): this records what this feature left alone, not a standing promise. That later batch removes the minus before the balance card's Paid Back figure, wraps the Entries area in the one box that scrolls, and gives the bottom bar an icon above each word.
 - S-c-privacy: The repository is public, so every figure in an authority, a test
   or a document is an invented stand-in and no figure of the owner's own ledger
   is written anywhere in the repository.
@@ -68,6 +70,7 @@
   Home carry at commit 8535254 keeps its name and its meaning, data-no included,
   and each new cell carries its own hook so a test reads it without reading
   styling.
+  Amended by statement-shell-polish (docs/feature/statement-shell-polish/architecture/brief.md): data-statement-placeholder is removed with the mark it named, data-statement-converted is added on the converted dollars of a rufiyaa send, and data-converted stays on that row's USD cell, which now reads nothing. Every other hook, role and accessible name keeps its name and its meaning.
 - S-c-read-only: The Statement screen is handed a read outcome and nothing that
   writes, so no operation within its reach can change the money it reports.
 - S-t-money: src/domain/money.ts owns how a figure is worded, so the row
@@ -108,6 +111,7 @@
   at all, and a rufiyaa send carries its marked rufiyaa figure, its inline rate
   text where a rate is stored, and the marked reading, with no brackets, of the
   dollars it stores.
+  Amended by statement-shell-polish (docs/feature/statement-shell-polish/architecture/brief.md): the choice type and its three readings are unchanged, but the rate is no longer inline after the figure: the rate, the arrow the screen draws and the marked reading of the stored dollars now stand together on the line under the rufiyaa figure.
 - S-d-carrier-usd: src/domain/statement.ts owns usdFigure, the marked whole
   reading of the dollars a row stores, which is what a sent dollar row and a
   paid-back row both read in their USD column.
@@ -256,6 +260,7 @@
   the screen's own furniture, as the card's minus sign at src/ui/statement.ts:47
   already is: the domain says there is no rufiyaa figure and the screen draws
   the mark that stands for it.
+  Amended by statement-shell-polish (docs/feature/statement-shell-polish/architecture/brief.md): the mark is gone. Absence in a money column is carried by the empty cell alone, the em dash with its hook, its constant and its style is removed, and the balance card's minus sign is removed with it, so the Paid Back figure reads unsigned.
 - S-d-reuse-no-conversion: laariToUsdCents at src/domain/money.ts:70 is
   deliberately not called by this feature: a row's and a footer's dollars are
   the dollars the entries store, so converting a rufiyaa figure a second time
@@ -297,6 +302,7 @@
   send. A dollar send reads '$1,500' at weight 700 in #24508a while a rufiyaa
   send reads '$500' at weight 600 in #4f6f9c, so the carrier had to become a
   choice type rather than one text field.
+  Amended by statement-shell-polish (docs/feature/statement-shell-polish/architecture/brief.md): the law stays refuted and the carrier stays a choice type; its evidence changes, because a rufiyaa send's USD cell now reads nothing at all while still saying it is a converted reading, and the dollars that send stores are read in its MVR cell.
 - S-d-paradigm: The paradigm is functional and is read from the repository, not
   chosen: both statement modules are functions from values to values and from
   values to DOM, and tests/acceptance/statement-lists.spec.ts:1303 already fails
@@ -310,11 +316,13 @@
   cell with data-converted saying whether it reads the converted dollar value of
   a rufiyaa send; and data-statement-foot-line on each sent footer line, naming
   mvr, usd or total, each with its own data-count and data-cents.
+  Amended by statement-shell-polish (docs/feature/statement-shell-polish/architecture/brief.md): data-statement-placeholder is removed with the em dash it marked; data-statement-converted is added on the converted dollars a rufiyaa send reads in its MVR cell; and data-converted stays on a row's USD cell, saying that the cell is the converted reading of a rufiyaa send, which now reads no text at all. The other hooks of this contract are unchanged.
 - S-d-mvr-cell-spacing: A row's MVR cell appends its figure span and its rate
   span with no whitespace text node between them and a 3 px left margin on the
   rate, so the cell's own text reads 'MVR10,000@20' while the owner sees the 3
   px gap the authority draws. An oracle therefore reads the figure and the rate
   as two spans and not as one joined string.
+  Amended by statement-shell-polish (docs/feature/statement-shell-polish/architecture/brief.md): the cell no longer joins the two spans on one line. The figure stands on a line of its own and the rate, the arrow and the stored dollars on the line under it, so the cell reads 'MVR10,000' and under it '@20 → $500', and an oracle reads the figure, the rate and the converted dollars as three spans, each by its own hook.
 - S-ru-usd-cents: The one owner of dollar grouping in this app, read by nine
   modules: it is reused and not changed, and the new row formatters are derived
   from its output.
