@@ -8788,16 +8788,17 @@ npm run test:acceptance
   reading and carries the case as an unknown for the phone rather than inventing
   a bound the authority does not state.
 - V5-d-substrate: The substrate of this value. The driving port is the built
-  bundle served over the loopback origin and read at 360 by 780 in the
-  touch-enabled project, which scans the touch directory of its own; a drag is
-  dispatched through a Chrome DevTools session as a touch start, several moves
-  with their own times and an end, from a helper the acceptance designer owns
-  beside the other supports. The existing stack and accounts helpers bring the
-  local Supabase up, reset it and seed an invented account. The second substrate
-  is the pure rule module's public export, driven by the pinned unit runner in
-  its default node environment, where no document exists. The vectors are the
-  acceptance observation vector over this value's touch spec, the build, the
-  unit run and the one serialised acceptance run over both projects.
+  bundle served over the loopback origin and read at 360 by 780 with touch
+  offered; a drag is dispatched through a Chrome DevTools session as a touch
+  start, several moves with their own times and an end, from the drag helper
+  that stands beside the other supports, while the stack and accounts helpers
+  bring the local Supabase up, reset it and seed an invented account. The second
+  port is the pure rule module's public import, driven by the pinned unit runner
+  in its default node environment, where no document exists. The vectors are, in
+  order: the acceptance observation vector over this value's touch spec with the
+  witness configuration; the build; the pinned unit runner on the rule's unit
+  test; the batch's unit script; and the one serialised acceptance run over both
+  projects.
 - V5-d-pbt: The broad laws of this value are the rule's own and are checked
   through its public export with the generated releases the shared generator
   states, the expected answer computed in the test from the stated bounds and
@@ -9205,6 +9206,41 @@ npm run test:acceptance
   the other view being read.
 - V5-case-quiet-stay: A release on a phone that asked for less motion, leaving
   the view it began on being read.
+- V5-c-witness-config: The observation of this value is made with the batch's
+  acceptance vector unchanged: the same support, the same pinned runner and the
+  same one observation line, with the configuration that support already reads
+  from its environment pointed at an acceptance-owned witness configuration
+  inside the touch directory. This is a deviation from the batch's plain vector
+  wording, and its reason is that the configuration holding the touch project is
+  a craft target: at the Request's baseline that configuration scans the
+  acceptance directory alone, so the touch spec is not collected and the run can
+  report nothing but a setup failure. The support's own bytes are not edited,
+  because the other oracles of this Request are recorded against them.
+- V5-d-witness-config: The witness configuration of this value holds exactly one
+  project, the touch project the batch names: the same viewport of 360 by 780,
+  touch offered, the mobile emulation left off, the same reporters and the same
+  generous timeout, scanning the touch directory alone and collecting the touch
+  spec name alone, so it is never collected as a spec itself. It declares no
+  server, because the spec owns bringing the stack up, building and serving. It
+  exists for one reason, that the gate's configuration cannot be read before
+  craft, and it therefore says the device twice: the obligation to keep the two
+  the same stays with this value's owner, and it is falsified by the spec
+  itself, which runs under the witness configuration in this value's own vector
+  and under the craft-added project in the batch's one serialised acceptance
+  run, so a device that had drifted would answer differently in the two runs. It
+  lies inside the type-check project that already covers the test tree, so the
+  build refuses it if it stops compiling.
+- V5-d-unit-vector: The rule's own port is observed at the baseline through the
+  repository's own pinned unit runner, invoked by path on the one unit test,
+  because the discovery that confines that runner is a craft target and is not
+  there yet; the batch's unit script stays the gate that is run at the end over
+  the same test. Both reach the same file and the same public import, so what
+  the vector witnesses and what the gate protects are one obligation, and
+  neither reaches for a runner installed outside this checkout.
+- V5-ic-oracle-config: The witness configuration inside the touch directory is
+  new and acceptance-owned: it is written before craft together with the touch
+  spec, it is read by no module of the product, and no craft target depends on
+  it.
 
 ### Targets (Value 5)
 
@@ -9226,9 +9262,9 @@ V5-d-algebra-application, V5-d-algebra-adapter, V5-d-algebra-infrastructure,
 V5-d-carriers, V5-d-checkers, V5-d-waiver, V5-d-closure, V5-d-stress-diagonal,
 V5-d-stress-cancel, V5-d-stress-second-pointer, V5-d-stress-mid-slide-grab,
 V5-d-stress-tap-after, V5-d-stress-zero-width, V5-d-spof, V5-d-bypasses,
-V5-d-second-walk, V5-d-states, V5-d-self-falsification, V5-d-substrate,
-V5-d-pbt, F-d-swipe-module, F-d-touch-project, F-d-vitest-scope,
-F-d-paradigm-owners, F-d-design-values-travel
+V5-d-second-walk, V5-d-states, V5-d-self-falsification, V5-d-witness-config,
+V5-d-unit-vector, V5-d-substrate, V5-d-pbt, F-d-swipe-module, F-d-touch-project,
+F-d-vitest-scope, F-d-paradigm-owners, F-d-design-values-travel
 
 ### Oracle (Value 5)
 
@@ -9238,6 +9274,7 @@ tests/touch/swipe-views.touch.spec.ts
 
 ```json
 [
+  "tests/touch/oracle.config.ts",
   "tests/support/oracle-observation.mjs",
   "tests/support/accounts.ts",
   "tests/support/local-stack.ts",
@@ -9258,10 +9295,11 @@ V5-purpose
 ### Constraints (Value 5)
 
 V5-c-bounds, V5-c-travel-unbounded, V5-c-touch-only, V5-c-swallow-window,
-F-c-no-design-values, F-c-invented-figures, F-c-src-uncommitted,
-F-c-prototype-reference, F-c-oracle-vector, F-c-one-playwright-run,
-F-c-existing-project-unchanged, F-c-swipe-two-views-only, F-c-reduced-motion,
-F-c-no-new-dependency, F-c-viewport, F-c-phone-stop
+V5-c-witness-config, F-c-no-design-values, F-c-invented-figures,
+F-c-src-uncommitted, F-c-prototype-reference, F-c-oracle-vector,
+F-c-one-playwright-run, F-c-existing-project-unchanged,
+F-c-swipe-two-views-only, F-c-reduced-motion, F-c-no-new-dependency,
+F-c-viewport, F-c-phone-stop
 
 ### Inherits (Value 5)
 
@@ -9571,6 +9609,14 @@ X-view-index
       "decision": "UNCHANGED_COMPATIBLE",
       "reason": {
         "ref": "V5-a-shown-string"
+      }
+    },
+    {
+      "kind": "fixture",
+      "locator": "tests/touch/oracle.config.ts",
+      "decision": "CHANGED",
+      "reason": {
+        "ref": "V5-ic-oracle-config"
       }
     }
   ],
@@ -10142,13 +10188,19 @@ Product change: required
 Verification command:
 
 ```sh
-node tests/support/oracle-observation.mjs tests/touch/swipe-views.touch.spec.ts
+env DES_ORACLE_CONFIG=tests/touch/oracle.config.ts node tests/support/oracle-observation.mjs tests/touch/swipe-views.touch.spec.ts
 ```
 
 Verification command:
 
 ```sh
 npm run build
+```
+
+Verification command:
+
+```sh
+node node_modules/vitest/vitest.mjs run tests/unit/swipe-outcome.test.ts
 ```
 
 Verification command:
