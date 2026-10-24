@@ -1521,6 +1521,12 @@ const readLedgerAndJudge = async (
 ): Promise<readonly string[]> => {
   await replaceEntries(stack, generated, entries, generatedPeople)
   await page.reload()
+  // A reload resolves at the load event, before the app has restored the session and drawn
+  // the bottom bar, so the bar is given a bounded chance to appear before anything is
+  // concluded from its absence. A bar that never appears still fails as it did before.
+  await statementTab(page)
+    .waitFor({ state: 'attached', timeout: 15_000 })
+    .catch(() => undefined)
   await expect(
     page.locator(PASSWORD_FIELD),
     'WHAT: the reload asked the owner to sign in again. WHY: each generated ledger is read by the same signed-in owner. HOW: keep the session on the phone.',
