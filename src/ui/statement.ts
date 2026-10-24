@@ -29,6 +29,13 @@
 //     data-cents, and each of its figures says on data-reads what it is a
 //     reading of; the block's own count and cents still read the total line, so
 //     a reader that knew only the old hooks reads the same total as before
+//   - the mark before the figure that says it reads the converted total is this
+//     screen's own leaf: it stands inside that figure's detail box, says nothing
+//     on data-reads, and is never part of the words the domain worded, so no
+//     element that says what it reads carries it inside its own text. It is
+//     drawn from that one saying and from nothing about a figure's value, so it
+//     stands at every ledger - the empty one reads MVR0 and the mark with $0.00
+//     - and exactly one of it stands in that footer
 //   - each row carries data-statement-row="<entry id>" and data-no="<number>";
 //     a send names its person on data-person and its sub-line on
 //     data-statement-sub, and a repayment names its stored method token on
@@ -36,9 +43,14 @@
 //   - a header cell of either list names its own column on
 //     data-statement-column="date|party|method|mvr|usd", and a sent row carries
 //     data-statement-mvr on its rufiyaa cell - with data-statement-rate on the
-//     rate inside it and data-statement-placeholder on the mark that stands
-//     where there is no rufiyaa figure - and data-statement-usd on its dollar
-//     cell, with data-converted saying whether that cell reads a converted figure
+//     rate inside it and data-statement-converted on the one element that reads
+//     the dollars that same send stores - and data-statement-usd on its dollar
+//     cell, with data-converted saying whether that cell reads a converted
+//     figure, which it says whether or not it reads a figure at all
+//   - no hook says that a cell is empty: absence in a money column is carried by
+//     the empty cell alone, so where a row has no figure to read in a column
+//     nothing at all is drawn there, and there is no element such a hook could
+//     stand on
 //
 // The place of a row of either list is still carried on data-no, and no number is
 // drawn in the row: the order the owner reads is kept, and only its drawn number
@@ -62,9 +74,6 @@ import {
 import type { ReadEntriesOutcome } from '../ports/ledger-store.js'
 import { VIEW_SHOWN, riseParts, slideLists, type SwitchPart } from './motion.js'
 
-/** The board's own minus, in the middle column of the Paid Back row. */
-const MINUS = '−'
-
 /** What the card calls each of its three figures. */
 const FIGURE_LABELS: Readonly<Record<StatementFigureName, string>> = {
   sent: 'Total Sent',
@@ -72,15 +81,27 @@ const FIGURE_LABELS: Readonly<Record<StatementFigureName, string>> = {
   balance: 'Balance',
 }
 
-/** The sign that stands before a figure: only a repayment takes one off. */
+/**
+ * The one place that owns the mark standing before a figure of the card, for
+ * each of its three figures and for no other name. No figure takes a mark: the
+ * card reads three sums, each under its own word, so a minus before the Paid
+ * Back figure read as a figure made negative, telling the owner that money
+ * which came back had been taken off twice.
+ */
 const FIGURE_SIGNS: Readonly<Record<StatementFigureName, string>> = {
   sent: '',
-  paid: MINUS,
+  paid: '',
   balance: '',
 }
 
-/** The mark that stands where a row has no rufiyaa figure: an em dash, not a hyphen. */
-const NO_RUFIYAA = '—'
+/**
+ * The mark this screen draws before the dollars some rufiyaa came to: beside a
+ * rate in a sent row's rufiyaa cell, and before the sent footer's reading of
+ * what its rufiyaa were worth. It is this screen's own reading of 'became', and
+ * no part of what the domain words, which is why it is written here once and in
+ * no string of the domain.
+ */
+const BECAME = '→'
 
 /**
  * One cell of a column header: the word the owner reads, and the name of the
@@ -201,9 +222,11 @@ const appendCells = (parent: HTMLElement, cells: readonly Node[]): void => {
 }
 
 /**
- * The mint balance card: Total Sent, Paid Back with its minus, a divider, and
- * the Balance in the large type the board draws. The figure itself carries the
- * hook and the cents, so what a reader reads there is the figure alone.
+ * The mint balance card: Total Sent, Paid Back, a divider, and the Balance in
+ * the large type the board draws. The figure itself carries the hook and the
+ * cents, so what a reader reads there is the figure alone. The mark of a row
+ * comes only from the one table of signs, which gives none to any of the three,
+ * and the cell it stands in is still drawn, keeping its place in the grid.
  */
 const renderCard = (figures: readonly StatementFigure[]): HTMLElement => {
   const card = element('div', 'statement-card')
@@ -260,30 +283,39 @@ const renderParty = (row: StatementRow): HTMLElement => {
 }
 
 /**
- * The rufiyaa cell of one sent row: a rufiyaa send's own figure with the rate it
- * was sent at beside it, or the mark that stands where there is no rufiyaa figure
- * to read.
+ * The rufiyaa cell of one sent row: a rufiyaa send's own figure, and under it one
+ * further reading of the rate it was sent at, the mark this screen draws and the
+ * dollars that same send stores. A send made in dollars draws nothing at all
+ * here, and the cell is still drawn: absence in a money column is carried by the
+ * empty cell alone, because a mark standing for a missing figure reads in a money
+ * column as a figure of its own.
  *
- * Its two readings are appended TIGHT against each other, unlike every other
- * pair of cells on this screen: the gap the owner sees is the rate's own margin,
- * so anything that reads this cell as text reads one figure and its rate rather
- * than two readings with a typed space between them.
+ * The three readings under the figure are appended TIGHT against each other,
+ * unlike every other pair of cells on this screen: the gap the owner sees is the
+ * board's own, so anything that reads this cell as text reads one figure and what
+ * it came to rather than readings with typed spaces between them.
+ *
+ * The stored dollars carry the converted hook, so a reader finds what a rufiyaa
+ * send was worth without parsing the cell; exactly one element of the row carries
+ * it, because one function draws this cell.
  */
 const renderMvrCell = (reading: StatementMvrCell): HTMLElement => {
   const mvr = element('span', 'statement-mvr')
   mvr.dataset.statementMvr = ''
-  if (reading.currency === 'USD') {
-    const absent = cell('statement-mvr-absent', NO_RUFIYAA)
-    absent.dataset.statementPlaceholder = ''
-    mvr.append(absent)
-    return mvr
-  }
+  if (reading.currency === 'USD') return mvr
   mvr.append(cell('statement-mvr-figure', reading.figure))
+  const detail = element('span', 'statement-mvr-detail')
+  // The mark is drawn only inside the branch that reads a rate: a mark with
+  // nothing before it would read as a reading of its own.
   if (reading.rateText !== null) {
     const rate = cell('statement-mvr-rate', reading.rateText)
     rate.dataset.statementRate = ''
-    mvr.append(rate)
+    detail.append(rate, cell('statement-mvr-arrow', BECAME))
   }
+  const converted = cell('statement-mvr-converted', reading.convertedText)
+  converted.dataset.statementConverted = ''
+  detail.append(converted)
+  mvr.append(detail)
   return mvr
 }
 
@@ -295,7 +327,7 @@ const renderMvrCell = (reading: StatementMvrCell): HTMLElement => {
  */
 const usdReadingOf = (row: StatementRow): { readonly text: string; readonly converted: boolean } =>
   row.mvrCell.currency === 'MVR'
-    ? { text: row.mvrCell.convertedText, converted: true }
+    ? { text: '', converted: true }
     : { text: row.usdFigure, converted: false }
 
 /**
@@ -374,11 +406,23 @@ const footLabel = (label: string, countLabel: string): string =>
  * the rufiyaa that went out, what those rufiyaa were worth, the dollars that
  * went out, the total of both - and the board inks it from that, so no ink here
  * is chosen by looking at a figure's text.
+ *
+ * The figure that reads what the rufiyaa were worth is handed its own detail
+ * box, with this screen's mark drawn as a leaf of its own before it. Which
+ * figure takes the mark is decided by what that figure says it reads and by
+ * nothing about its text, so a figure of any other reading is the one span it
+ * has always been, and no mark can reach the words the domain worded: the mark
+ * is appended beside the figure, never into it.
  */
 const renderFootFigure = (figure: SentFootFigure): HTMLElement => {
   const drawn = cell('statement-foot-figure', figure.text)
   drawn.dataset.reads = figure.reads
-  return drawn
+  if (figure.reads !== 'converted') return drawn
+  const detail = element('span', 'statement-foot-detail')
+  // Through appendCells, so the line reads '... MVR14,000 → $700.00' as one
+  // sentence rather than running the mark into the figure behind it.
+  appendCells(detail, [cell('statement-mvr-arrow', BECAME), drawn])
+  return detail
 }
 
 /**

@@ -456,11 +456,27 @@ const renderFade = (): HTMLElement => {
 }
 
 /**
- * The centre line the entries lie either side of, and the area it runs down.
+ * The box the entries scroll in, holding the centre line the entries lie either
+ * side of and the area it runs down.
+ *
  * The line is decoration - the sides and the cards already say which half each
  * entry belongs to - so it is hidden from assistive technology; it is an
  * element rather than a pseudo-element because the opening entrance draws it
  * down from its top, and it carries data-spine, which is how it is named.
+ *
+ * The box around that area is the ONE thing of the Entries pane that scrolls:
+ * the balance card and the heading stay above it and keep their places however
+ * far the list travels, and the area keeps its own horizontal clip inside it, so
+ * a card crossing the centre line is still cut at the list's own edge. This is
+ * the only writer of data-entries-scroll, which is how a reading of the mounted
+ * page names that box, and the box says nothing to a screen reader - no role and
+ * no name - so a page read aloud still reads the card, the heading and the
+ * entries in the order it always did. What the box cannot say for itself, that
+ * it takes the remaining room, the vertical scroll and the room the two bottom
+ * buttons need at its end, is one rule of the stylesheet, which no checker of
+ * this repository reads; a second scrolling box inside the pane, or a second
+ * element wearing this hook, is caught by a reading of the whole mounted pane
+ * and by nothing else.
  */
 const renderEntriesArea = (list: HTMLElement): HTMLElement => {
   const area = document.createElement('div')
@@ -472,7 +488,12 @@ const renderEntriesArea = (list: HTMLElement): HTMLElement => {
   spine.setAttribute('aria-hidden', 'true')
 
   area.append(spine, list)
-  return area
+
+  const scroller = document.createElement('div')
+  scroller.className = 'entries-scroll'
+  scroller.dataset.entriesScroll = ''
+  scroller.append(area)
+  return scroller
 }
 
 const renderEmptyHint = (): HTMLElement => {

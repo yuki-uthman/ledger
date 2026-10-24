@@ -30,18 +30,18 @@
   --hairline: #cfd9d6;
 
   /* The inks of the two currency columns of the sending list: the rufiyaa a send
-     was made in, the lighter blue what that send was WORTH is read in, and the
-     mark that stands where a row has no rufiyaa figure at all. */
+     was made in, and the lighter blue what that send was WORTH is read in. A
+     column with no figure to read is drawn empty, so there is nothing left to
+     ink where a row has no figure at all. */
   --mvr: #9c4f10;
   --you-soft: #4f6f9c;
-  --absent: #5f706c;
 
   /* The hairline the sent footer parts its total from its two currency lines
      by: paler than the grey hairline above, so it reads inside the blue bed. */
   --you-rule: #cfdbea;
 
   --side: 16px;
-  --bottom-gap: 20px;
+  --bottom-gap: 4px;
   --button-height: 60px;
 
   /* The reading column. The app fills a phone's width but for its side margins,
@@ -92,14 +92,13 @@ body {
      retracting address bar, so a screen never hides behind it. */
   min-height: 100dvh;
   padding: 20px var(--side);
-  /* Room for the fixed bottom buttons, so nothing hides behind them. */
+  /* Room for the fixed bottom buttons, so nothing hides behind them: kept here
+     for every screen that still scrolls itself. Home no longer does - it holds
+     the pane's height and the box inside it scrolls - so Home moves this room to
+     the END of that box, which is the only place a scroll can stop above the
+     buttons; see .pane > .screen.home below. */
   padding-bottom: calc(var(--button-height) + var(--bottom-safe) + var(--bottom-gap) + 24px);
 }
-
-/* Room for the bottom buttons, which are the only thing fixed over the foot of
-   Home now that the Saved message is gone: nothing rides above them, so Home
-   asks for no more room than .screen already keeps and the list's own bottom
-   padding carries the last entry clear of the fade. */
 
 /* --- The shell and the pane each view lives in (src/ui/views.ts). ---
 
@@ -136,6 +135,26 @@ body {
   width: 200%;
   display: flex;
   transform: translateX(0);
+}
+
+/* The browser keeps the vertical scroll; a sideways move is the swipe's. Set on
+   every element of the strip, because each scrolling list inside it is a scroll
+   container of its own, and a scroll container answers only to its own rule. */
+.views-track,
+.views-track * {
+  touch-action: pan-y;
+  overscroll-behavior-x: none;
+}
+
+/* While a finger is carrying the strip the shell carries a mark of its own, and
+   the drawing is then a direct write at every move: nothing over the strip, the
+   pill or the two panes may be timed, or the parts would lag behind the finger.
+   The mark is internal - what a reading of the page goes by is the view shown and
+   the one tab marked as the current one. */
+.screen.views[data-dragging] .views-track,
+.screen.views[data-dragging] .views-pill-holder,
+.screen.views[data-dragging] .pane {
+  transition: none;
 }
 
 .screen.views[data-shown='statement'] .views-track {
@@ -184,10 +203,44 @@ body {
   overflow-y: auto;
 }
 
-/* Home carries no title at all: the box row is the top of the screen, 24 px
+/* Home carries no title at all: the box row is the top of the screen, 4 px
    below its edge and clear of whatever notch the device claims. */
 .home {
-  padding-top: calc(24px + env(safe-area-inset-top));
+  padding-top: calc(4px + env(safe-area-inset-top));
+}
+
+/* Home in its pane holds still: the card and the heading are pinned, and only
+   the list below them scrolls, in a box that fills the rest of the pane.
+
+   min-height: 0 against .screen's own 100dvh, which is the WHOLE phone and so
+   taller than the pane by the navigation bar: a column that kept it would hold
+   more height than the pane shows, and the end of the box below - where the
+   room for the two buttons is - would then lie behind the bar, leaving the last
+   entry under the buttons the room was kept for. The column holds the pane's
+   own height instead, which is what .pane > .screen gives it.
+
+   clip and not hidden, on both axes: a hidden box is still a box the browser may
+   scroll to reach something inside it, and this column must never hold a scroll
+   of its own, or the card and the heading could be carried off its top. */
+.pane > .screen.home {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: clip;
+  padding-bottom: 0;
+}
+
+.pane > .screen.home > * {
+  flex: 0 0 auto;
+}
+
+.pane > .screen.home > .entries-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  /* The list's room for the bottom buttons, moved here from the screen. */
+  padding-bottom: calc(var(--button-height) + var(--bottom-safe) + var(--bottom-gap) + 24px);
 }
 
 /* --- The two boxes: You on the left, Abbaas on the right, each with its name
@@ -336,7 +389,7 @@ body {
   display: flex;
   justify-content: space-between;
   gap: 16px;
-  margin: 14px 0 0;
+  margin: 4px 0 0;
   font-size: 13px;
   color: var(--muted);
 }
@@ -369,7 +422,7 @@ body {
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
-  margin-top: 22px;
+  margin-top: 4px;
 }
 
 .entries-header h2 {
@@ -2365,10 +2418,9 @@ body {
 .views-nav {
   flex: 0 0 auto;
   position: relative;
-  height: 84px;
-  /* The board's own padding: the 20 px below is the room Android's gesture bar
-     takes, which is why the tabs sit high in the bar rather than centred. */
-  padding: 8px 0 20px;
+  height: 64px;
+  /* Tightened from the board's 8 px above and 20 px below, on the owner's phone. */
+  padding: 4px 0 4px;
   display: grid;
   grid-template-columns: 1fr 1fr;
   background: #ffffff;
@@ -2382,13 +2434,15 @@ body {
    every other width it is still one half. */
 .views-pill-holder {
   position: absolute;
-  top: 8px;
-  bottom: 20px;
+  top: 4px;
+  bottom: 4px;
   left: 0;
   width: 50%;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
+  /* The pill lies centred around the icon, 2px inside the icon's 34px slot. */
+  padding-top: 2px;
   /* Behind the words, and never the thing a thumb lands on. */
   pointer-events: none;
   transform: translateX(0);
@@ -2411,14 +2465,44 @@ body {
   border: 0;
   padding: 0;
   background: transparent;
-  display: inline-flex;
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
+  gap: 4px;
   font-family: var(--title-font);
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 800;
   color: var(--muted);
   cursor: pointer;
+  /* The browser's own tap box covers the whole half of the bar; the press is
+     shown on the icon and the word alone instead. */
+  -webkit-tap-highlight-color: transparent;
+  /* The ink crosses over the same 420 ms and curve as the pill, so the two arrive together. */
+  transition:
+    opacity 120ms ease-out,
+    color 420ms var(--curve);
+}
+
+/* Under a finger the ink is drawn at each move, so it must not lag behind it. */
+.screen.views[data-dragging] .views-tab {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .views-tab {
+    transition: none;
+  }
+}
+
+.views-tab:active {
+  opacity: 0.5;
+}
+
+.views-tab-icon {
+  height: 34px;
+  display: flex;
+  align-items: center;
 }
 
 .views-tab[aria-current='page'] {
@@ -2437,8 +2521,8 @@ body {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: calc(24px + env(safe-area-inset-top)) var(--side) var(--side);
+  gap: 4px;
+  padding: calc(4px + env(safe-area-inset-top)) var(--side) 4px;
   /* Clipped, not hidden, for the reason given on .screen.views above. */
   overflow: clip;
 }
@@ -2642,6 +2726,14 @@ body {
 
 /* The hairline that tells the owner the last line is the total of the two above
    it and not a third currency, which is why it stands above THAT line alone. */
+/* Ends where the MVR column ends: inset by the USD track (60px) and the gap (6px). */
+.statement-foot-line[data-statement-foot-line='mvr'] .statement-foot-figures {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  margin-right: 66px;
+}
+
 .statement-foot-line[data-statement-foot-line='total'] {
   padding-top: 6px;
   border-top: 1px solid var(--you-rule);
@@ -2655,7 +2747,19 @@ body {
 }
 
 .statement-foot-figure[data-reads='converted'] {
+  font-size: 11.5px;
   color: var(--you-soft);
+}
+
+.statement-foot-detail {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+  font-size: 11.5px;
+}
+
+.statement-foot-detail > .statement-mvr-arrow {
+  font-weight: 400;
 }
 
 .statement-foot-figure[data-reads='usd'] {
@@ -2671,10 +2775,16 @@ body {
    6px narrower, because a rufiyaa figure now carries the mark 'MVR' before it
    and must still hold the widest reading this ledger can take with its rate on
    the same line. The paid-back list declares its own three columns further
-   down, where the rest of that list is drawn. */
+   down, where the rest of that list is drawn.
+
+   That rufiyaa column keeps its 90px for every reading the owner can actually
+   send, and takes what a wider one needs out of the party column beside it: the
+   figure and the reading under it must stay whole INSIDE their own column
+   however wide the ledger stores the figure and the rate, and the name is the
+   one reading that may give way, which it does through its own ellipsis. */
 .statement-panel[data-statement-list='sent'] .statement-head-row,
 .statement-panel[data-statement-list='sent'] .statement-row {
-  grid-template-columns: 40px minmax(0, 1fr) 90px 54px;
+  grid-template-columns: 40px minmax(0, 1fr) minmax(90px, max-content) 60px;
   column-gap: 6px;
 }
 
@@ -2750,17 +2860,36 @@ body {
   color: var(--mvr);
 }
 
-/* The rate tells the owner how the rufiyaa became dollars; it is not money
-   itself, so it is smaller and greyer than the figure it stands beside and is
-   held off it by the gap the board draws rather than by a typed space. */
+/* The figure a send was made in is read on its own line, and what it came to is
+   read under it: the rate, the mark and the stored dollars are one further
+   reading, gathered to the same right edge so the figures still read down their
+   column. */
+.statement-mvr {
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+/* The rate and the mark tell the owner how the rufiyaa became dollars; neither
+   is money itself, so both are smaller and greyer than the stored dollars they
+   stand before, and the gap between the three is drawn rather than typed. */
+.statement-mvr-detail {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+  font-size: 10px;
+}
+
 .statement-mvr-rate {
-  margin-left: 3px;
-  font-size: 11.5px;
   color: var(--muted);
 }
 
-.statement-mvr-absent {
-  color: var(--absent);
+.statement-mvr-arrow {
+  color: var(--muted);
+}
+
+.statement-mvr-converted {
+  font-weight: 600;
+  color: var(--you-soft);
 }
 
 /* Money that left, and what a send made in rufiyaa was worth: told apart by
